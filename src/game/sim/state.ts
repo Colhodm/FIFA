@@ -16,9 +16,11 @@ export interface SimPlayer {
   shirt: number;
   role: Role;
   pace: number;
-  passing: number;
   shooting: number;
+  passing: number;
+  dribbling: number;
   defending: number;
+  physical: number;
   enduranceRating: number;
   pos: Vec2;
   vel: Vec2;
@@ -27,11 +29,15 @@ export interface SimPlayer {
   stamina: number;
   /** Seconds until this player may touch the ball again. */
   kickCooldown: number;
+  /** Run-cycle phase in radians, advanced by distance travelled so strides match the ground. */
+  gait: number;
   /** Seconds until the AI re-evaluates (models reaction time). */
   thinkTimer: number;
   /** Cached AI intent, refreshed on the reaction-time cadence. */
   intent: Vec2;
   intentSprint: boolean;
+  /** Jockeying (off the ball) or shielding (on it) — slower, but much harder to beat. */
+  shielding: boolean;
   /** Formation slot in normalised attacking space. */
   slot: Vec2;
   slotRole: Role;
@@ -173,18 +179,22 @@ export function createWorld(config: MatchConfig): SimWorld {
         shirt: data.shirt,
         role: slot.role,
         pace: data.stats.pace,
-        passing: data.stats.passing,
         shooting: data.stats.shooting,
+        passing: data.stats.passing,
+        dribbling: data.stats.dribbling,
         defending: data.stats.defending,
+        physical: data.stats.physical,
         enduranceRating: data.stats.stamina,
         pos: { x: 0, z: 0 },
         vel: { x: 0, z: 0 },
         heading: 0,
         stamina: 1,
         kickCooldown: 0,
+        gait: 0,
         thinkTimer: 0,
         intent: { x: 0, z: 0 },
         intentSprint: false,
+        shielding: false,
         slot: { x: slot.x, z: slot.z },
         slotRole: slot.role,
       });

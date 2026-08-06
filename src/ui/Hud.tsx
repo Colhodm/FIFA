@@ -1,4 +1,5 @@
 import { teamById, useGameStore, useHudStore } from '../game/store';
+import { Radar } from './Radar';
 
 export function Hud() {
   const hud = useHudStore();
@@ -9,18 +10,21 @@ export function Hud() {
 
   return (
     <div className="hud">
+      {/* Broadcast bug: clock, then both clubs with their kit colour and the score. */}
       <div className="scoreboard">
-        <span className="sb-team" style={{ borderColor: home?.kit.primary }}>
+        <span className="sb-clock">
+          {hud.minute}'<small>{hud.half === 1 ? '1st' : '2nd'}</small>
+        </span>
+        <span className="sb-side">
+          <i style={{ background: home?.kit.primary }} />
           {home?.shortName ?? 'HOM'}
         </span>
         <span className="sb-score">
-          {hud.score.home} – {hud.score.away}
+          {hud.score.home}–{hud.score.away}
         </span>
-        <span className="sb-team" style={{ borderColor: away?.kit.primary }}>
+        <span className="sb-side">
+          <i style={{ background: away?.kit.primary }} />
           {away?.shortName ?? 'AWY'}
-        </span>
-        <span className="sb-clock">
-          {hud.minute}'<small>{hud.half === 1 ? '1st' : '2nd'}</small>
         </span>
       </div>
 
@@ -46,13 +50,18 @@ export function Hud() {
         </div>
       </div>
 
+      <Radar homeKit={home?.kit} awayKit={away?.kit} />
+
       <div className="hints">
-        <span>WASD move</span>
+        <span>← ↑ ↓ → move</span>
         <span>Shift sprint</span>
-        <span>K pass</span>
-        <span>L shoot</span>
-        <span>J tackle</span>
-        <span>Q switch</span>
+        <span>Z jockey</span>
+        <span>A pass / contain</span>
+        <span>S cross / slide</span>
+        <span>Q through ball</span>
+        <span>D shoot / tackle</span>
+        <span>W driven · E lofted</span>
+        <span>Space switch</span>
         <span>Esc pause</span>
       </div>
     </div>

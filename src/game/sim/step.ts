@@ -20,7 +20,15 @@ import {
 import type { InputFrame } from '../input/input';
 import type { TeamSide } from '../types';
 import { decideOffBall, decideOnBall, kickPass, nearestOf, shoot } from './ai';
-import { applyKick, ballPos2, bestPass, goalCenter } from './kick';
+import {
+  applyKick,
+  ballPos2,
+  bestCross,
+  bestPass,
+  bestThroughBall,
+  goalCenter,
+  ownGoalCenter,
+} from './kick';
 import { angleDelta, clamp, dist, normalize, sub, type Vec2 } from './math';
 import { advanceClock, checkBallOut, startSecondHalf } from './rules';
 import {
@@ -129,10 +137,23 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
 
     let desired: Vec2;
     let sprint: boolean;
+    let face: Vec2 | null = null;
     if (p.id === humanControlled) {
+      const hasBall = world.controllerId === p.id;
+      const jockey = input.actions.jockey.down;
+      // Hold pass off the ball to contain: the player backs off goal-side of the carrier.
+      const contain = !hasBall && input.actions.pass.down;
+      p.shielding = jockey;
       desired = inputToWorld(input.move, cameraYaw);
-      sprint = input.actions.sprint.down && p.stamina > 0.05;
+      if (contain) desired = containTarget(world, p);
+      if (jockey) {
+        desired = { x: desired.x * 0.55, z: desired.z * 0.55 };
+        face = sub(ballPos2(world), p.pos);
+      }
+      sprint = input.actions.sprint.down && !jockey && !contain && p.stamina > 0.05;
     } else {
+      // Only the carrier shields; decideOnBall re-arms this on its own cadence.
+      if (world.controllerId !== p.id) p.shielding = false;
       const profile = profileFor(world, p);
       p.thinkTimer -= dt;
       if (p.thinkTimer <= 0) {
@@ -150,25 +171,44 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
       sprint = p.intentSprint && p.stamina > 0.08;
     }
 
-    integrate(p, desired, sprint, dt);
+    integrate(p, desired, sprint, dt, face);
   }
 }
 
-function integrate(p: SimPlayer, desired: Vec2, sprint: boolean, dt: number): void {
+/** Goal-side containing position: stay between the ball and your own net, a stride off it. */
+function containTarget(world: SimWorld, p: SimPlayer): Vec2 {
+  const ball = ballPos2(world);
+  const own = ownGoalCenter(world, p.side);
+  const goalSide = normalize(sub(own, ball));
+  const spot = { x: ball.x + goalSide.x * 2, z: ball.z + goalSide.z * 2 };
+  const to = sub(spot, p.pos);
+  const d = Math.hypot(to.x, to.z);
+  const n = normalize(to);
+  return { x: n.x * clamp(d / 2, 0, 1), z: n.z * clamp(d / 2, 0, 1) };
+}
+
+function integrate(
+  p: SimPlayer,
+  desired: Vec2,
+  sprint: boolean,
+  dt: number,
+  face: Vec2 | null = null,
+): void {
   const throttle = Math.min(1, Math.hypot(desired.x, desired.z));
   const dir = normalize(desired);
   const staminaFactor = 0.72 + 0.28 * clamp(p.stamina * 1.4, 0, 1);
   // Keepers shuffle and dive rather than sprint across their line.
   const maxSpeed =
     BASE_SPEED *
-    (0.86 + (p.pace / 100) * 0.3) *
+    (0.78 + (p.pace / 100) * 0.44) *
     (sprint ? SPRINT_MULTIPLIER : 1) *
     staminaFactor *
+    (p.shielding ? 0.72 : 1) *
     (p.role === 'GK' ? 0.78 : 1);
   const target = { x: dir.x * maxSpeed * throttle, z: dir.z * maxSpeed * throttle };
 
-  // Sprinting trades agility for speed.
-  const accel = ACCELERATION * (sprint ? 0.72 : 1);
+  // Sprinting trades agility for speed; dribbling buys it back.
+  const accel = ACCELERATION * (0.82 + p.dribbling / 320) * (sprint ? 0.72 : 1);
   const dvx = target.x - p.vel.x;
   const dvz = target.z - p.vel.z;
   const dv = Math.hypot(dvx, dvz);
@@ -182,9 +222,12 @@ function integrate(p: SimPlayer, desired: Vec2, sprint: boolean, dt: number): vo
   p.pos.z = clamp(p.pos.z + p.vel.z * dt, -HALF_WIDTH - 2.5, HALF_WIDTH + 2.5);
 
   const speed = Math.hypot(p.vel.x, p.vel.z);
-  if (speed > 0.35) {
-    const want = Math.atan2(p.vel.x, p.vel.z);
-    const rate = TURN_RATE * (sprint ? 0.6 : 1);
+  // Phase advances with distance covered, so strides never skate over the grass.
+  p.gait = (p.gait + (speed * dt) / 0.85) % (Math.PI * 2);
+  const facing = face && Math.hypot(face.x, face.z) > 0.01 ? face : speed > 0.35 ? p.vel : null;
+  if (facing) {
+    const want = Math.atan2(facing.x, facing.z);
+    const rate = TURN_RATE * (0.8 + p.dribbling / 400) * (sprint ? 0.6 : 1);
     p.heading += clamp(angleDelta(p.heading, want), -rate * dt, rate * dt);
   }
 
@@ -208,13 +251,15 @@ function resolveOverlaps(world: SimWorld): void {
       const d2 = dx * dx + dz * dz;
       if (d2 > min * min || d2 < 1e-8) continue;
       const d = Math.sqrt(d2);
-      const push = (min - d) / 2;
+      const push = min - d;
       const nx = dx / d;
       const nz = dz / d;
-      a.pos.x -= nx * push;
-      a.pos.z -= nz * push;
-      b.pos.x += nx * push;
-      b.pos.z += nz * push;
+      // The stronger man holds his ground in a shoulder-to-shoulder.
+      const share = clamp(0.5 + (b.physical - a.physical) / 200, 0.2, 0.8);
+      a.pos.x -= nx * push * share;
+      a.pos.z -= nz * push * share;
+      b.pos.x += nx * push * (1 - share);
+      b.pos.z += nz * push * (1 - share);
     }
   }
 }
@@ -234,8 +279,14 @@ function resolveChallenges(world: SimWorld, dt: number): void {
     const d = dist(opponent.pos, carrier.pos);
     if (d > radius) continue;
     const closeness = 1 - d / radius;
-    const skill = opponent.role === 'GK' ? 2.5 : 0.5 + (opponent.defending - carrier.pace) / 160;
-    if (world.rand() > clamp(skill, 0.12, 2.5) * closeness * dt) continue;
+    // Tackling pits defending and strength against the carrier's close control and strength.
+    const attack = (opponent.defending + opponent.physical) / 2;
+    const defence = (carrier.dribbling + carrier.physical) / 2;
+    const skill =
+      opponent.role === 'GK'
+        ? 2.5
+        : (0.55 + (attack - defence) / 150) * (carrier.shielding ? 0.4 : 1);
+    if (world.rand() > clamp(skill, 0.08, 2.5) * closeness * dt) continue;
 
     carrier.kickCooldown = KICK_COOLDOWN * 1.6;
     world.controllerId = opponent.id;
@@ -271,7 +322,7 @@ function updateControl(world: SimWorld): void {
     if (d >= reach) continue;
     // A struck ball cannot simply be plucked out of the air: keepers claim all but the
     // hardest strikes, outfield players only deflect one at point-blank range.
-    const limit = keeper ? 18 : 10 + (p.defending + p.passing) / 40;
+    const limit = keeper ? 18 : 10 + (p.defending + p.dribbling) / 40;
     if (ballSpeed > limit) {
       const incoming =
         world.ball.vel.x * (p.pos.x - ball.x) + world.ball.vel.z * (p.pos.z - ball.z) > 0;
@@ -326,10 +377,13 @@ function updateControl(world: SimWorld): void {
   world.possession = holder.side;
   world.lastTouch = { side: holder.side, playerId: holder.id };
 
-  // Nudge the ball to a dribbling position just ahead of the player.
+  // Nudge the ball to a dribbling position just ahead of the player: good close control keeps
+  // it tight, while pace on the ball knocks it further in front.
+  const knock =
+    0.5 + (1 - holder.dribbling / 100) * 0.45 + Math.hypot(holder.vel.x, holder.vel.z) * 0.03;
   const ahead = {
-    x: holder.pos.x + Math.sin(holder.heading) * 0.62,
-    z: holder.pos.z + Math.cos(holder.heading) * 0.62,
+    x: holder.pos.x + Math.sin(holder.heading) * knock,
+    z: holder.pos.z + Math.cos(holder.heading) * knock,
   };
   const toAhead = sub(ahead, ball);
   const cap = Math.hypot(holder.vel.x, holder.vel.z) + 5;
@@ -352,54 +406,101 @@ function autoSwitch(world: SimWorld, holder: SimPlayer): void {
 
 const chargeOf = (heldTime: number): number => clamp(heldTime / CHARGE_TIME, 0.15, 1);
 
+/**
+ * Face buttons do different jobs with and without the ball, exactly like the pad: shoot/tackle,
+ * cross/slide, pass/contain, through ball/nothing. R1 (driven, finesse, threaded) and L1
+ * (chipped, lofted, high) modify whichever kick is played.
+ */
 function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: number): void {
   const active = world.players.find((p) => p.id === world.activeId);
   if (!active) return;
+  const a = input.actions;
   const moveDir = inputToWorld(input.move, cameraYaw);
   const facing = { x: Math.sin(active.heading), z: Math.cos(active.heading) };
   const aimDir = Math.hypot(moveDir.x, moveDir.z) > 0.2 ? moveDir : facing;
   const hasBall = world.controllerId === active.id;
+  const r1 = a.modR1.down;
+  const l1 = a.modL1.down;
 
-  if (input.actions.switch.pressed && !hasBall) switchPlayer(world);
+  if (!hasBall) {
+    if (a.switch.pressed || a.modL1.pressed) switchPlayer(world);
+    if (a.shoot.pressed) tackle(world, active, r1 ? 1.35 : 1);
+    if (a.cross.pressed) slideTackle(world, active);
+    return;
+  }
 
-  if (hasBall && input.actions.shoot.released) {
-    const charge = chargeOf(input.actions.shoot.heldTime);
+  if (a.shoot.released) {
+    const charge = chargeOf(a.shoot.heldTime);
     const goal = goalCenter(world, active.side);
     const d = dist(active.pos, goal);
-    if (d < 40) {
-      shoot(world, active, HUMAN_PROFILE, 1, 0.55 + charge * 0.65);
+    if (l1) {
+      // Chip: little power, plenty of loft, aimed over the keeper.
+      const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
+      applyKick(world, active, dir, MIN_SHOT_POWER * (0.6 + charge * 0.35), 4.2);
+      world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
+      world.shots[active.side] += 1;
+    } else if (d < 40) {
+      // Finesse trades power for placement.
+      const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
+      shoot(world, active, profile, 1, (r1 ? 0.45 : 0.55) + charge * (r1 ? 0.45 : 0.65));
     } else {
       applyKick(
         world,
         active,
         aimDir,
         MIN_SHOT_POWER + charge * (MAX_SHOT_POWER - MIN_SHOT_POWER),
-        1.8,
+        r1 ? 0.6 : 1.8,
       );
       world.events.push({ type: 'kick', side: active.side, intensity: charge });
     }
     return;
   }
 
-  if (hasBall && input.actions.pass.released) {
-    const charge = chargeOf(input.actions.pass.heldTime);
+  if (a.through.released) {
+    const charge = chargeOf(a.through.heldTime);
+    const lofted = l1 || a.through.doubleTap;
+    const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir);
+    const spot = option
+      ? option.spot
+      : { x: active.pos.x + aimDir.x * 22, z: active.pos.z + aimDir.z * 22 };
+    kickPass(world, active, spot, HUMAN_PROFILE, (r1 ? 1.15 : 0.85) + charge * 0.5, {
+      lift: lofted ? 3.4 : 0,
+    });
+    return;
+  }
+
+  if (a.cross.released) {
+    const charge = chargeOf(a.cross.heldTime);
+    const ground = a.cross.doubleTap;
+    const option = bestCross(world, active);
+    const spot = option
+      ? option.spot
+      : { x: goalCenter(world, active.side).x - world.attackDir[active.side] * 8, z: 0 };
+    kickPass(world, active, spot, HUMAN_PROFILE, (r1 ? 1.2 : 0.95) + charge * 0.4, {
+      lift: ground ? 0 : l1 ? 5.5 : 3.8,
+    });
+    return;
+  }
+
+  if (a.pass.released) {
+    const charge = chargeOf(a.pass.heldTime);
+    const lofted = l1 || a.pass.doubleTap;
     const option = bestPass(world, active, aimDir);
     if (option) {
-      kickPass(world, active, option.spot, HUMAN_PROFILE, 0.7 + charge * 0.6);
+      kickPass(world, active, option.spot, HUMAN_PROFILE, (r1 ? 1.35 : 0.7) + charge * 0.6, {
+        lift: lofted ? 3 : 0,
+      });
     } else {
       applyKick(
         world,
         active,
         aimDir,
         MIN_PASS_POWER + charge * (MAX_PASS_POWER - MIN_PASS_POWER),
-        0,
+        lofted ? 3 : 0,
       );
       world.events.push({ type: 'kick', side: active.side, intensity: charge });
     }
-    return;
   }
-
-  if (input.actions.tackle.pressed && !hasBall) tackle(world, active);
 }
 
 function switchPlayer(world: SimWorld): void {
@@ -411,19 +512,41 @@ function switchPlayer(world: SimWorld): void {
   if (candidates.length) world.activeId = candidates[0].id;
 }
 
-function tackle(world: SimWorld, tackler: SimPlayer): void {
+/**
+ * Standing tackle. `commitment` above 1 is the held "hard" tackle: better odds, but the tackler
+ * is out of the play for longer when it fails.
+ */
+function tackle(world: SimWorld, tackler: SimPlayer, commitment = 1, reach = 2.4): void {
   const target = world.players.find((p) => p.id === world.controllerId);
-  tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25);
+  tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25 * commitment);
   if (!target || target.side === tackler.side) return;
   const d = dist(tackler.pos, target.pos);
-  if (d > 2.4) return;
-  const odds = clamp(0.35 + (tackler.defending - target.pace) / 120 + (2.4 - d) * 0.18, 0.1, 0.92);
+  if (d > reach) return;
+  const strength = (tackler.defending + tackler.physical) / 2;
+  const resist = (target.dribbling + target.physical) / 2 + (target.shielding ? 12 : 0);
+  const odds = clamp(
+    (0.35 + (strength - resist) / 120 + (reach - d) * 0.18) * commitment,
+    0.08,
+    0.94,
+  );
   world.events.push({ type: 'tackle', side: tackler.side, intensity: clamp(odds, 0, 1) });
-  if (world.rand() > odds) return;
+  if (world.rand() > odds) {
+    // A missed hard challenge leaves the defender on the floor.
+    tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25 * commitment * 2);
+    return;
+  }
   const dir = normalize(sub(goalCenter(world, tackler.side), tackler.pos));
   applyKick(world, tackler, dir, 8, 0.4);
   target.kickCooldown = KICK_COOLDOWN * 2;
   world.controllerId = null;
   world.possession = tackler.side;
   autoSwitch(world, tackler);
+}
+
+/** Slide tackle: longer reach and a lunge, at the cost of a long recovery either way. */
+function slideTackle(world: SimWorld, tackler: SimPlayer): void {
+  const lunge = normalize(sub(ballPos2(world), tackler.pos));
+  tackler.vel = { x: tackler.vel.x + lunge.x * 3, z: tackler.vel.z + lunge.z * 3 };
+  tackle(world, tackler, 1.2, 3.4);
+  tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.85);
 }

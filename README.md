@@ -21,18 +21,34 @@ npm run dev        # http://localhost:5173
 
 ## Controls
 
-| Action        | Keys                           |
-| ------------- | ------------------------------ |
-| Move          | `WASD` / arrow keys            |
-| Sprint        | `Shift`                        |
-| Pass          | `K` / `Space` (hold to charge) |
-| Shoot         | `L` (hold to charge)           |
-| Tackle        | `J`                            |
-| Switch player | `Q` / `Tab`                    |
-| Pause         | `Esc` / `P`                    |
+A keyboard translation of FIFA's classic pad layout: the same face button does one thing with the
+ball and another without it, and the two shoulder modifiers change the kick.
+
+| Action                        | Keys                                       |
+| ----------------------------- | ------------------------------------------ |
+| Move                          | arrow keys                                 |
+| Sprint                        | `Shift`                                    |
+| Jockey / shield               | `Z`                                        |
+| Ground pass · contain (off)   | `A` (hold to charge, double-tap to loft)   |
+| Cross / lofted pass · slide   | `S`                                        |
+| Through ball                  | `Q` (double-tap or `E` to loft)            |
+| Shoot · standing tackle (off) | `D` (hold to charge, hold off-ball = hard) |
+| Driven / finesse modifier     | `W` (R1)                                   |
+| Lofted / chip modifier        | `E` (L1) — also switches player            |
+| Switch player                 | `Space` / `Tab`                            |
+| Pause                         | `Esc` / `P`                                |
+
+Passes are directional: the ground pass picks the teammate best matching your stick direction and
+space, the through ball leads a runner, and the cross looks for someone attacking the box.
 
 Inputs go through an abstraction layer (`src/game/input`), so gamepad or touch schemes can be added
 without touching gameplay code.
+
+## Cameras
+
+`Broadcast` (default) and `Tele` are side-on rigs that dolly along the touchline like a TV gantry;
+`Player` is a third-person cam behind the man you control. Dead-ball moments always cut to the high
+wide angle. Pick one in the pre-match menu.
 
 ## Architecture
 
@@ -42,7 +58,7 @@ scene is a view over it.
 ```
 src/game/sim      state.ts (world + snapshots) · step.ts (tick) · ai.ts (CPU) · rules.ts (restarts,
                   goals, halftime/fulltime) · kick.ts · math.ts
-src/game/render   Scene, Pitch, Goals, Stadium, Players, Ball, ChaseCamera, Simulation (the loop)
+src/game/render   Scene, Pitch, Goals, Stadium, Players, Ball, MatchCamera, Simulation (the loop)
 src/game/input    keyboard bindings -> intent
 src/game/audio    Web Audio kick/whistle/goal/crowd
 src/game/perf     frame-time sampler -> adaptive pixel ratio, shadows, crowd density

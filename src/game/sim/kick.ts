@@ -104,6 +104,67 @@ export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): Pa
   return best;
 }
 
+/**
+ * Through ball target: the space in front of a teammate's run, held just short of the last
+ * defender so the pass splits the line instead of running through to the keeper.
+ */
+export function bestThroughBall(
+  world: SimWorld,
+  passer: SimPlayer,
+  prefDir?: Vec2,
+): PassOption | null {
+  const attack = world.attackDir[passer.side];
+  const goal = goalCenter(world, passer.side);
+  let best: PassOption | null = null;
+  for (const mate of world.players) {
+    if (mate.side !== passer.side || mate.id === passer.id || mate.role === 'GK') continue;
+    // Only play forwards, into a runner ahead of the passer.
+    const ahead = (mate.pos.x - passer.pos.x) * attack;
+    if (ahead < -2) continue;
+    const run = normalize({ x: attack, z: mate.vel.z * 0.15 });
+    const lead = clamp(6 + mate.pace / 8 + ahead * 0.25, 6, 20);
+    const spot = clampInPlay(
+      { x: mate.pos.x + run.x * lead, z: mate.pos.z + run.z * lead },
+      attack,
+    );
+    const open = laneOpenness(world, passer.pos, spot, passer.side);
+    const toSpot = normalize(sub(spot, passer.pos));
+    const aim = prefDir ? dot(toSpot, normalize(prefDir)) : 0;
+    const goalGain = (dist(passer.pos, goal) - dist(spot, goal)) / 40;
+    const score =
+      open * 1.5 + goalGain * 1.6 + aim * (prefDir ? 1.2 : 0) - dist(spot, mate.pos) / 60;
+    if (!best || score > best.score) best = { target: mate, spot, score };
+  }
+  return best;
+}
+
+/** Cross target: a teammate attacking the box, or the penalty spot if nobody has arrived yet. */
+export function bestCross(world: SimWorld, passer: SimPlayer): PassOption | null {
+  const attack = world.attackDir[passer.side];
+  const goal = goalCenter(world, passer.side);
+  let best: PassOption | null = null;
+  for (const mate of world.players) {
+    if (mate.side !== passer.side || mate.id === passer.id || mate.role === 'GK') continue;
+    const travel = 0.9;
+    const spot = { x: mate.pos.x + mate.vel.x * travel, z: mate.pos.z + mate.vel.z * travel };
+    const d = dist(passer.pos, spot);
+    if (d < 6 || d > 48) continue;
+    // Reward bodies in the danger zone: central, close to goal, ahead of the crosser.
+    const boxDist = dist(spot, goal);
+    const central = clamp(1 - Math.abs(spot.z) / 18, 0, 1);
+    const forward = ((spot.x - passer.pos.x) * attack) / 30;
+    const score = clamp(1 - (boxDist - 6) / 24, 0, 1) * 1.8 + central * 1.2 + forward;
+    if (!best || score > best.score) best = { target: mate, spot, score };
+  }
+  return best;
+}
+
+const clampInPlay = (p: Vec2, attack: 1 | -1): Vec2 => ({
+  // Keep through balls inside the field of play and out of the keeper's arms.
+  x: attack > 0 ? Math.min(p.x, HALF_LENGTH - 4) : Math.max(p.x, -HALF_LENGTH + 4),
+  z: clamp(p.z, -32, 32),
+});
+
 /** Straight-line quality of a shot from `from`: combines distance and angle to goal. */
 export function shotQuality(world: SimWorld, from: Vec2, side: TeamSide): number {
   const goal = goalCenter(world, side);

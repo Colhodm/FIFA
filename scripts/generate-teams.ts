@@ -142,37 +142,44 @@ function buildTeam(spec: TeamSpec): TeamData {
   const slots = FORMATIONS[spec.formation].slots;
   const players: PlayerData[] = slots.map((slot, i) => {
     const jitter = (spread: number) => Math.round((rand() - 0.5) * spread);
-    const base = spec.rating + jitter(10);
-    const bias = { GK: 0, DF: 0, MF: 0, FW: 0 } as Record<string, number>;
-    bias[slot.role] = 4;
+    const base = spec.rating - 4 + jitter(7);
+    const role = slot.role;
+    // Per-attribute role bias, so a centre back is not a winger with a different shirt.
+    const by = (gk: number, df: number, mf: number, fw: number) =>
+      ({ GK: gk, DF: df, MF: mf, FW: fw })[role];
     return {
       name: `${FIRST[(spec.seed + i * 7) % FIRST.length]} ${LAST[(spec.seed * 3 + i * 5) % LAST.length]}`,
       shirt: i + 1,
-      role: slot.role,
+      role,
       stats: {
-        pace: clamp(base + (slot.role === 'GK' ? -12 : slot.role === 'FW' ? 6 : 0) + jitter(8)),
-        passing: clamp(base + (slot.role === 'MF' ? 6 : 0) + jitter(8)),
-        shooting: clamp(
-          base + (slot.role === 'FW' ? 8 : slot.role === 'GK' ? -25 : -4) + jitter(8),
-        ),
-        defending: clamp(
-          base + (slot.role === 'DF' ? 8 : slot.role === 'FW' ? -14 : 0) + jitter(8),
-        ),
-        stamina: clamp(base + bias[slot.role] + jitter(8)),
+        pace: clamp(base + by(-14, 0, 2, 8) + jitter(12)),
+        shooting: clamp(base + by(-28, -10, 0, 10) + jitter(10)),
+        passing: clamp(base + by(-14, -2, 8, 0) + jitter(9)),
+        dribbling: clamp(base + by(-26, -6, 6, 8) + jitter(10)),
+        defending: clamp(base + by(-20, 10, 0, -16) + jitter(9)),
+        physical: clamp(base + by(2, 8, 0, 2) + jitter(10)),
+        stamina: clamp(base + by(-6, 2, 6, 2) + jitter(8)),
       },
     };
   });
+  const rating = Math.round(
+    players.reduce((sum, p) => {
+      const s = p.stats;
+      return sum + (s.pace + s.shooting + s.passing + s.dribbling + s.defending + s.physical) / 6;
+    }, 0) / players.length,
+  );
   return {
     id: spec.id,
     name: spec.name,
     shortName: spec.shortName,
     formation: spec.formation,
+    rating,
     kit: spec.kit,
     players,
   };
 }
 
-const clamp = (v: number) => Math.max(45, Math.min(95, Math.round(v)));
+const clamp = (v: number) => Math.max(42, Math.min(94, Math.round(v)));
 
 const file: TeamsFile = { teams: SPECS.map(buildTeam) };
 const out = resolve(dirname(fileURLToPath(import.meta.url)), '../public/data/teams.json');

@@ -1,8 +1,35 @@
 import type { Vec2 } from '../sim/math';
 
-export type ActionName = 'pass' | 'shoot' | 'sprint' | 'tackle' | 'switch' | 'pause';
+/**
+ * Actions mirror the FIFA "Classic" pad layout so a gamepad can be dropped in later without
+ * touching gameplay code: `pass` = X/A, `cross` = Square/X, `through` = Triangle/Y,
+ * `shoot` = Circle/B, `sprint` = R2, `jockey` = L2, `modR1`/`modL1` = the shoulder modifiers.
+ * Defending reuses the same face buttons, exactly as the pad does.
+ */
+export type ActionName =
+  | 'pass'
+  | 'cross'
+  | 'through'
+  | 'shoot'
+  | 'sprint'
+  | 'jockey'
+  | 'modR1'
+  | 'modL1'
+  | 'switch'
+  | 'pause';
 
-export const ACTIONS: ActionName[] = ['pass', 'shoot', 'sprint', 'tackle', 'switch', 'pause'];
+export const ACTIONS: ActionName[] = [
+  'pass',
+  'cross',
+  'through',
+  'shoot',
+  'sprint',
+  'jockey',
+  'modR1',
+  'modL1',
+  'switch',
+  'pause',
+];
 
 export interface ButtonState {
   down: boolean;
@@ -12,6 +39,8 @@ export interface ButtonState {
   released: boolean;
   /** Seconds the button has been held (frozen at release time for one frame). */
   heldTime: number;
+  /** True when this press followed a previous press within the double-tap window. */
+  doubleTap: boolean;
 }
 
 export interface InputFrame {
@@ -35,21 +64,20 @@ export interface InputSource {
 }
 
 export const DEFAULT_BINDINGS: Record<string, ActionName | 'up' | 'down' | 'left' | 'right'> = {
-  KeyW: 'up',
   ArrowUp: 'up',
-  KeyS: 'down',
   ArrowDown: 'down',
-  KeyA: 'left',
   ArrowLeft: 'left',
-  KeyD: 'right',
   ArrowRight: 'right',
   ShiftLeft: 'sprint',
   ShiftRight: 'sprint',
-  KeyK: 'pass',
-  Space: 'pass',
-  KeyL: 'shoot',
-  KeyJ: 'tackle',
-  KeyQ: 'switch',
+  KeyA: 'pass',
+  KeyS: 'cross',
+  KeyQ: 'through',
+  KeyD: 'shoot',
+  KeyW: 'modR1',
+  KeyE: 'modL1',
+  KeyZ: 'jockey',
+  Space: 'switch',
   Tab: 'switch',
   Escape: 'pause',
   KeyP: 'pause',
@@ -91,17 +119,9 @@ export class KeyboardSource implements InputSource {
       z: (on('up') ? 1 : 0) - (on('down') ? 1 : 0),
     };
     const l = Math.hypot(move.x, move.z);
-    return {
-      move: l > 1 ? { x: move.x / l, z: move.z / l } : move,
-      buttons: {
-        sprint: on('sprint'),
-        pass: on('pass'),
-        shoot: on('shoot'),
-        tackle: on('tackle'),
-        switch: on('switch'),
-        pause: on('pause'),
-      },
-    };
+    const buttons: Partial<Record<ActionName, boolean>> = {};
+    for (const action of ACTIONS) if (on(action)) buttons[action] = true;
+    return { move: l > 1 ? { x: move.x / l, z: move.z / l } : move, buttons };
   }
 
   dispose(): void {
@@ -117,7 +137,11 @@ const emptyButton = (): ButtonState => ({
   pressed: false,
   released: false,
   heldTime: 0,
+  doubleTap: false,
 });
+
+/** Seconds within which a second press counts as a double tap (lofted pass, ground cross). */
+const DOUBLE_TAP_WINDOW = 0.28;
 
 export class InputManager {
   readonly frame: InputFrame = {
@@ -128,6 +152,7 @@ export class InputManager {
     >,
   };
   private sources: InputSource[] = [];
+  private sinceRelease: Record<string, number> = {};
   /** Set false while a menu is open so the pitch does not react to menu keys. */
   enabled = true;
 
@@ -154,6 +179,9 @@ export class InputManager {
       const down = Boolean(buttons[action]);
       state.pressed = down && !state.down;
       state.released = !down && state.down;
+      const gap = (this.sinceRelease[action] ?? Infinity) + dt;
+      if (state.pressed) state.doubleTap = gap < DOUBLE_TAP_WINDOW;
+      this.sinceRelease[action] = state.released ? 0 : gap;
       if (down) state.heldTime += dt;
       else if (!state.released) state.heldTime = 0;
       state.down = down;

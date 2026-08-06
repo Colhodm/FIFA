@@ -7,7 +7,15 @@ import {
   MIN_PASS_POWER,
   MIN_SHOT_POWER,
 } from '../constants';
-import { applyKick, ballPos2, bestPass, goalCenter, ownGoalCenter, shotQuality } from './kick';
+import {
+  applyKick,
+  ballPos2,
+  bestPass,
+  bestThroughBall,
+  goalCenter,
+  ownGoalCenter,
+  shotQuality,
+} from './kick';
 import { clamp, dist, normalize, sub, type Vec2 } from './math';
 import { slotToPitch, type DifficultyProfile, type SimPlayer, type SimWorld } from './state';
 
@@ -217,6 +225,13 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
     return true;
   }
 
+  // Look for the pass that breaks the line first, then the safe one.
+  const through = bestThroughBall(world, p);
+  if (through && through.score > 1.9 && p.passing > 62) {
+    kickPass(world, p, through.spot, profile, 0.95);
+    return true;
+  }
+
   const pass = bestPass(world, p);
   if (pass && (pressure < 3.4 || pass.score > 1.5) && pass.score > 0.55) {
     kickPass(world, p, pass.spot, profile);
@@ -232,7 +247,9 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
     steer = normalize({ x: toGoal.x + away.x * 1.3, z: toGoal.z + away.z * 1.3 });
   }
   p.intent = steer;
-  p.intentSprint = p.stamina > 0.2 && world.rand() < profile.sprintBias;
+  // Under real pressure a strong carrier shields the ball instead of running into the tackle.
+  p.shielding = pressure < 1.8 && p.physical > 68;
+  p.intentSprint = !p.shielding && p.stamina > 0.2 && world.rand() < profile.sprintBias;
   return false;
 }
 
@@ -252,7 +269,9 @@ export function shoot(
     (away || (world.rand() < 0.5 ? -1 : 1)) *
     (HALF_GOAL_WIDTH - 0.5) *
     (0.55 + world.rand() * 0.45);
-  const errorScale = (1 - profile.shotAccuracy) * (1 - quality * 0.5) * (2 + d * 0.12);
+  // Finishing ability shrinks the spread as much as the difficulty profile does.
+  const errorScale =
+    (1 - profile.shotAccuracy) * (1 - quality * 0.5) * (2 + d * 0.12) * (1.5 - p.shooting / 130);
   const aim: Vec2 = {
     x: goal.x,
     z: placement * profile.shotAccuracy + (world.rand() * 2 - 1) * errorScale,
@@ -260,11 +279,16 @@ export function shoot(
   const dir = normalize(sub(aim, p.pos));
   const power =
     clamp(MIN_SHOT_POWER + d * 0.62, MIN_SHOT_POWER, MAX_SHOT_POWER) *
-    (0.82 + p.shooting / 320) *
+    (0.74 + p.shooting / 260) *
     powerScale;
   applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6));
   world.shots[p.side] += 1;
   world.events.push({ type: 'shot', side: p.side, intensity: clamp(power / MAX_SHOT_POWER, 0, 1) });
+}
+
+export interface PassOptions {
+  /** Vertical impulse. 0 keeps it on the deck; a lofted pass or cross needs 3+. */
+  lift?: number;
 }
 
 export function kickPass(
@@ -273,9 +297,10 @@ export function kickPass(
   spot: Vec2,
   profile: DifficultyProfile,
   powerScale = 1,
+  options: PassOptions = {},
 ): void {
   const d = dist(p.pos, spot);
-  const skill = profile.passAccuracy * (0.75 + p.passing / 400);
+  const skill = profile.passAccuracy * (0.6 + p.passing / 250);
   const spread = (1 - clamp(skill, 0, 1)) * (1.2 + d * 0.09);
   const aim = {
     x: spot.x + (world.rand() * 2 - 1) * spread,
@@ -283,6 +308,7 @@ export function kickPass(
   };
   const dir = normalize(sub(aim, p.pos));
   const power = clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
-  applyKick(world, p, dir, power, d > 24 ? 2.4 : 0);
+  const lift = options.lift ?? (d > 24 ? 2.4 : 0);
+  applyKick(world, p, dir, power, lift);
   world.events.push({ type: 'pass', side: p.side, intensity: clamp(power / MAX_PASS_POWER, 0, 1) });
 }

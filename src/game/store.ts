@@ -11,6 +11,9 @@ import {
 
 export type Screen = 'menu' | 'match';
 
+/** Side-on rigs plus the third-person chase cam, mirroring FIFA's camera presets. */
+export type CameraMode = 'broadcast' | 'tele' | 'player';
+
 export interface MatchSetup {
   homeTeamId: string;
   awayTeamId: string;
@@ -30,6 +33,7 @@ interface GameState {
   setup: MatchSetup;
   quality: QualityMode;
   tier: QualityTier;
+  camera: CameraMode;
   audioEnabled: boolean;
   /** Bumped on every restart so the scene remounts with a fresh world. */
   matchKey: number;
@@ -38,6 +42,7 @@ interface GameState {
   updateSetup: (patch: Partial<MatchSetup>) => void;
   setQuality: (mode: QualityMode) => void;
   setTier: (id: number) => void;
+  setCamera: (mode: CameraMode) => void;
   toggleAudio: () => void;
   startMatch: () => void;
   setPaused: (paused: boolean) => void;
@@ -61,6 +66,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   quality: 'auto',
   tier: TIERS[defaultTier()],
+  camera: 'broadcast',
   audioEnabled: true,
   matchKey: 0,
   setTeams: (teams) =>
@@ -79,6 +85,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setQuality: (mode) =>
     set({ quality: mode, tier: mode === 'auto' ? get().tier : TIERS[MANUAL_TIER[mode]] }),
   setTier: (id) => set({ tier: TIERS[Math.max(0, Math.min(TIERS.length - 1, id))] }),
+  setCamera: (mode) => set({ camera: mode }),
   toggleAudio: () => set((state) => ({ audioEnabled: !state.audioEnabled })),
   startMatch: () =>
     set((state) => ({ screen: 'match', paused: false, matchKey: state.matchKey + 1 })),

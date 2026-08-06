@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BALL_MASS, BALL_RADIUS, TICK_DT } from '../src/game/constants';
-import type { InputFrame } from '../src/game/input/input';
+import type { ActionName, InputFrame } from '../src/game/input/input';
 import { ACTIONS } from '../src/game/input/input';
 import { createWorld, snapshot, type SimWorld } from '../src/game/sim/state';
 import { tick } from '../src/game/sim/step';
@@ -19,12 +19,15 @@ const teams = (
   JSON.parse(readFileSync(resolve(here, '../public/data/teams.json'), 'utf8')) as TeamsFile
 ).teams;
 
-const idleInput: InputFrame = {
-  move: { x: 0, z: 0 },
-  actions: Object.fromEntries(
-    ACTIONS.map((a) => [a, { down: false, pressed: false, released: false, heldTime: 0 }]),
-  ) as InputFrame['actions'],
-};
+const idleActions = (): InputFrame['actions'] =>
+  Object.fromEntries(
+    ACTIONS.map((a) => [
+      a,
+      { down: false, pressed: false, released: false, heldTime: 0, doubleTap: false },
+    ]),
+  ) as InputFrame['actions'];
+
+const idleInput: InputFrame = { move: { x: 0, z: 0 }, actions: idleActions() };
 
 const GRAVITY = -9.81;
 const RESTITUTION = 0.62;
@@ -158,9 +161,94 @@ function checkKickAndReset(): void {
   }
 }
 
+interface ControlCase {
+  name: string;
+  action: ActionName;
+  /** Buttons held while the kick button is released, as on the pad's shoulders. */
+  mods?: ActionName[];
+  doubleTap?: boolean;
+  minSpeed: number;
+  /** Whether the kick is expected to leave the ground. */
+  lofted?: boolean;
+}
+
+const CONTROL_CASES: ControlCase[] = [
+  { name: 'ground pass', action: 'pass', minSpeed: 6 },
+  { name: 'lofted pass', action: 'pass', doubleTap: true, minSpeed: 6, lofted: true },
+  { name: 'driven pass', action: 'pass', mods: ['modR1'], minSpeed: 10 },
+  { name: 'through ball', action: 'through', minSpeed: 8 },
+  { name: 'lobbed through ball', action: 'through', mods: ['modL1'], minSpeed: 8, lofted: true },
+  { name: 'cross', action: 'cross', minSpeed: 10, lofted: true },
+  { name: 'driven cross', action: 'cross', mods: ['modR1'], minSpeed: 12, lofted: true },
+  { name: 'shot', action: 'shoot', minSpeed: 14 },
+  { name: 'chip shot', action: 'shoot', mods: ['modL1'], minSpeed: 8, lofted: true },
+];
+
+/**
+ * Every human kick must actually strike the ball, and the lofted variants must get it airborne.
+ * This is the only coverage the input -> `handleHumanActions` path gets outside a browser.
+ */
+function checkHumanControls(): void {
+  for (const test of CONTROL_CASES) {
+    const world = createWorld({
+      homeTeam: teams[0],
+      awayTeam: teams[1],
+      homeFormation: teams[0].formation,
+      awayFormation: teams[1].formation,
+      humanSide: 'home',
+      difficulty: 'normal',
+      halfLength: 60,
+      seed: 11,
+    });
+    // Skip the kickoff countdown and hand the human the ball at the halfway line.
+    world.phase = 'in-play';
+    const active = world.players.find((p) => p.id === world.activeId);
+    if (!active) throw new Error('no active player');
+    active.pos = { x: -6, z: 0 };
+    active.heading = Math.PI / 2;
+    world.ball.pos = { x: active.pos.x + 0.4, y: BALL_RADIUS, z: active.pos.z };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = active.id;
+    world.possession = 'home';
+
+    const actions = idleActions();
+    actions[test.action] = {
+      down: false,
+      pressed: false,
+      released: true,
+      heldTime: 0.35,
+      doubleTap: test.doubleTap ?? false,
+    };
+    for (const mod of test.mods ?? []) {
+      actions[mod] = { ...actions[mod], down: true };
+    }
+    tick(world, { move: { x: 1, z: 0 }, actions }, 0, TICK_DT);
+
+    const impulse = world.commands.find((c) => c.type === 'impulse');
+    if (!impulse || impulse.type !== 'impulse') {
+      throw new Error(`${test.name}: no impulse was applied to the ball`);
+    }
+    const vx = impulse.impulse.x / BALL_MASS;
+    const vy = impulse.impulse.y / BALL_MASS;
+    const vz = impulse.impulse.z / BALL_MASS;
+    const speed = Math.hypot(vx, vy, vz);
+    if (speed < test.minSpeed) {
+      throw new Error(`${test.name}: only ${speed.toFixed(1)} m/s, expected >= ${test.minSpeed}`);
+    }
+    if (test.lofted && vy < 2) {
+      throw new Error(`${test.name}: expected loft, got vy ${vy.toFixed(1)}`);
+    }
+    if (!test.lofted && vy > 2.5) {
+      throw new Error(`${test.name}: expected a low ball, got vy ${vy.toFixed(1)}`);
+    }
+  }
+  console.log(`human control checks passed (${CONTROL_CASES.length} kicks)`);
+}
+
 const matches = Number(process.argv[2] ?? 3);
 checkKickAndReset();
 console.log('kick + reset checks passed');
+checkHumanControls();
 
 let goals = 0;
 for (let i = 0; i < matches; i++) {

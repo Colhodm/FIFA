@@ -1,10 +1,16 @@
 import { audio } from '../game/audio/audio';
 import { FORMATIONS, FORMATION_IDS } from '../game/formations';
 import { useGameStore } from '../game/store';
+import type { CameraMode } from '../game/store';
 import type { Difficulty, FormationId, TeamData } from '../game/types';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'normal', 'hard', 'legendary'];
 const HALF_LENGTHS = [120, 180, 300, 600];
+const CAMERAS: { id: CameraMode; label: string }[] = [
+  { id: 'broadcast', label: 'broadcast' },
+  { id: 'tele', label: 'tele' },
+  { id: 'player', label: 'player' },
+];
 
 function TeamCard({
   team,
@@ -28,7 +34,7 @@ function TeamCard({
       </span>
       <span className="team-name">{team.name}</span>
       <span className="team-meta">
-        {team.shortName} · {team.formation}
+        {team.shortName} · {team.formation} · OVR {team.rating}
       </span>
     </button>
   );
@@ -39,9 +45,11 @@ export function MainMenu() {
   const teamsError = useGameStore((s) => s.teamsError);
   const setup = useGameStore((s) => s.setup);
   const quality = useGameStore((s) => s.quality);
+  const camera = useGameStore((s) => s.camera);
   const audioEnabled = useGameStore((s) => s.audioEnabled);
   const updateSetup = useGameStore((s) => s.updateSetup);
   const setQuality = useGameStore((s) => s.setQuality);
+  const setCamera = useGameStore((s) => s.setCamera);
   const toggleAudio = useGameStore((s) => s.toggleAudio);
   const startMatch = useGameStore((s) => s.startMatch);
 
@@ -172,6 +180,22 @@ export function MainMenu() {
         </label>
 
         <label>
+          Camera
+          <div className="pill-row">
+            {CAMERAS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`pill${camera === id ? ' is-active' : ''}`}
+                onClick={() => setCamera(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
           Quality
           <div className="pill-row">
             {(['auto', 'low', 'medium', 'high', 'ultra'] as const).map((mode) => (
@@ -210,26 +234,39 @@ export function MainMenu() {
 
       <footer className="controls-help">
         <span>
-          <b>WASD / arrows</b> move
+          <b>Arrows</b> move
         </span>
         <span>
           <b>Shift</b> sprint
         </span>
         <span>
-          <b>K / Space</b> pass (hold to charge)
+          <b>Z</b> jockey / shield
         </span>
         <span>
-          <b>L</b> shoot (hold to charge)
+          <b>A</b> pass · hold off the ball to contain
         </span>
         <span>
-          <b>J</b> tackle
+          <b>S</b> cross · slide tackle
         </span>
         <span>
-          <b>Q / Tab</b> switch player
+          <b>Q</b> through ball
+        </span>
+        <span>
+          <b>D</b> shoot · tackle
+        </span>
+        <span>
+          <b>W</b> driven / finesse modifier
+        </span>
+        <span>
+          <b>E</b> lofted / chip modifier · switch player
+        </span>
+        <span>
+          <b>Space / Tab</b> switch player
         </span>
         <span>
           <b>Esc / P</b> pause
         </span>
+        <span className="muted">Hold a kick button to charge; double-tap to loft it.</span>
       </footer>
     </div>
   );

@@ -34,20 +34,34 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   const toX = (x: number) => (x + SURFACE_LENGTH / 2) * px;
   const toZ = (z: number) => (z + SURFACE_WIDTH / 2) * px;
 
-  ctx.fillStyle = '#2f7a35';
+  // Darker, cooler surround so the playing surface pops the way it does on television.
+  ctx.fillStyle = '#1f5626';
   ctx.fillRect(0, 0, width, height);
 
   // Mown stripes across the length of the pitch.
   const stripes = 14;
   const stripeWidth = (HALF_LENGTH * 2) / stripes;
   for (let i = 0; i < stripes; i++) {
-    ctx.fillStyle = i % 2 === 0 ? '#35853b' : '#2c7231';
+    ctx.fillStyle = i % 2 === 0 ? '#3f9445' : '#2b7433';
     ctx.fillRect(
       toX(-HALF_LENGTH + i * stripeWidth),
       toZ(-HALF_WIDTH),
       stripeWidth * px,
       HALF_WIDTH * 2 * px,
     );
+  }
+
+  // Worn-in goalmouths and centre circle, the giveaway that a pitch has been played on.
+  for (const [wx, wz, r] of [
+    [-HALF_LENGTH + 4, 0, 9],
+    [HALF_LENGTH - 4, 0, 9],
+    [0, 0, 5],
+  ] as const) {
+    const wear = ctx.createRadialGradient(toX(wx), toZ(wz), 0, toX(wx), toZ(wz), r * px);
+    wear.addColorStop(0, 'rgba(150, 140, 90, 0.18)');
+    wear.addColorStop(1, 'rgba(150, 140, 90, 0)');
+    ctx.fillStyle = wear;
+    ctx.fillRect(0, 0, width, height);
   }
 
   // Subtle wear noise so the grass is not perfectly flat colour.
@@ -61,7 +75,7 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   }
   ctx.globalAlpha = 1;
 
-  ctx.strokeStyle = '#f4f7f4';
+  ctx.strokeStyle = '#f8fbf8';
   ctx.lineWidth = LINE_WIDTH_M * px;
   ctx.lineCap = 'butt';
 
@@ -80,7 +94,7 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   ctx.stroke();
 
   const spot = (x: number, z: number) => {
-    ctx.fillStyle = '#f4f7f4';
+    ctx.fillStyle = '#f8fbf8';
     ctx.beginPath();
     ctx.arc(toX(x), toZ(z), 0.18 * px, 0, Math.PI * 2);
     ctx.fill();

@@ -2,12 +2,14 @@
 
 export type Role = 'GK' | 'DF' | 'MF' | 'FW';
 
+/** The six broadcast attributes, 1-99, plus stamina which drives the endurance model. */
 export interface PlayerStats {
-  /** 1-99, FIFA-ish scale. */
   pace: number;
-  passing: number;
   shooting: number;
+  passing: number;
+  dribbling: number;
   defending: number;
+  physical: number;
   stamina: number;
 }
 
@@ -30,6 +32,8 @@ export interface TeamData {
   name: string;
   shortName: string;
   formation: FormationId;
+  /** Squad overall, 1-99. Display only — gameplay reads the individual attributes. */
+  rating: number;
   kit: Kit;
   players: PlayerData[];
 }

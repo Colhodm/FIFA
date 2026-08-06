@@ -5,6 +5,7 @@
       "name": "Azure Rovers",
       "shortName": "AZR",
       "formation": "4-3-3",
+      "rating": 80,
       "kit": {
         "primary": "#2563eb",
         "secondary": "#f8fafc",
@@ -17,11 +18,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 72,
-            "passing": 85,
-            "shooting": 60,
-            "defending": 87,
-            "stamina": 88
+            "pace": 66,
+            "shooting": 53,
+            "passing": 67,
+            "dribbling": 58,
+            "defending": 60,
+            "physical": 78,
+            "stamina": 74
           }
         },
         {
@@ -30,10 +33,12 @@
           "role": "DF",
           "stats": {
             "pace": 80,
-            "passing": 81,
-            "shooting": 76,
-            "defending": 88,
-            "stamina": 87
+            "shooting": 71,
+            "passing": 82,
+            "dribbling": 74,
+            "defending": 93,
+            "physical": 91,
+            "stamina": 80
           }
         },
         {
@@ -41,11 +46,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 84,
-            "passing": 84,
-            "shooting": 76,
-            "defending": 88,
-            "stamina": 85
+            "pace": 75,
+            "shooting": 67,
+            "passing": 75,
+            "dribbling": 73,
+            "defending": 85,
+            "physical": 87,
+            "stamina": 81
           }
         },
         {
@@ -53,11 +60,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 82,
-            "passing": 84,
-            "shooting": 76,
-            "defending": 92,
-            "stamina": 88
+            "pace": 83,
+            "shooting": 72,
+            "passing": 79,
+            "dribbling": 71,
+            "defending": 90,
+            "physical": 85,
+            "stamina": 77
           }
         },
         {
@@ -65,11 +74,13 @@
           "shirt": 5,
           "role": "DF",
           "stats": {
-            "pace": 86,
-            "passing": 85,
-            "shooting": 81,
-            "defending": 90,
-            "stamina": 88
+            "pace": 88,
+            "shooting": 70,
+            "passing": 77,
+            "dribbling": 78,
+            "defending": 91,
+            "physical": 91,
+            "stamina": 85
           }
         },
         {
@@ -77,11 +88,13 @@
           "shirt": 6,
           "role": "MF",
           "stats": {
-            "pace": 78,
-            "passing": 90,
-            "shooting": 82,
-            "defending": 80,
-            "stamina": 83
+            "pace": 80,
+            "shooting": 85,
+            "passing": 93,
+            "dribbling": 87,
+            "defending": 78,
+            "physical": 78,
+            "stamina": 91
           }
         },
         {
@@ -89,11 +102,13 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 85,
-            "passing": 92,
-            "shooting": 83,
-            "defending": 89,
-            "stamina": 87
+            "pace": 82,
+            "shooting": 78,
+            "passing": 88,
+            "dribbling": 88,
+            "defending": 76,
+            "physical": 81,
+            "stamina": 82
           }
         },
         {
@@ -101,11 +116,13 @@
           "shirt": 8,
           "role": "MF",
           "stats": {
-            "pace": 90,
-            "passing": 92,
-            "shooting": 79,
-            "defending": 84,
-            "stamina": 94
+            "pace": 84,
+            "shooting": 85,
+            "passing": 87,
+            "dribbling": 86,
+            "defending": 79,
+            "physical": 75,
+            "stamina": 88
           }
         },
         {
@@ -114,10 +131,12 @@
           "role": "FW",
           "stats": {
             "pace": 90,
-            "passing": 82,
-            "shooting": 92,
-            "defending": 72,
-            "stamina": 85
+            "shooting": 87,
+            "passing": 79,
+            "dribbling": 85,
+            "defending": 66,
+            "physical": 78,
+            "stamina": 78
           }
         },
         {
@@ -125,11 +144,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 87,
-            "passing": 85,
-            "shooting": 94,
-            "defending": 75,
-            "stamina": 88
+            "pace": 90,
+            "shooting": 87,
+            "passing": 80,
+            "dribbling": 88,
+            "defending": 69,
+            "physical": 87,
+            "stamina": 84
           }
         },
         {
@@ -137,11 +158,13 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 89,
-            "passing": 80,
-            "shooting": 94,
-            "defending": 69,
-            "stamina": 90
+            "pace": 92,
+            "shooting": 90,
+            "passing": 78,
+            "dribbling": 85,
+            "defending": 63,
+            "physical": 76,
+            "stamina": 84
           }
         }
       ]
@@ -151,6 +174,7 @@
       "name": "Crimson United",
       "shortName": "CRU",
       "formation": "4-4-2",
+      "rating": 76,
       "kit": {
         "primary": "#dc2626",
         "secondary": "#fef2f2",
@@ -163,11 +187,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 69,
-            "passing": 81,
-            "shooting": 56,
-            "defending": 82,
-            "stamina": 90
+            "pace": 62,
+            "shooting": 48,
+            "passing": 62,
+            "dribbling": 52,
+            "defending": 63,
+            "physical": 80,
+            "stamina": 74
           }
         },
         {
@@ -175,10 +201,12 @@
           "shirt": 2,
           "role": "DF",
           "stats": {
-            "pace": 82,
-            "passing": 83,
-            "shooting": 73,
-            "defending": 86,
+            "pace": 74,
+            "shooting": 66,
+            "passing": 75,
+            "dribbling": 71,
+            "defending": 90,
+            "physical": 85,
             "stamina": 82
           }
         },
@@ -187,11 +215,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 79,
-            "passing": 76,
-            "shooting": 75,
-            "defending": 85,
-            "stamina": 83
+            "pace": 77,
+            "shooting": 69,
+            "passing": 75,
+            "dribbling": 73,
+            "defending": 82,
+            "physical": 86,
+            "stamina": 77
           }
         },
         {
@@ -199,11 +229,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 86,
-            "passing": 87,
-            "shooting": 78,
-            "defending": 94,
-            "stamina": 88
+            "pace": 70,
+            "shooting": 66,
+            "passing": 73,
+            "dribbling": 66,
+            "defending": 83,
+            "physical": 86,
+            "stamina": 74
           }
         },
         {
@@ -211,11 +243,13 @@
           "shirt": 5,
           "role": "DF",
           "stats": {
-            "pace": 73,
-            "passing": 78,
-            "shooting": 73,
-            "defending": 82,
-            "stamina": 79
+            "pace": 72,
+            "shooting": 65,
+            "passing": 73,
+            "dribbling": 67,
+            "defending": 85,
+            "physical": 84,
+            "stamina": 76
           }
         },
         {
@@ -223,11 +257,13 @@
           "shirt": 6,
           "role": "MF",
           "stats": {
-            "pace": 82,
-            "passing": 89,
-            "shooting": 77,
-            "defending": 83,
-            "stamina": 87
+            "pace": 76,
+            "shooting": 71,
+            "passing": 86,
+            "dribbling": 82,
+            "defending": 71,
+            "physical": 71,
+            "stamina": 81
           }
         },
         {
@@ -235,10 +271,12 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 77,
+            "pace": 82,
+            "shooting": 73,
             "passing": 83,
-            "shooting": 71,
-            "defending": 74,
+            "dribbling": 84,
+            "defending": 76,
+            "physical": 80,
             "stamina": 81
           }
         },
@@ -247,11 +285,13 @@
           "shirt": 8,
           "role": "MF",
           "stats": {
-            "pace": 80,
-            "passing": 85,
-            "shooting": 70,
-            "defending": 75,
-            "stamina": 82
+            "pace": 75,
+            "shooting": 75,
+            "passing": 86,
+            "dribbling": 82,
+            "defending": 77,
+            "physical": 80,
+            "stamina": 79
           }
         },
         {
@@ -259,11 +299,13 @@
           "shirt": 9,
           "role": "MF",
           "stats": {
-            "pace": 83,
-            "passing": 84,
-            "shooting": 75,
-            "defending": 81,
-            "stamina": 84
+            "pace": 82,
+            "shooting": 73,
+            "passing": 81,
+            "dribbling": 81,
+            "defending": 80,
+            "physical": 77,
+            "stamina": 86
           }
         },
         {
@@ -271,11 +313,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 91,
-            "passing": 84,
-            "shooting": 92,
-            "defending": 71,
-            "stamina": 92
+            "pace": 80,
+            "shooting": 82,
+            "passing": 78,
+            "dribbling": 86,
+            "defending": 60,
+            "physical": 78,
+            "stamina": 77
           }
         },
         {
@@ -283,11 +327,13 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 89,
-            "passing": 85,
-            "shooting": 87,
-            "defending": 67,
-            "stamina": 88
+            "pace": 87,
+            "shooting": 82,
+            "passing": 75,
+            "dribbling": 79,
+            "defending": 63,
+            "physical": 76,
+            "stamina": 78
           }
         }
       ]
@@ -297,6 +343,7 @@
       "name": "Verdant City",
       "shortName": "VER",
       "formation": "3-5-2",
+      "rating": 76,
       "kit": {
         "primary": "#059669",
         "secondary": "#ecfdf5",
@@ -309,11 +356,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 70,
-            "passing": 81,
-            "shooting": 51,
-            "defending": 80,
-            "stamina": 87
+            "pace": 64,
+            "shooting": 48,
+            "passing": 57,
+            "dribbling": 48,
+            "defending": 58,
+            "physical": 75,
+            "stamina": 70
           }
         },
         {
@@ -321,11 +370,13 @@
           "shirt": 2,
           "role": "DF",
           "stats": {
-            "pace": 78,
-            "passing": 79,
-            "shooting": 77,
-            "defending": 84,
-            "stamina": 83
+            "pace": 83,
+            "shooting": 65,
+            "passing": 78,
+            "dribbling": 68,
+            "defending": 90,
+            "physical": 89,
+            "stamina": 80
           }
         },
         {
@@ -333,11 +384,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 79,
-            "passing": 79,
-            "shooting": 73,
-            "defending": 85,
-            "stamina": 77
+            "pace": 71,
+            "shooting": 61,
+            "passing": 71,
+            "dribbling": 72,
+            "defending": 83,
+            "physical": 85,
+            "stamina": 78
           }
         },
         {
@@ -345,11 +398,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 73,
-            "passing": 78,
-            "shooting": 69,
-            "defending": 85,
-            "stamina": 80
+            "pace": 76,
+            "shooting": 68,
+            "passing": 75,
+            "dribbling": 68,
+            "defending": 87,
+            "physical": 87,
+            "stamina": 79
           }
         },
         {
@@ -358,10 +413,12 @@
           "role": "MF",
           "stats": {
             "pace": 81,
-            "passing": 89,
             "shooting": 77,
-            "defending": 79,
-            "stamina": 85
+            "passing": 82,
+            "dribbling": 81,
+            "defending": 71,
+            "physical": 73,
+            "stamina": 78
           }
         },
         {
@@ -369,11 +426,13 @@
           "shirt": 6,
           "role": "MF",
           "stats": {
-            "pace": 85,
-            "passing": 88,
-            "shooting": 82,
-            "defending": 86,
-            "stamina": 87
+            "pace": 81,
+            "shooting": 72,
+            "passing": 87,
+            "dribbling": 85,
+            "defending": 79,
+            "physical": 76,
+            "stamina": 84
           }
         },
         {
@@ -381,11 +440,13 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 77,
-            "passing": 85,
-            "shooting": 74,
-            "defending": 80,
-            "stamina": 87
+            "pace": 73,
+            "shooting": 70,
+            "passing": 81,
+            "dribbling": 76,
+            "defending": 75,
+            "physical": 74,
+            "stamina": 78
           }
         },
         {
@@ -394,10 +455,12 @@
           "role": "MF",
           "stats": {
             "pace": 79,
+            "shooting": 76,
             "passing": 85,
-            "shooting": 75,
-            "defending": 77,
-            "stamina": 83
+            "dribbling": 83,
+            "defending": 76,
+            "physical": 77,
+            "stamina": 84
           }
         },
         {
@@ -405,11 +468,13 @@
           "shirt": 9,
           "role": "MF",
           "stats": {
-            "pace": 76,
-            "passing": 81,
-            "shooting": 73,
-            "defending": 75,
-            "stamina": 83
+            "pace": 75,
+            "shooting": 74,
+            "passing": 84,
+            "dribbling": 82,
+            "defending": 68,
+            "physical": 67,
+            "stamina": 74
           }
         },
         {
@@ -417,11 +482,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 83,
-            "passing": 78,
+            "pace": 89,
             "shooting": 89,
-            "defending": 67,
-            "stamina": 86
+            "passing": 79,
+            "dribbling": 84,
+            "defending": 65,
+            "physical": 82,
+            "stamina": 83
           }
         },
         {
@@ -429,11 +496,13 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 90,
-            "passing": 85,
-            "shooting": 94,
-            "defending": 64,
-            "stamina": 86
+            "pace": 81,
+            "shooting": 79,
+            "passing": 73,
+            "dribbling": 81,
+            "defending": 60,
+            "physical": 74,
+            "stamina": 75
           }
         }
       ]
@@ -443,6 +512,7 @@
       "name": "Solar Athletic",
       "shortName": "SOL",
       "formation": "5-3-2",
+      "rating": 72,
       "kit": {
         "primary": "#f59e0b",
         "secondary": "#1f2937",
@@ -455,11 +525,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 64,
-            "passing": 76,
-            "shooting": 56,
-            "defending": 80,
-            "stamina": 83
+            "pace": 56,
+            "shooting": 42,
+            "passing": 63,
+            "dribbling": 49,
+            "defending": 54,
+            "physical": 76,
+            "stamina": 67
           }
         },
         {
@@ -467,11 +539,13 @@
           "shirt": 2,
           "role": "DF",
           "stats": {
-            "pace": 75,
-            "passing": 77,
-            "shooting": 74,
-            "defending": 82,
-            "stamina": 76
+            "pace": 76,
+            "shooting": 61,
+            "passing": 67,
+            "dribbling": 72,
+            "defending": 86,
+            "physical": 84,
+            "stamina": 71
           }
         },
         {
@@ -479,11 +553,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 84,
-            "passing": 84,
-            "shooting": 73,
-            "defending": 88,
-            "stamina": 86
+            "pace": 72,
+            "shooting": 61,
+            "passing": 69,
+            "dribbling": 65,
+            "defending": 79,
+            "physical": 83,
+            "stamina": 70
           }
         },
         {
@@ -491,11 +567,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 76,
-            "passing": 76,
-            "shooting": 71,
-            "defending": 87,
-            "stamina": 77
+            "pace": 77,
+            "shooting": 60,
+            "passing": 73,
+            "dribbling": 64,
+            "defending": 82,
+            "physical": 77,
+            "stamina": 71
           }
         },
         {
@@ -503,11 +581,13 @@
           "shirt": 5,
           "role": "DF",
           "stats": {
-            "pace": 79,
-            "passing": 74,
-            "shooting": 75,
-            "defending": 82,
-            "stamina": 80
+            "pace": 70,
+            "shooting": 61,
+            "passing": 66,
+            "dribbling": 69,
+            "defending": 81,
+            "physical": 81,
+            "stamina": 73
           }
         },
         {
@@ -515,11 +595,13 @@
           "shirt": 6,
           "role": "DF",
           "stats": {
-            "pace": 72,
-            "passing": 74,
-            "shooting": 69,
-            "defending": 81,
-            "stamina": 74
+            "pace": 70,
+            "shooting": 57,
+            "passing": 69,
+            "dribbling": 67,
+            "defending": 83,
+            "physical": 77,
+            "stamina": 71
           }
         },
         {
@@ -527,11 +609,13 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 78,
-            "passing": 86,
-            "shooting": 74,
-            "defending": 75,
-            "stamina": 84
+            "pace": 76,
+            "shooting": 76,
+            "passing": 80,
+            "dribbling": 82,
+            "defending": 77,
+            "physical": 72,
+            "stamina": 76
           }
         },
         {
@@ -539,10 +623,12 @@
           "shirt": 8,
           "role": "MF",
           "stats": {
-            "pace": 76,
-            "passing": 83,
-            "shooting": 74,
-            "defending": 74,
+            "pace": 73,
+            "shooting": 71,
+            "passing": 79,
+            "dribbling": 84,
+            "defending": 72,
+            "physical": 69,
             "stamina": 78
           }
         },
@@ -551,11 +637,13 @@
           "shirt": 9,
           "role": "MF",
           "stats": {
-            "pace": 79,
-            "passing": 87,
-            "shooting": 73,
-            "defending": 80,
-            "stamina": 85
+            "pace": 83,
+            "shooting": 72,
+            "passing": 86,
+            "dribbling": 82,
+            "defending": 73,
+            "physical": 76,
+            "stamina": 83
           }
         },
         {
@@ -563,11 +651,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 76,
-            "passing": 77,
-            "shooting": 80,
-            "defending": 58,
-            "stamina": 76
+            "pace": 79,
+            "shooting": 89,
+            "passing": 76,
+            "dribbling": 83,
+            "defending": 56,
+            "physical": 74,
+            "stamina": 79
           }
         },
         {
@@ -575,11 +665,13 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 85,
-            "passing": 76,
-            "shooting": 86,
-            "defending": 70,
-            "stamina": 88
+            "pace": 75,
+            "shooting": 79,
+            "passing": 75,
+            "dribbling": 77,
+            "defending": 54,
+            "physical": 76,
+            "stamina": 77
           }
         }
       ]
@@ -589,6 +681,7 @@
       "name": "Harbour Metro",
       "shortName": "HBM",
       "formation": "4-3-3",
+      "rating": 74,
       "kit": {
         "primary": "#0f172a",
         "secondary": "#38bdf8",
@@ -601,11 +694,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 70,
-            "passing": 81,
-            "shooting": 56,
-            "defending": 75,
-            "stamina": 81
+            "pace": 66,
+            "shooting": 50,
+            "passing": 64,
+            "dribbling": 46,
+            "defending": 53,
+            "physical": 78,
+            "stamina": 69
           }
         },
         {
@@ -613,11 +708,13 @@
           "shirt": 2,
           "role": "DF",
           "stats": {
-            "pace": 79,
-            "passing": 80,
-            "shooting": 73,
-            "defending": 89,
-            "stamina": 83
+            "pace": 71,
+            "shooting": 67,
+            "passing": 73,
+            "dribbling": 68,
+            "defending": 82,
+            "physical": 85,
+            "stamina": 78
           }
         },
         {
@@ -625,11 +722,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 74,
-            "passing": 79,
-            "shooting": 74,
-            "defending": 84,
-            "stamina": 79
+            "pace": 70,
+            "shooting": 62,
+            "passing": 70,
+            "dribbling": 67,
+            "defending": 88,
+            "physical": 79,
+            "stamina": 80
           }
         },
         {
@@ -637,11 +736,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 74,
-            "passing": 76,
-            "shooting": 76,
-            "defending": 82,
-            "stamina": 84
+            "pace": 77,
+            "shooting": 62,
+            "passing": 70,
+            "dribbling": 66,
+            "defending": 81,
+            "physical": 85,
+            "stamina": 78
           }
         },
         {
@@ -649,11 +750,13 @@
           "shirt": 5,
           "role": "DF",
           "stats": {
-            "pace": 80,
+            "pace": 69,
+            "shooting": 63,
             "passing": 77,
-            "shooting": 72,
-            "defending": 85,
-            "stamina": 79
+            "dribbling": 71,
+            "defending": 82,
+            "physical": 85,
+            "stamina": 78
           }
         },
         {
@@ -662,10 +765,12 @@
           "role": "MF",
           "stats": {
             "pace": 83,
-            "passing": 87,
-            "shooting": 74,
-            "defending": 81,
-            "stamina": 90
+            "shooting": 75,
+            "passing": 84,
+            "dribbling": 85,
+            "defending": 75,
+            "physical": 73,
+            "stamina": 83
           }
         },
         {
@@ -673,11 +778,13 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 80,
-            "passing": 90,
-            "shooting": 79,
-            "defending": 81,
-            "stamina": 90
+            "pace": 82,
+            "shooting": 76,
+            "passing": 80,
+            "dribbling": 78,
+            "defending": 73,
+            "physical": 73,
+            "stamina": 84
           }
         },
         {
@@ -685,11 +792,13 @@
           "shirt": 8,
           "role": "MF",
           "stats": {
-            "pace": 81,
-            "passing": 89,
-            "shooting": 76,
+            "pace": 77,
+            "shooting": 72,
+            "passing": 80,
+            "dribbling": 83,
             "defending": 78,
-            "stamina": 86
+            "physical": 76,
+            "stamina": 81
           }
         },
         {
@@ -697,11 +806,13 @@
           "shirt": 9,
           "role": "FW",
           "stats": {
-            "pace": 87,
-            "passing": 79,
-            "shooting": 83,
-            "defending": 62,
-            "stamina": 80
+            "pace": 79,
+            "shooting": 79,
+            "passing": 73,
+            "dribbling": 84,
+            "defending": 54,
+            "physical": 78,
+            "stamina": 76
           }
         },
         {
@@ -709,11 +820,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 89,
-            "passing": 79,
+            "pace": 80,
             "shooting": 86,
-            "defending": 62,
-            "stamina": 80
+            "passing": 79,
+            "dribbling": 88,
+            "defending": 64,
+            "physical": 76,
+            "stamina": 77
           }
         },
         {
@@ -721,11 +834,13 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 88,
-            "passing": 81,
-            "shooting": 88,
-            "defending": 64,
-            "stamina": 84
+            "pace": 81,
+            "shooting": 83,
+            "passing": 77,
+            "dribbling": 86,
+            "defending": 55,
+            "physical": 80,
+            "stamina": 79
           }
         }
       ]
@@ -735,6 +850,7 @@
       "name": "Northgate Albion",
       "shortName": "NGA",
       "formation": "4-4-2",
+      "rating": 69,
       "kit": {
         "primary": "#f8fafc",
         "secondary": "#7c3aed",
@@ -747,11 +863,13 @@
           "shirt": 1,
           "role": "GK",
           "stats": {
-            "pace": 54,
-            "passing": 68,
-            "shooting": 47,
-            "defending": 71,
-            "stamina": 77
+            "pace": 48,
+            "shooting": 42,
+            "passing": 56,
+            "dribbling": 43,
+            "defending": 51,
+            "physical": 65,
+            "stamina": 58
           }
         },
         {
@@ -759,11 +877,13 @@
           "shirt": 2,
           "role": "DF",
           "stats": {
-            "pace": 65,
-            "passing": 69,
-            "shooting": 63,
-            "defending": 73,
-            "stamina": 69
+            "pace": 67,
+            "shooting": 55,
+            "passing": 64,
+            "dribbling": 69,
+            "defending": 81,
+            "physical": 77,
+            "stamina": 75
           }
         },
         {
@@ -771,11 +891,13 @@
           "shirt": 3,
           "role": "DF",
           "stats": {
-            "pace": 80,
-            "passing": 78,
-            "shooting": 78,
-            "defending": 91,
-            "stamina": 82
+            "pace": 71,
+            "shooting": 64,
+            "passing": 75,
+            "dribbling": 64,
+            "defending": 80,
+            "physical": 83,
+            "stamina": 77
           }
         },
         {
@@ -783,11 +905,13 @@
           "shirt": 4,
           "role": "DF",
           "stats": {
-            "pace": 78,
-            "passing": 72,
-            "shooting": 68,
-            "defending": 85,
-            "stamina": 81
+            "pace": 64,
+            "shooting": 54,
+            "passing": 66,
+            "dribbling": 60,
+            "defending": 77,
+            "physical": 77,
+            "stamina": 67
           }
         },
         {
@@ -795,11 +919,13 @@
           "shirt": 5,
           "role": "DF",
           "stats": {
-            "pace": 68,
-            "passing": 67,
-            "shooting": 67,
-            "defending": 77,
-            "stamina": 75
+            "pace": 65,
+            "shooting": 54,
+            "passing": 64,
+            "dribbling": 63,
+            "defending": 82,
+            "physical": 78,
+            "stamina": 74
           }
         },
         {
@@ -807,11 +933,13 @@
           "shirt": 6,
           "role": "MF",
           "stats": {
-            "pace": 72,
-            "passing": 79,
-            "shooting": 69,
-            "defending": 72,
-            "stamina": 77
+            "pace": 70,
+            "shooting": 73,
+            "passing": 82,
+            "dribbling": 79,
+            "defending": 71,
+            "physical": 72,
+            "stamina": 81
           }
         },
         {
@@ -819,11 +947,13 @@
           "shirt": 7,
           "role": "MF",
           "stats": {
-            "pace": 79,
-            "passing": 82,
-            "shooting": 75,
-            "defending": 77,
-            "stamina": 76
+            "pace": 71,
+            "shooting": 68,
+            "passing": 76,
+            "dribbling": 75,
+            "defending": 73,
+            "physical": 66,
+            "stamina": 75
           }
         },
         {
@@ -831,11 +961,13 @@
           "shirt": 8,
           "role": "MF",
           "stats": {
-            "pace": 77,
-            "passing": 81,
-            "shooting": 70,
-            "defending": 75,
-            "stamina": 82
+            "pace": 74,
+            "shooting": 72,
+            "passing": 79,
+            "dribbling": 73,
+            "defending": 67,
+            "physical": 72,
+            "stamina": 75
           }
         },
         {
@@ -843,11 +975,13 @@
           "shirt": 9,
           "role": "MF",
           "stats": {
-            "pace": 73,
-            "passing": 78,
-            "shooting": 68,
-            "defending": 73,
-            "stamina": 81
+            "pace": 70,
+            "shooting": 69,
+            "passing": 81,
+            "dribbling": 72,
+            "defending": 69,
+            "physical": 66,
+            "stamina": 73
           }
         },
         {
@@ -855,11 +989,13 @@
           "shirt": 10,
           "role": "FW",
           "stats": {
-            "pace": 75,
-            "passing": 68,
-            "shooting": 81,
-            "defending": 59,
-            "stamina": 77
+            "pace": 69,
+            "shooting": 79,
+            "passing": 63,
+            "dribbling": 72,
+            "defending": 49,
+            "physical": 65,
+            "stamina": 68
           }
         },
         {
@@ -867,10 +1003,12 @@
           "shirt": 11,
           "role": "FW",
           "stats": {
-            "pace": 78,
-            "passing": 76,
-            "shooting": 82,
-            "defending": 58,
+            "pace": 84,
+            "shooting": 85,
+            "passing": 72,
+            "dribbling": 80,
+            "defending": 51,
+            "physical": 72,
             "stamina": 76
           }
         }

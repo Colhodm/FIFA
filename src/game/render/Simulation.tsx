@@ -50,14 +50,14 @@ export function Simulation({ world }: { world: SimWorld }) {
       const frame = runtime.input.update(TICK_DT);
       tick(world, frame, runtime.cameraYaw, TICK_DT);
       if (frame.actions.pause.pressed) useGameStore.getState().setPaused(true);
-      runtime.charge =
-        frame.actions.shoot.down || frame.actions.pass.down
-          ? clamp(
-              Math.max(frame.actions.shoot.heldTime, frame.actions.pass.heldTime) / CHARGE_TIME,
-              0,
-              1,
-            )
-          : 0;
+      // Any of the four kick buttons fills the same power meter.
+      const held = Math.max(
+        frame.actions.shoot.down ? frame.actions.shoot.heldTime : 0,
+        frame.actions.pass.down ? frame.actions.pass.heldTime : 0,
+        frame.actions.cross.down ? frame.actions.cross.heldTime : 0,
+        frame.actions.through.down ? frame.actions.through.heldTime : 0,
+      );
+      runtime.charge = clamp(held / CHARGE_TIME, 0, 1);
     }
     if (accumulator.current > TICK_DT * MAX_TICKS_PER_FRAME) accumulator.current = 0;
 
@@ -87,12 +87,19 @@ export function Simulation({ world }: { world: SimWorld }) {
           w: Math.cos(player.heading / 2),
         });
       }
-      const visual = runtime.visuals.get(player.id);
-      if (visual) {
+      const rig = runtime.visuals.get(player.id);
+      if (rig) {
+        // Run cycle: cadence rises with speed, legs swing opposite the arms, torso leans in.
         const speed = Math.hypot(player.vel.x, player.vel.z);
         const stride = Math.min(1, speed / 7);
-        visual.position.y = Math.abs(Math.sin(clock.current * (4 + speed))) * 0.06 * stride;
-        visual.rotation.x = -stride * 0.14;
+        const phase = player.gait * 2;
+        const swing = Math.sin(phase) * stride * 0.85;
+        rig.legL.rotation.x = swing;
+        rig.legR.rotation.x = -swing;
+        rig.armL.rotation.x = -swing * 0.7;
+        rig.armR.rotation.x = swing * 0.7;
+        rig.root.position.y = Math.abs(Math.sin(phase)) * 0.05 * stride;
+        rig.root.rotation.x = -stride * 0.12;
       }
     }
 

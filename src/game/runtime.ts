@@ -1,7 +1,16 @@
-import type { Object3D } from 'three';
+import type { Group, Object3D } from 'three';
 import type { RapierRigidBody } from '@react-three/rapier';
 import { InputManager, KeyboardSource } from './input/input';
 import type { SimWorld } from './sim/state';
+
+/** Limb groups of one player, animated directly by the frame loop. */
+export interface PlayerRig {
+  root: Group;
+  legL: Group;
+  legR: Group;
+  armL: Group;
+  armR: Group;
+}
 
 /**
  * Mutable bridge between the fixed-timestep simulation and the React/R3F tree.
@@ -11,12 +20,12 @@ import type { SimWorld } from './sim/state';
 export interface Runtime {
   world: SimWorld | null;
   input: InputManager;
-  /** Published by the chase camera, consumed by the sim to rotate input into pitch space. */
+  /** Published by the match camera, consumed by the sim to rotate input into pitch space. */
   cameraYaw: number;
   ball: RapierRigidBody | null;
   bodies: Map<number, RapierRigidBody>;
-  /** Per-player visual groups, animated (bob, lean) independently of their colliders. */
-  visuals: Map<number, Object3D>;
+  /** Per-player rigs, animated (run cycle, lean) independently of their colliders. */
+  visuals: Map<number, PlayerRig>;
   /** Ring drawn under the player the human is controlling. */
   indicator: Object3D | null;
   /** 0..1 shot/pass charge, mirrored to the HUD. */

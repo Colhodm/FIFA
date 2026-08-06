@@ -1,11 +1,12 @@
 import { Canvas } from '@react-three/fiber';
 import { Sky } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
+import { ACESFilmicToneMapping } from 'three';
 import { TICK_DT } from '../constants';
 import type { SimWorld } from '../sim/state';
 import { useGameStore } from '../store';
 import { Ball } from './Ball';
-import { ChaseCamera } from './ChaseCamera';
+import { MatchCamera } from './MatchCamera';
 import { Goals } from './Goals';
 import { Pitch } from './Pitch';
 import { Players } from './Players';
@@ -15,23 +16,30 @@ import { Stadium } from './Stadium';
 export function Scene({ world }: { world: SimWorld }) {
   const tier = useGameStore((s) => s.tier);
   const paused = useGameStore((s) => s.paused);
+  const camera = useGameStore((s) => s.camera);
 
   return (
     <Canvas
       shadows={tier.shadows}
       dpr={tier.dpr}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
+      onCreated={({ gl }) => {
+        // Filmic response keeps the floodlit whites and kit colours from clipping.
+        gl.toneMapping = ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.05;
+      }}
       camera={{ position: [0, 26, -46], fov: 55, near: 0.4, far: 600 }}
     >
       <color attach="background" args={['#9ec6e8']} />
-      <fog attach="fog" args={['#b7d3ea', 140, 420]} />
-      <Sky sunPosition={[60, 40, -30]} turbidity={6} rayleigh={1.2} />
+      <fog attach="fog" args={['#b7d3ea', 160, 460]} />
+      <Sky sunPosition={[60, 40, -30]} turbidity={5} rayleigh={1.1} />
 
-      <hemisphereLight args={['#dbeafe', '#2a4a20', 1.1]} />
+      <hemisphereLight args={['#e8f1ff', '#2b4a24', 1.0]} />
       <directionalLight
         key={`${tier.shadowMapSize}-${tier.shadows}`}
         position={[55, 70, -30]}
-        intensity={2.2}
+        intensity={2.1}
+        color="#fff6e5"
         castShadow={tier.shadows}
         shadow-mapSize={[tier.shadowMapSize, tier.shadowMapSize]}
         shadow-bias={-0.0006}
@@ -51,7 +59,7 @@ export function Scene({ world }: { world: SimWorld }) {
       </Physics>
 
       <Stadium crowdDensity={tier.crowdDensity} />
-      <ChaseCamera />
+      <MatchCamera mode={camera} />
     </Canvas>
   );
 }
