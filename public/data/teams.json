@@ -1,0 +1,880 @@
+{
+  "teams": [
+    {
+      "id": "azure-rovers",
+      "name": "Azure Rovers",
+      "shortName": "AZR",
+      "formation": "4-3-3",
+      "kit": {
+        "primary": "#2563eb",
+        "secondary": "#f8fafc",
+        "shorts": "#1e3a8a",
+        "keeper": "#facc15"
+      },
+      "players": [
+        {
+          "name": "Silas Lindqvist",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 72,
+            "passing": 85,
+            "shooting": 60,
+            "defending": 87,
+            "stamina": 88
+          }
+        },
+        {
+          "name": "Amir Sandoval",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 80,
+            "passing": 81,
+            "shooting": 76,
+            "defending": 88,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Tomas Esposito",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 84,
+            "passing": 84,
+            "shooting": 76,
+            "defending": 88,
+            "stamina": 85
+          }
+        },
+        {
+          "name": "Ander Halden",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 82,
+            "passing": 84,
+            "shooting": 76,
+            "defending": 92,
+            "stamina": 88
+          }
+        },
+        {
+          "name": "Jonas Osei",
+          "shirt": 5,
+          "role": "DF",
+          "stats": {
+            "pace": 86,
+            "passing": 85,
+            "shooting": 81,
+            "defending": 90,
+            "stamina": 88
+          }
+        },
+        {
+          "name": "Ravi Tobin",
+          "shirt": 6,
+          "role": "MF",
+          "stats": {
+            "pace": 78,
+            "passing": 90,
+            "shooting": 82,
+            "defending": 80,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Yuto Quinn",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 85,
+            "passing": 92,
+            "shooting": 83,
+            "defending": 89,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Cato Marek",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 90,
+            "passing": 92,
+            "shooting": 79,
+            "defending": 84,
+            "stamina": 94
+          }
+        },
+        {
+          "name": "Kai Serra",
+          "shirt": 9,
+          "role": "FW",
+          "stats": {
+            "pace": 90,
+            "passing": 82,
+            "shooting": 92,
+            "defending": 72,
+            "stamina": 85
+          }
+        },
+        {
+          "name": "Luka Alvi",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 87,
+            "passing": 85,
+            "shooting": 94,
+            "defending": 75,
+            "stamina": 88
+          }
+        },
+        {
+          "name": "Nils Mbeki",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 89,
+            "passing": 80,
+            "shooting": 94,
+            "defending": 69,
+            "stamina": 90
+          }
+        }
+      ]
+    },
+    {
+      "id": "crimson-united",
+      "name": "Crimson United",
+      "shortName": "CRU",
+      "formation": "4-4-2",
+      "kit": {
+        "primary": "#dc2626",
+        "secondary": "#fef2f2",
+        "shorts": "#7f1d1d",
+        "keeper": "#22c55e"
+      },
+      "players": [
+        {
+          "name": "Milo Vance",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 69,
+            "passing": 81,
+            "shooting": 56,
+            "defending": 82,
+            "stamina": 90
+          }
+        },
+        {
+          "name": "Emeka Rios",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 82,
+            "passing": 83,
+            "shooting": 73,
+            "defending": 86,
+            "stamina": 82
+          }
+        },
+        {
+          "name": "Idris Kovac",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 79,
+            "passing": 76,
+            "shooting": 75,
+            "defending": 85,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Feli Farrow",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 86,
+            "passing": 87,
+            "shooting": 78,
+            "defending": 94,
+            "stamina": 88
+          }
+        },
+        {
+          "name": "Dario Brant",
+          "shirt": 5,
+          "role": "DF",
+          "stats": {
+            "pace": 73,
+            "passing": 78,
+            "shooting": 73,
+            "defending": 82,
+            "stamina": 79
+          }
+        },
+        {
+          "name": "Mateo Duarte",
+          "shirt": 6,
+          "role": "MF",
+          "stats": {
+            "pace": 82,
+            "passing": 89,
+            "shooting": 77,
+            "defending": 83,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Ozzy Bellamy",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 77,
+            "passing": 83,
+            "shooting": 71,
+            "defending": 74,
+            "stamina": 81
+          }
+        },
+        {
+          "name": "Noel Renard",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 80,
+            "passing": 85,
+            "shooting": 70,
+            "defending": 75,
+            "stamina": 82
+          }
+        },
+        {
+          "name": "Rafa Ilic",
+          "shirt": 9,
+          "role": "MF",
+          "stats": {
+            "pace": 83,
+            "passing": 84,
+            "shooting": 75,
+            "defending": 81,
+            "stamina": 84
+          }
+        },
+        {
+          "name": "Bruno Okoro",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 91,
+            "passing": 84,
+            "shooting": 92,
+            "defending": 71,
+            "stamina": 92
+          }
+        },
+        {
+          "name": "Iker Nakai",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 89,
+            "passing": 85,
+            "shooting": 87,
+            "defending": 67,
+            "stamina": 88
+          }
+        }
+      ]
+    },
+    {
+      "id": "verdant-city",
+      "name": "Verdant City",
+      "shortName": "VER",
+      "formation": "3-5-2",
+      "kit": {
+        "primary": "#059669",
+        "secondary": "#ecfdf5",
+        "shorts": "#064e3b",
+        "keeper": "#f97316"
+      },
+      "players": [
+        {
+          "name": "Silas Lindqvist",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 70,
+            "passing": 81,
+            "shooting": 51,
+            "defending": 80,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Amir Sandoval",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 78,
+            "passing": 79,
+            "shooting": 77,
+            "defending": 84,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Tomas Esposito",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 79,
+            "passing": 79,
+            "shooting": 73,
+            "defending": 85,
+            "stamina": 77
+          }
+        },
+        {
+          "name": "Ander Halden",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 73,
+            "passing": 78,
+            "shooting": 69,
+            "defending": 85,
+            "stamina": 80
+          }
+        },
+        {
+          "name": "Jonas Osei",
+          "shirt": 5,
+          "role": "MF",
+          "stats": {
+            "pace": 81,
+            "passing": 89,
+            "shooting": 77,
+            "defending": 79,
+            "stamina": 85
+          }
+        },
+        {
+          "name": "Ravi Tobin",
+          "shirt": 6,
+          "role": "MF",
+          "stats": {
+            "pace": 85,
+            "passing": 88,
+            "shooting": 82,
+            "defending": 86,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Yuto Quinn",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 77,
+            "passing": 85,
+            "shooting": 74,
+            "defending": 80,
+            "stamina": 87
+          }
+        },
+        {
+          "name": "Cato Marek",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 79,
+            "passing": 85,
+            "shooting": 75,
+            "defending": 77,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Kai Serra",
+          "shirt": 9,
+          "role": "MF",
+          "stats": {
+            "pace": 76,
+            "passing": 81,
+            "shooting": 73,
+            "defending": 75,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Luka Alvi",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 83,
+            "passing": 78,
+            "shooting": 89,
+            "defending": 67,
+            "stamina": 86
+          }
+        },
+        {
+          "name": "Nils Mbeki",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 90,
+            "passing": 85,
+            "shooting": 94,
+            "defending": 64,
+            "stamina": 86
+          }
+        }
+      ]
+    },
+    {
+      "id": "solar-athletic",
+      "name": "Solar Athletic",
+      "shortName": "SOL",
+      "formation": "5-3-2",
+      "kit": {
+        "primary": "#f59e0b",
+        "secondary": "#1f2937",
+        "shorts": "#1f2937",
+        "keeper": "#8b5cf6"
+      },
+      "players": [
+        {
+          "name": "Milo Vance",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 64,
+            "passing": 76,
+            "shooting": 56,
+            "defending": 80,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Emeka Rios",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 75,
+            "passing": 77,
+            "shooting": 74,
+            "defending": 82,
+            "stamina": 76
+          }
+        },
+        {
+          "name": "Idris Kovac",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 84,
+            "passing": 84,
+            "shooting": 73,
+            "defending": 88,
+            "stamina": 86
+          }
+        },
+        {
+          "name": "Feli Farrow",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 76,
+            "passing": 76,
+            "shooting": 71,
+            "defending": 87,
+            "stamina": 77
+          }
+        },
+        {
+          "name": "Dario Brant",
+          "shirt": 5,
+          "role": "DF",
+          "stats": {
+            "pace": 79,
+            "passing": 74,
+            "shooting": 75,
+            "defending": 82,
+            "stamina": 80
+          }
+        },
+        {
+          "name": "Mateo Duarte",
+          "shirt": 6,
+          "role": "DF",
+          "stats": {
+            "pace": 72,
+            "passing": 74,
+            "shooting": 69,
+            "defending": 81,
+            "stamina": 74
+          }
+        },
+        {
+          "name": "Ozzy Bellamy",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 78,
+            "passing": 86,
+            "shooting": 74,
+            "defending": 75,
+            "stamina": 84
+          }
+        },
+        {
+          "name": "Noel Renard",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 76,
+            "passing": 83,
+            "shooting": 74,
+            "defending": 74,
+            "stamina": 78
+          }
+        },
+        {
+          "name": "Rafa Ilic",
+          "shirt": 9,
+          "role": "MF",
+          "stats": {
+            "pace": 79,
+            "passing": 87,
+            "shooting": 73,
+            "defending": 80,
+            "stamina": 85
+          }
+        },
+        {
+          "name": "Bruno Okoro",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 76,
+            "passing": 77,
+            "shooting": 80,
+            "defending": 58,
+            "stamina": 76
+          }
+        },
+        {
+          "name": "Iker Nakai",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 85,
+            "passing": 76,
+            "shooting": 86,
+            "defending": 70,
+            "stamina": 88
+          }
+        }
+      ]
+    },
+    {
+      "id": "harbour-metro",
+      "name": "Harbour Metro",
+      "shortName": "HBM",
+      "formation": "4-3-3",
+      "kit": {
+        "primary": "#0f172a",
+        "secondary": "#38bdf8",
+        "shorts": "#0f172a",
+        "keeper": "#f43f5e"
+      },
+      "players": [
+        {
+          "name": "Silas Lindqvist",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 70,
+            "passing": 81,
+            "shooting": 56,
+            "defending": 75,
+            "stamina": 81
+          }
+        },
+        {
+          "name": "Amir Sandoval",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 79,
+            "passing": 80,
+            "shooting": 73,
+            "defending": 89,
+            "stamina": 83
+          }
+        },
+        {
+          "name": "Tomas Esposito",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 74,
+            "passing": 79,
+            "shooting": 74,
+            "defending": 84,
+            "stamina": 79
+          }
+        },
+        {
+          "name": "Ander Halden",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 74,
+            "passing": 76,
+            "shooting": 76,
+            "defending": 82,
+            "stamina": 84
+          }
+        },
+        {
+          "name": "Jonas Osei",
+          "shirt": 5,
+          "role": "DF",
+          "stats": {
+            "pace": 80,
+            "passing": 77,
+            "shooting": 72,
+            "defending": 85,
+            "stamina": 79
+          }
+        },
+        {
+          "name": "Ravi Tobin",
+          "shirt": 6,
+          "role": "MF",
+          "stats": {
+            "pace": 83,
+            "passing": 87,
+            "shooting": 74,
+            "defending": 81,
+            "stamina": 90
+          }
+        },
+        {
+          "name": "Yuto Quinn",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 80,
+            "passing": 90,
+            "shooting": 79,
+            "defending": 81,
+            "stamina": 90
+          }
+        },
+        {
+          "name": "Cato Marek",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 81,
+            "passing": 89,
+            "shooting": 76,
+            "defending": 78,
+            "stamina": 86
+          }
+        },
+        {
+          "name": "Kai Serra",
+          "shirt": 9,
+          "role": "FW",
+          "stats": {
+            "pace": 87,
+            "passing": 79,
+            "shooting": 83,
+            "defending": 62,
+            "stamina": 80
+          }
+        },
+        {
+          "name": "Luka Alvi",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 89,
+            "passing": 79,
+            "shooting": 86,
+            "defending": 62,
+            "stamina": 80
+          }
+        },
+        {
+          "name": "Nils Mbeki",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 88,
+            "passing": 81,
+            "shooting": 88,
+            "defending": 64,
+            "stamina": 84
+          }
+        }
+      ]
+    },
+    {
+      "id": "northgate-albion",
+      "name": "Northgate Albion",
+      "shortName": "NGA",
+      "formation": "4-4-2",
+      "kit": {
+        "primary": "#f8fafc",
+        "secondary": "#7c3aed",
+        "shorts": "#7c3aed",
+        "keeper": "#14b8a6"
+      },
+      "players": [
+        {
+          "name": "Milo Vance",
+          "shirt": 1,
+          "role": "GK",
+          "stats": {
+            "pace": 54,
+            "passing": 68,
+            "shooting": 47,
+            "defending": 71,
+            "stamina": 77
+          }
+        },
+        {
+          "name": "Emeka Rios",
+          "shirt": 2,
+          "role": "DF",
+          "stats": {
+            "pace": 65,
+            "passing": 69,
+            "shooting": 63,
+            "defending": 73,
+            "stamina": 69
+          }
+        },
+        {
+          "name": "Idris Kovac",
+          "shirt": 3,
+          "role": "DF",
+          "stats": {
+            "pace": 80,
+            "passing": 78,
+            "shooting": 78,
+            "defending": 91,
+            "stamina": 82
+          }
+        },
+        {
+          "name": "Feli Farrow",
+          "shirt": 4,
+          "role": "DF",
+          "stats": {
+            "pace": 78,
+            "passing": 72,
+            "shooting": 68,
+            "defending": 85,
+            "stamina": 81
+          }
+        },
+        {
+          "name": "Dario Brant",
+          "shirt": 5,
+          "role": "DF",
+          "stats": {
+            "pace": 68,
+            "passing": 67,
+            "shooting": 67,
+            "defending": 77,
+            "stamina": 75
+          }
+        },
+        {
+          "name": "Mateo Duarte",
+          "shirt": 6,
+          "role": "MF",
+          "stats": {
+            "pace": 72,
+            "passing": 79,
+            "shooting": 69,
+            "defending": 72,
+            "stamina": 77
+          }
+        },
+        {
+          "name": "Ozzy Bellamy",
+          "shirt": 7,
+          "role": "MF",
+          "stats": {
+            "pace": 79,
+            "passing": 82,
+            "shooting": 75,
+            "defending": 77,
+            "stamina": 76
+          }
+        },
+        {
+          "name": "Noel Renard",
+          "shirt": 8,
+          "role": "MF",
+          "stats": {
+            "pace": 77,
+            "passing": 81,
+            "shooting": 70,
+            "defending": 75,
+            "stamina": 82
+          }
+        },
+        {
+          "name": "Rafa Ilic",
+          "shirt": 9,
+          "role": "MF",
+          "stats": {
+            "pace": 73,
+            "passing": 78,
+            "shooting": 68,
+            "defending": 73,
+            "stamina": 81
+          }
+        },
+        {
+          "name": "Bruno Okoro",
+          "shirt": 10,
+          "role": "FW",
+          "stats": {
+            "pace": 75,
+            "passing": 68,
+            "shooting": 81,
+            "defending": 59,
+            "stamina": 77
+          }
+        },
+        {
+          "name": "Iker Nakai",
+          "shirt": 11,
+          "role": "FW",
+          "stats": {
+            "pace": 78,
+            "passing": 76,
+            "shooting": 82,
+            "defending": 58,
+            "stamina": 76
+          }
+        }
+      ]
+    }
+  ]
+}
