@@ -1,10 +1,12 @@
 import { useEffect, useMemo } from 'react';
 import { audio } from '../game/audio/audio';
 import { Scene } from '../game/render/Scene';
-import { attachKeyboard, runtime, setWorld } from '../game/runtime';
+import { disposeTextures } from '../game/render/textures';
+import { attachDevices, runtime, setWorld } from '../game/runtime';
 import { createWorld } from '../game/sim/state';
 import { teamById, useGameStore, useHudStore } from '../game/store';
 import { FullTime } from './FullTime';
+import { HalfTime } from './HalfTime';
 import { Hud } from './Hud';
 import { PauseMenu } from './PauseMenu';
 
@@ -33,7 +35,7 @@ export function Match() {
 
   useEffect(() => {
     if (!world) return;
-    attachKeyboard();
+    attachDevices();
     setWorld(world);
     useHudStore.getState().set({
       phase: world.phase,
@@ -44,7 +46,11 @@ export function Match() {
       possession: { home: 50, away: 50 },
       shots: { home: 0, away: 0 },
     });
-    return () => setWorld(null);
+    return () => {
+      setWorld(null);
+      // The generated kit/seat/ball textures are only needed while a match is on screen.
+      disposeTextures();
+    };
   }, [world]);
 
   useEffect(() => {
@@ -62,6 +68,7 @@ export function Match() {
       <Scene key={matchKey} world={world} />
       <Hud />
       <PauseMenu />
+      <HalfTime />
       <FullTime />
     </div>
   );

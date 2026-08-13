@@ -35,21 +35,36 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   const toZ = (z: number) => (z + SURFACE_WIDTH / 2) * px;
 
   // Darker, cooler surround so the playing surface pops the way it does on television.
-  ctx.fillStyle = '#1f5626';
+  ctx.fillStyle = '#17471f';
   ctx.fillRect(0, 0, width, height);
 
-  // Mown stripes across the length of the pitch.
+  // Mown stripes across the length of the pitch. Each one is a gradient rather than a flat
+  // band, because a roller leaves the grass leaning away from you and it catches the light.
   const stripes = 14;
   const stripeWidth = (HALF_LENGTH * 2) / stripes;
   for (let i = 0; i < stripes; i++) {
-    ctx.fillStyle = i % 2 === 0 ? '#3f9445' : '#2b7433';
-    ctx.fillRect(
-      toX(-HALF_LENGTH + i * stripeWidth),
-      toZ(-HALF_WIDTH),
-      stripeWidth * px,
-      HALF_WIDTH * 2 * px,
-    );
+    const x0 = toX(-HALF_LENGTH + i * stripeWidth);
+    const band = ctx.createLinearGradient(x0, 0, x0 + stripeWidth * px, 0);
+    const light = i % 2 === 0;
+    band.addColorStop(0, light ? '#34773a' : '#255a2b');
+    band.addColorStop(0.5, light ? '#3c8942' : '#205024');
+    band.addColorStop(1, light ? '#34773a' : '#255a2b');
+    ctx.fillStyle = band;
+    ctx.fillRect(x0, toZ(-HALF_WIDTH), stripeWidth * px + 1, HALF_WIDTH * 2 * px);
   }
+
+  // Mower arcs at the ends of each run, the scuff you see behind the goals on TV.
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = '#0f3d18';
+  ctx.lineWidth = 1.6 * px;
+  for (const zEdge of [-HALF_WIDTH, HALF_WIDTH]) {
+    for (let i = 1; i < stripes; i += 2) {
+      ctx.beginPath();
+      ctx.arc(toX(-HALF_LENGTH + i * stripeWidth), toZ(zEdge), stripeWidth * px, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
 
   // Worn-in goalmouths and centre circle, the giveaway that a pitch has been played on.
   for (const [wx, wz, r] of [
@@ -66,7 +81,7 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
 
   // Subtle wear noise so the grass is not perfectly flat colour.
   ctx.globalAlpha = 0.05;
-  for (let i = 0; i < 4000; i++) {
+  for (let i = 0; i < 12000; i++) {
     ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
     const r = Math.random() * 3 + 1;
     ctx.beginPath();
@@ -75,7 +90,8 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   }
   ctx.globalAlpha = 1;
 
-  ctx.strokeStyle = '#f8fbf8';
+  // Not pure white: paint on grass reads slightly grey, and it stops the lines blooming.
+  ctx.strokeStyle = '#dfe6de';
   ctx.lineWidth = LINE_WIDTH_M * px;
   ctx.lineCap = 'butt';
 
@@ -94,7 +110,7 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
   ctx.stroke();
 
   const spot = (x: number, z: number) => {
-    ctx.fillStyle = '#f8fbf8';
+    ctx.fillStyle = '#dfe6de';
     ctx.beginPath();
     ctx.arc(toX(x), toZ(z), 0.18 * px, 0, Math.PI * 2);
     ctx.fill();
@@ -149,9 +165,25 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
     }
   }
 
+  // Divot scars: short dark slashes, heaviest through the middle where the game is played.
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = '#123b17';
+  ctx.lineWidth = 0.06 * px;
+  for (let i = 0; i < 900; i++) {
+    const x = toX((Math.random() - 0.5) * HALF_LENGTH * 2);
+    const z = toZ((Math.random() - 0.5) * HALF_WIDTH * 1.9);
+    const a = Math.random() * Math.PI;
+    const len = (0.3 + Math.random() * 0.7) * px;
+    ctx.beginPath();
+    ctx.moveTo(x, z);
+    ctx.lineTo(x + Math.cos(a) * len, z + Math.sin(a) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
   return texture;

@@ -19,18 +19,29 @@ import {
 } from '../constants';
 import type { InputFrame } from '../input/input';
 import type { TeamSide } from '../types';
-import { decideOffBall, decideOnBall, kickPass, nearestOf, shoot } from './ai';
+import { resolveAerials, updateBodies, updateKeepers, type HeaderIntent } from './aerial';
+import { decideOffBall, decideOnBall, kickPass, nearestOf, registerShot, shoot } from './ai';
 import {
   applyKick,
   ballPos2,
   bestCross,
   bestPass,
   bestThroughBall,
+  curlToward,
   goalCenter,
   ownGoalCenter,
 } from './kick';
 import { angleDelta, clamp, dist, normalize, sub, type Vec2 } from './math';
-import { advanceClock, checkBallOut, startSecondHalf } from './rules';
+import {
+  advanceClock,
+  awardFoul,
+  checkBallOut,
+  flagOffsides,
+  startSecondHalf,
+  whistleOffside,
+} from './rules';
+import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
+import { firstTouchError, performSkill, skillFromDirection } from './skills';
 import {
   DIFFICULTY,
   TEAMMATE_PROFILE,
@@ -68,6 +79,8 @@ const playersMove = (world: SimWorld): boolean =>
   world.phase !== 'end' && world.phase !== 'halftime';
 
 export function tick(world: SimWorld, input: InputFrame, cameraYaw: number, dt: number): void {
+  world.pendingKickId = null;
+
   switch (world.phase) {
     case 'kickoff':
       world.phaseTimer -= dt;
@@ -79,13 +92,7 @@ export function tick(world: SimWorld, input: InputFrame, cameraYaw: number, dt: 
       }
       break;
     case 'restart':
-      world.phaseTimer -= dt;
-      freezeBall(world);
-      if (world.phaseTimer <= 0) {
-        world.phase = 'in-play';
-        world.banner = '';
-        world.restart = null;
-      }
+      world.phaseTimer = Math.max(0, world.phaseTimer - dt);
       break;
     case 'goal':
       world.phaseTimer -= dt;
@@ -109,18 +116,36 @@ export function tick(world: SimWorld, input: InputFrame, cameraYaw: number, dt: 
   if (isLive(world)) advanceClock(world, dt);
   if (world.phase === 'kickoff') freezeBall(world);
 
+  updateBodies(world, dt);
+
   if (playersMove(world)) {
     updatePlayers(world, input, cameraYaw, dt);
     resolveOverlaps(world);
   }
 
+  if (world.phase === 'restart') updateRestart(world, input, cameraYaw, dt);
+
   if (isLive(world)) {
     resolveChallenges(world, dt);
-    updateControl(world);
+    resolveAerials(world, headerIntent(world, input, cameraYaw));
+    updateKeepers(world, dt);
+    updateControl(world, dt);
     handleHumanActions(world, input, cameraYaw);
     if (world.possession) world.possessionTicks[world.possession] += 1;
     checkBallOut(world);
   }
+
+  settleKick(world);
+}
+
+/** Offside is judged from the moment the ball was last struck, so it resolves after the tick. */
+function settleKick(world: SimWorld): void {
+  if (world.pendingKickId === null) return;
+  const kicker = world.players.find((p) => p.id === world.pendingKickId);
+  if (kicker) flagOffsides(world, kicker);
+  world.pendingKickId = null;
+  // Any subsequent phase of play is judged for offside, including from a set piece.
+  world.offsideActive = true;
 }
 
 function freezeBall(world: SimWorld): void {
@@ -133,11 +158,40 @@ function freezeBall(world: SimWorld): void {
 function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt: number): void {
   const humanControlled = world.activeId;
   for (const p of world.players) {
+    if (p.sentOff) continue;
     p.kickCooldown = Math.max(0, p.kickCooldown - dt);
+
+    // A diving keeper and a player mid-skill are committed: no steering until they land.
+    if (p.anim === 'dive' || p.skillTimer > 0.15) {
+      p.pos.x += p.vel.x * dt;
+      p.pos.z += p.vel.z * dt;
+      p.vel = { x: p.vel.x * 0.92, z: p.vel.z * 0.92 };
+      continue;
+    }
 
     let desired: Vec2;
     let sprint: boolean;
     let face: Vec2 | null = null;
+
+    const set = world.restart;
+    if (set && world.phase === 'restart' && p.id === set.takerId) {
+      // The taker walks up to the ball and waits there, whoever is controlling him.
+      const spot = takerApproach(world, set);
+      const to = sub(spot, p.pos);
+      const d = Math.hypot(to.x, to.z);
+      const n = normalize(to);
+      desired = { x: n.x * clamp(d / 1.5, 0, 1), z: n.z * clamp(d / 1.5, 0, 1) };
+      sprint = d > 8;
+      face = sub(set.spot, p.pos);
+      integrate(p, desired, sprint, dt, face);
+      continue;
+    }
+
+    if (world.phase === 'goal' && world.lastScorer) {
+      celebrate(world, p, dt);
+      continue;
+    }
+
     if (p.id === humanControlled) {
       const hasBall = world.controllerId === p.id;
       const jockey = input.actions.jockey.down;
@@ -156,13 +210,14 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
       if (world.controllerId !== p.id) p.shielding = false;
       const profile = profileFor(world, p);
       p.thinkTimer -= dt;
+      const carrying = world.controllerId === p.id && isLive(world) && p.holdTimer <= 0;
       if (p.thinkTimer <= 0) {
         // Keepers and the ball carrier re-decide faster than the rest of the team.
         const cadence = p.role === 'GK' || world.controllerId === p.id ? 0.4 : 1;
         p.thinkTimer = profile.reaction * cadence * (0.75 + world.rand() * 0.5) + 0.02;
-        if (world.controllerId === p.id && isLive(world)) decideOnBall(world, p, profile);
+        if (carrying) decideOnBall(world, p, profile);
         else decideOffBall(world, p, profile);
-      } else if (world.controllerId === p.id && isLive(world)) {
+      } else if (carrying) {
         // Keep steering towards goal between decisions so dribbling stays smooth.
         const goal = goalCenter(world, p.side);
         p.intent = normalize(sub(goal, p.pos));
@@ -173,6 +228,39 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
 
     integrate(p, desired, sprint, dt, face);
   }
+}
+
+/** After a goal the scorer wheels away and his team chases him down. */
+function celebrate(world: SimWorld, p: SimPlayer, dt: number): void {
+  const scorer = world.players.find((s) => s.id === world.lastScorerId);
+  if (p.side !== world.lastScorer || !scorer) {
+    integrate(p, { x: 0, z: 0 }, false, dt, null);
+    return;
+  }
+  if (p.id === scorer.id) {
+    // Off towards the corner flag with the arms up.
+    const corner = {
+      x: goalCenter(world, p.side).x * 0.82,
+      z: Math.sign(p.pos.z || 1) * (HALF_WIDTH - 4),
+    };
+    const to = sub(corner, p.pos);
+    const d = Math.hypot(to.x, to.z);
+    const n = normalize(to);
+    p.anim = 'celebrate';
+    p.animTimer = 1;
+    integrate(p, { x: n.x * clamp(d / 3, 0, 1), z: n.z * clamp(d / 3, 0, 1) }, d > 6, dt, null);
+    return;
+  }
+  const to = sub(scorer.pos, p.pos);
+  const d = Math.hypot(to.x, to.z);
+  const n = normalize(to);
+  integrate(
+    p,
+    { x: n.x * clamp((d - 2) / 3, 0, 1), z: n.z * clamp((d - 2) / 3, 0, 1) },
+    d > 12,
+    dt,
+    null,
+  );
 }
 
 /** Goal-side containing position: stay between the ball and your own net, a stride off it. */
@@ -241,7 +329,7 @@ function integrate(
 /** Players are kinematic bodies, so they need a cheap separation pass of their own. */
 function resolveOverlaps(world: SimWorld): void {
   const min = PLAYER_RADIUS * 2;
-  const players = world.players;
+  const players = world.players.filter((p) => !p.sentOff);
   for (let i = 0; i < players.length; i++) {
     for (let j = i + 1; j < players.length; j++) {
       const a = players[i];
@@ -269,13 +357,17 @@ const CHALLENGE_RADIUS = 1.4;
 /**
  * Defenders cannot simply out-reach a dribbler (the ball is glued to his feet), so closing
  * a carrier down wins the ball probabilistically — defending rating versus the carrier's pace.
+ * Mistimed challenges are fouls.
  */
 function resolveChallenges(world: SimWorld, dt: number): void {
   const carrier = world.players.find((p) => p.id === world.controllerId);
-  if (!carrier) return;
+  if (!carrier || carrier.sentOff) return;
+  // A keeper with the ball in his gloves cannot be challenged.
+  if (carrier.role === 'GK' && carrier.holdTimer > 0) return;
   for (const opponent of world.players) {
-    if (opponent.side === carrier.side || opponent.kickCooldown > 0) continue;
-    const radius = opponent.role === 'GK' ? 2.4 : CHALLENGE_RADIUS;
+    if (opponent.side === carrier.side || opponent.kickCooldown > 0 || opponent.sentOff) continue;
+    // A keeper spreads himself at a forward's feet, so he covers more ground than a tackle.
+    const radius = opponent.role === 'GK' ? 3 : CHALLENGE_RADIUS;
     const d = dist(opponent.pos, carrier.pos);
     if (d > radius) continue;
     const closeness = 1 - d / radius;
@@ -288,7 +380,20 @@ function resolveChallenges(world: SimWorld, dt: number): void {
         : (0.55 + (attack - defence) / 150) * (carrier.shielding ? 0.4 : 1);
     if (world.rand() > clamp(skill, 0.08, 2.5) * closeness * dt) continue;
 
+    // Coming in quickly with poor technique catches the man instead of the ball.
+    const closingSpeed = Math.hypot(opponent.vel.x - carrier.vel.x, opponent.vel.z - carrier.vel.z);
+    const clumsy = clamp(0.3 - opponent.defending / 260 + closingSpeed * 0.018, 0.02, 0.4);
+    if (opponent.role !== 'GK' && world.rand() < clumsy) {
+      awardFoul(world, opponent, carrier, {
+        severity: clamp(closingSpeed / 9 + (opponent.physical - 60) / 200, 0.15, 1),
+      });
+      return;
+    }
+
     carrier.kickCooldown = KICK_COOLDOWN * 1.6;
+    opponent.tally.tackles += 1;
+    opponent.anim = 'tackle';
+    opponent.animTimer = 0.3;
     world.controllerId = opponent.id;
     world.possession = opponent.side;
     world.lastTouch = { side: opponent.side, playerId: opponent.id };
@@ -304,25 +409,54 @@ function resolveChallenges(world: SimWorld, dt: number): void {
 }
 
 /** Decides who has the ball this tick and glues it to the dribbler's feet. */
-function updateControl(world: SimWorld): void {
+function updateControl(world: SimWorld, dt: number): void {
   const ball = ballPos2(world);
   const previous = world.controllerId;
   const ballSpeed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+
+  // A keeper with the ball in his gloves keeps it until he is ready to distribute.
+  const keeperHolding = world.players.find(
+    (p) => p.id === previous && p.role === 'GK' && p.holdTimer > 0,
+  );
+  if (keeperHolding) {
+    // He gets up and carries it out of the six-yard box before looking for a teammate.
+    const own = ownGoalCenter(world, keeperHolding.side);
+    const out = Math.sign(-own.x || 1);
+    keeperHolding.anim = keeperHolding.anim === 'dive' ? 'run' : keeperHolding.anim;
+    keeperHolding.diveDir = 0;
+    keeperHolding.pos.x = clamp(
+      keeperHolding.pos.x + out * 3 * dt,
+      Math.min(own.x, own.x + out * 7),
+      Math.max(own.x, own.x + out * 7),
+    );
+    keeperHolding.pos.z += clamp(-keeperHolding.pos.z, -2 * dt, 2 * dt);
+    const vel = { x: 0, y: 0, z: 0 };
+    world.ball.vel = vel;
+    world.commands.push({ type: 'velocity', vel });
+    world.commands.push({
+      type: 'teleport',
+      pos: { x: keeperHolding.pos.x, y: 0.9, z: keeperHolding.pos.z },
+    });
+    return;
+  }
 
   let holder: SimPlayer | null = null;
   let bestD = Infinity;
   let blocker: SimPlayer | null = null;
   for (const p of world.players) {
-    if (p.kickCooldown > 0) continue;
+    if (p.kickCooldown > 0 || p.sentOff) continue;
     const keeper = p.role === 'GK';
-    const reach = CONTROL_RADIUS + (keeper ? 0.55 : 0);
+    // A man whose own team played the ball is expecting it, so he stretches for it and
+    // takes it at pace; an opponent has to read it, and can only nick a firmly struck ball.
+    const expecting = p.side === world.possession;
+    const reach = CONTROL_RADIUS + (keeper ? 0.55 : expecting ? 0.25 : 0);
     const height = keeper ? 2.6 : 1.5;
     if (world.ball.pos.y > height) continue;
     const d = dist(p.pos, ball);
     if (d >= reach) continue;
     // A struck ball cannot simply be plucked out of the air: keepers claim all but the
     // hardest strikes, outfield players only deflect one at point-blank range.
-    const limit = keeper ? 18 : 10 + (p.defending + p.dribbling) / 40;
+    const limit = keeper ? 18 : (expecting ? 19 : 12) + (p.defending + p.dribbling) / 40;
     if (ballSpeed > limit) {
       const incoming =
         world.ball.vel.x * (p.pos.x - ball.x) + world.ball.vel.z * (p.pos.z - ball.z) > 0;
@@ -335,7 +469,7 @@ function updateControl(world: SimWorld): void {
     if (
       p.id !== previous &&
       ballSpeed > 3 &&
-      world.rand() > clamp(1.15 - ballSpeed / limit, 0.12, 1)
+      world.rand() > clamp(1.35 - ballSpeed / limit, 0.25, 1)
     ) {
       continue;
     }
@@ -364,6 +498,13 @@ function updateControl(world: SimWorld): void {
   world.controllerId = holder ? holder.id : null;
   if (!holder) return;
 
+  // The linesman's flag: a player played onside stays onside, one caught beyond the line does not.
+  if (holder.offside && world.offsideActive) {
+    whistleOffside(world, holder);
+    return;
+  }
+
+  let touch: Vec2 = { x: 0, z: 0 };
   if (previous !== holder.id) {
     if (holder.role === 'GK' && ballSpeed > 12) {
       world.events.push({
@@ -373,17 +514,20 @@ function updateControl(world: SimWorld): void {
       });
     }
     if (world.possession !== holder.side) autoSwitch(world, holder);
+    // First touch: a hard pass bounces off a poor technician.
+    touch = firstTouchError(world, holder, ballSpeed);
   }
   world.possession = holder.side;
   world.lastTouch = { side: holder.side, playerId: holder.id };
+  for (const p of world.players) p.offside = false;
 
   // Nudge the ball to a dribbling position just ahead of the player: good close control keeps
   // it tight, while pace on the ball knocks it further in front.
   const knock =
     0.5 + (1 - holder.dribbling / 100) * 0.45 + Math.hypot(holder.vel.x, holder.vel.z) * 0.03;
   const ahead = {
-    x: holder.pos.x + Math.sin(holder.heading) * knock,
-    z: holder.pos.z + Math.cos(holder.heading) * knock,
+    x: holder.pos.x + Math.sin(holder.heading) * knock + touch.x,
+    z: holder.pos.z + Math.cos(holder.heading) * knock + touch.z,
   };
   const toAhead = sub(ahead, ball);
   const cap = Math.hypot(holder.vel.x, holder.vel.z) + 5;
@@ -406,27 +550,111 @@ function autoSwitch(world: SimWorld, holder: SimPlayer): void {
 
 const chargeOf = (heldTime: number): number => clamp(heldTime / CHARGE_TIME, 0.15, 1);
 
+/** Direction the human is aiming: his stick, or where he is facing if it is centred. */
+function aimOf(player: SimPlayer, input: InputFrame, cameraYaw: number): Vec2 {
+  const moveDir = inputToWorld(input.move, cameraYaw);
+  const facing = { x: Math.sin(player.heading), z: Math.cos(player.heading) };
+  return Math.hypot(moveDir.x, moveDir.z) > 0.2 ? moveDir : facing;
+}
+
+/** The human asking for a header: shoot aims at goal, pass/cross directs the clearance. */
+function headerIntent(world: SimWorld, input: InputFrame, cameraYaw: number): HeaderIntent | null {
+  const active = world.players.find((p) => p.id === world.activeId);
+  if (!active || active.sentOff) return null;
+  const a = input.actions;
+  const wants = a.shoot.pressed || a.pass.pressed || a.cross.pressed || a.through.pressed;
+  if (!wants) return null;
+  if (dist(active.pos, ballPos2(world)) > 2) return null;
+  return { playerId: active.id, dir: aimOf(active, input, cameraYaw), attacking: a.shoot.pressed };
+}
+
+/** Set pieces: the taker holds the ball until he plays it, and the phase ends on contact. */
+function updateRestart(world: SimWorld, input: InputFrame, cameraYaw: number, dt: number): void {
+  const set = world.restart;
+  if (!set) {
+    world.phase = 'in-play';
+    world.banner = '';
+    return;
+  }
+  set.prepare -= dt;
+  set.autoTake -= dt;
+  freezeBall(world);
+
+  const taker = findTaker(world, set);
+  if (!taker) {
+    resumePlay(world);
+    return;
+  }
+  if (!canTake(set)) return;
+
+  world.controllerId = taker.id;
+  world.possession = set.side;
+  const humanTaker = taker.side === world.config.humanSide && taker.id === world.activeId;
+
+  if (humanTaker) {
+    const a = input.actions;
+    if (set.kind === 'penalty') {
+      if (a.shoot.released)
+        takePenalty(world, taker, aimOf(taker, input, cameraYaw), chargeOf(a.shoot.heldTime));
+    } else {
+      handleHumanActions(world, input, cameraYaw);
+    }
+    // If the human never takes it, the referee's patience runs out.
+    if (set.autoTake < -10) aiTakeSetPiece(world, set, taker);
+  } else if (set.autoTake <= 0) {
+    aiTakeSetPiece(world, set, taker);
+  }
+
+  if (world.pendingKickId !== null) resumePlay(world);
+}
+
+function resumePlay(world: SimWorld): void {
+  world.phase = 'in-play';
+  world.banner = '';
+  world.restart = null;
+}
+
 /**
  * Face buttons do different jobs with and without the ball, exactly like the pad: shoot/tackle,
  * cross/slide, pass/contain, through ball/nothing. R1 (driven, finesse, threaded) and L1
- * (chipped, lofted, high) modify whichever kick is played.
+ * (chipped, lofted, high) modify whichever kick is played, and the skill button plus a
+ * direction plays a trick.
  */
 function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: number): void {
   const active = world.players.find((p) => p.id === world.activeId);
-  if (!active) return;
+  if (!active || active.sentOff) return;
   const a = input.actions;
-  const moveDir = inputToWorld(input.move, cameraYaw);
-  const facing = { x: Math.sin(active.heading), z: Math.cos(active.heading) };
-  const aimDir = Math.hypot(moveDir.x, moveDir.z) > 0.2 ? moveDir : facing;
+  const aimDir = aimOf(active, input, cameraYaw);
   const hasBall = world.controllerId === active.id;
   const r1 = a.modR1.down;
   const l1 = a.modL1.down;
 
   if (!hasBall) {
+    // Volley: meet a dropping ball on the run without waiting to control it.
+    const airborne = world.ball.pos.y > 0.3 && world.ball.pos.y < 1.6;
+    if (airborne && a.shoot.pressed && active.kickCooldown <= 0) {
+      if (dist(active.pos, ballPos2(world)) < 1.8) {
+        volley(world, active, aimDir);
+        return;
+      }
+    }
     if (a.switch.pressed || a.modL1.pressed) switchPlayer(world);
     if (a.shoot.pressed) tackle(world, active, r1 ? 1.35 : 1);
     if (a.cross.pressed) slideTackle(world, active);
     return;
+  }
+
+  // Skill moves: flick a direction with the skill button (right stick on a pad).
+  if (a.skill.pressed || (input.flick && Math.hypot(input.flick.x, input.flick.z) > 0.6)) {
+    const dir =
+      input.flick && Math.hypot(input.flick.x, input.flick.z) > 0.6
+        ? inputToWorld(input.flick, cameraYaw)
+        : aimDir;
+    if (performSkill(world, active, skillFromDirection(active, dir), dir)) return;
+  }
+  // Fake shot: shoot then pass in the same beat.
+  if (a.shoot.down && a.pass.pressed) {
+    if (performSkill(world, active, 'fake-shot', aimDir)) return;
   }
 
   if (a.shoot.released) {
@@ -438,9 +666,9 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
       const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
       applyKick(world, active, dir, MIN_SHOT_POWER * (0.6 + charge * 0.35), 4.2);
       world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
-      world.shots[active.side] += 1;
+      registerShot(world, active, goal);
     } else if (d < 40) {
-      // Finesse trades power for placement.
+      // Finesse trades power for placement, and bends the ball towards the corner.
       const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
       shoot(world, active, profile, 1, (r1 ? 0.45 : 0.55) + charge * (r1 ? 0.45 : 0.65));
     } else {
@@ -450,6 +678,7 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
         aimDir,
         MIN_SHOT_POWER + charge * (MAX_SHOT_POWER - MIN_SHOT_POWER),
         r1 ? 0.6 : 1.8,
+        r1 ? 0 : curlToward(active.pos, aimDir, goal, 0.4),
       );
       world.events.push({ type: 'kick', side: active.side, intensity: charge });
     }
@@ -503,22 +732,47 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
   }
 }
 
+/** First-time strike at a ball that is still in the air: powerful, but hard to keep down. */
+function volley(world: SimWorld, player: SimPlayer, aimDir: Vec2): void {
+  const goal = goalCenter(world, player.side);
+  const d = dist(player.pos, goal);
+  const toGoal = normalize(sub(goal, player.pos));
+  const dir = d < 32 ? toGoal : aimDir;
+  const spread = (1 - player.shooting / 130) * 0.22;
+  const aimed = normalize({
+    x: dir.x + (world.rand() * 2 - 1) * spread,
+    z: dir.z + (world.rand() * 2 - 1) * spread,
+  });
+  const power = 16 + (player.shooting / 100) * 10;
+  applyKick(world, player, aimed, power, clamp(1.4 - world.ball.pos.y, 0.1, 1.2));
+  registerShot(world, player, { x: goal.x, z: player.pos.z + aimed.z * 4 });
+  world.events.push({ type: 'shot', side: player.side, intensity: 0.9 });
+}
+
 function switchPlayer(world: SimWorld): void {
   const human = world.config.humanSide;
   const ball = ballPos2(world);
   const candidates = world.players
-    .filter((p) => p.side === human && p.role !== 'GK' && p.id !== world.activeId)
+    .filter((p) => p.side === human && p.role !== 'GK' && p.id !== world.activeId && !p.sentOff)
     .sort((a, b) => dist(a.pos, ball) - dist(b.pos, ball));
   if (candidates.length) world.activeId = candidates[0].id;
 }
 
 /**
  * Standing tackle. `commitment` above 1 is the held "hard" tackle: better odds, but the tackler
- * is out of the play for longer when it fails.
+ * is out of the play for longer when it fails — and more likely to give away a free kick.
  */
-function tackle(world: SimWorld, tackler: SimPlayer, commitment = 1, reach = 2.4): void {
+function tackle(
+  world: SimWorld,
+  tackler: SimPlayer,
+  commitment = 1,
+  reach = 2.4,
+  sliding = false,
+): void {
   const target = world.players.find((p) => p.id === world.controllerId);
   tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25 * commitment);
+  tackler.anim = sliding ? 'slide' : 'tackle';
+  tackler.animTimer = sliding ? 0.8 : 0.3;
   if (!target || target.side === tackler.side) return;
   const d = dist(tackler.pos, target.pos);
   if (d > reach) return;
@@ -531,11 +785,19 @@ function tackle(world: SimWorld, tackler: SimPlayer, commitment = 1, reach = 2.4
   );
   world.events.push({ type: 'tackle', side: tackler.side, intensity: clamp(odds, 0, 1) });
   if (world.rand() > odds) {
-    // A missed hard challenge leaves the defender on the floor.
+    // A missed hard challenge leaves the defender on the floor — and often in the book.
     tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25 * commitment * 2);
+    const contact = d < reach * 0.75;
+    const foulChance = sliding ? 0.55 : 0.25 * commitment;
+    if (contact && world.rand() < foulChance) {
+      awardFoul(world, tackler, target, {
+        severity: sliding ? 0.55 + world.rand() * 0.45 : 0.2 + world.rand() * 0.4,
+      });
+    }
     return;
   }
   const dir = normalize(sub(goalCenter(world, tackler.side), tackler.pos));
+  tackler.tally.tackles += 1;
   applyKick(world, tackler, dir, 8, 0.4);
   target.kickCooldown = KICK_COOLDOWN * 2;
   world.controllerId = null;
@@ -547,6 +809,6 @@ function tackle(world: SimWorld, tackler: SimPlayer, commitment = 1, reach = 2.4
 function slideTackle(world: SimWorld, tackler: SimPlayer): void {
   const lunge = normalize(sub(ballPos2(world), tackler.pos));
   tackler.vel = { x: tackler.vel.x + lunge.x * 3, z: tackler.vel.z + lunge.z * 3 };
-  tackle(world, tackler, 1.2, 3.4);
+  tackle(world, tackler, 1.2, 3.4, true);
   tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.85);
 }

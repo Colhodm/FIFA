@@ -21,6 +21,7 @@ export const ballPos2 = (world: SimWorld): Vec2 => ({
 /**
  * Applies an impulse at the contact point on the ball surface, factoring in the kicker's
  * momentum. The contact offset is what makes the ball pick up roll instead of sliding.
+ * `curl` is side-spin in rad/s: positive bends the ball to the kicker's right.
  */
 export function applyKick(
   world: SimWorld,
@@ -28,6 +29,7 @@ export function applyKick(
   dir: Vec2,
   speed: number,
   lift: number,
+  curl = 0,
 ): void {
   const d = normalize(dir);
   const ball = world.ball;
@@ -50,21 +52,48 @@ export function applyKick(
     },
   });
   ball.vel = target;
+  ball.spin = { x: 0, y: curl, z: 0 };
   player.kickCooldown = KICK_COOLDOWN;
+  player.anim = 'kick';
+  player.animTimer = 0.3;
   world.controllerId = null;
   world.lastTouch = { side: player.side, playerId: player.id };
   world.possession = player.side;
+  // Resolved at the end of the tick so the offside law never has to import the rules here.
+  world.pendingKickId = player.id;
+}
+
+/** Curl a shot or cross needs to bend from `dir` towards `target`, in rad/s of side spin. */
+export function curlToward(from: Vec2, dir: Vec2, target: Vec2, strength = 1): number {
+  const to = normalize(sub(target, from));
+  const d = normalize(dir);
+  // Cross product sign tells us which way the ball has to bend to find the target.
+  const cross = d.x * to.z - d.z * to.x;
+  return clamp(-cross * 26 * strength, -22, 22);
 }
 
 /** How free a straight pass from `from` to `to` is: 0 = intercepted, 1 = wide open. */
 export function laneOpenness(world: SimWorld, from: Vec2, to: Vec2, side: TeamSide): number {
   let worst = 1;
   for (const opp of world.players) {
-    if (opp.side === side) continue;
+    if (opp.side === side || opp.sentOff) continue;
     const d = distToSegment(opp.pos, from, to);
     worst = Math.min(worst, clamp(d / 4.5, 0, 1));
   }
   return worst;
+}
+
+/**
+ * Position of the second-last defender in attacking coordinates (x * attackDir): a receiver
+ * beyond this when the ball is played is offside, so the AI avoids passing there.
+ */
+export function offsideLine(world: SimWorld, side: TeamSide): number {
+  const attack = world.attackDir[side];
+  const xs = world.players
+    .filter((p) => p.side !== side && !p.sentOff)
+    .map((p) => p.pos.x * attack)
+    .sort((a, b) => b - a);
+  return Math.max(xs[1] ?? -HALF_LENGTH, 0);
 }
 
 export interface PassOption {
@@ -80,9 +109,10 @@ export interface PassOption {
  */
 export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): PassOption | null {
   const attack = world.attackDir[passer.side];
+  const line = world.offsideActive ? offsideLine(world, passer.side) : Infinity;
   let best: PassOption | null = null;
   for (const mate of world.players) {
-    if (mate.side !== passer.side || mate.id === passer.id) continue;
+    if (mate.side !== passer.side || mate.id === passer.id || mate.sentOff) continue;
     const d = dist(passer.pos, mate.pos);
     if (d < 3 || d > 42) continue;
     const travel = clamp(d / 16, 0.15, 1.2);
@@ -92,7 +122,9 @@ export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): Pa
     const toMate = normalize(sub(spot, passer.pos));
     const aim = prefDir ? dot(toMate, normalize(prefDir)) : 0;
     const keeperPenalty = mate.role === 'GK' ? -0.6 : 0;
+    const offsidePenalty = mate.pos.x * attack > line + 0.4 ? -3 : 0;
     const score =
+      offsidePenalty +
       open * 1.6 +
       forward * 1.1 +
       aim * (prefDir ? 1.5 : 0) -
@@ -115,9 +147,13 @@ export function bestThroughBall(
 ): PassOption | null {
   const attack = world.attackDir[passer.side];
   const goal = goalCenter(world, passer.side);
+  const line = world.offsideActive ? offsideLine(world, passer.side) : Infinity;
   let best: PassOption | null = null;
   for (const mate of world.players) {
     if (mate.side !== passer.side || mate.id === passer.id || mate.role === 'GK') continue;
+    if (mate.sentOff) continue;
+    // A runner already beyond the last man is offside the instant the ball is played.
+    if (mate.pos.x * attack > line + 0.4) continue;
     // Only play forwards, into a runner ahead of the passer.
     const ahead = (mate.pos.x - passer.pos.x) * attack;
     if (ahead < -2) continue;
@@ -145,6 +181,7 @@ export function bestCross(world: SimWorld, passer: SimPlayer): PassOption | null
   let best: PassOption | null = null;
   for (const mate of world.players) {
     if (mate.side !== passer.side || mate.id === passer.id || mate.role === 'GK') continue;
+    if (mate.sentOff) continue;
     const travel = 0.9;
     const spot = { x: mate.pos.x + mate.vel.x * travel, z: mate.pos.z + mate.vel.z * travel };
     const d = dist(passer.pos, spot);

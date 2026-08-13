@@ -9,13 +9,59 @@ export interface QualityTier {
   shadowMapSize: number;
   /** 0..1 multiplier on stadium crowd instances. */
   crowdDensity: number;
+  /** Runs the bloom/AA/vignette composer instead of rendering straight to the screen. */
+  postFx: boolean;
+  /** Screen-space ambient occlusion inside the composer; the most expensive effect here. */
+  ambientOcclusion: boolean;
+  /** Cube resolution of the generated environment map that lights the kits and the ball. */
+  envResolution: number;
 }
 
 export const TIERS: QualityTier[] = [
-  { id: 0, name: 'Low', dpr: 0.75, shadows: false, shadowMapSize: 512, crowdDensity: 0.15 },
-  { id: 1, name: 'Medium', dpr: 1, shadows: true, shadowMapSize: 512, crowdDensity: 0.4 },
-  { id: 2, name: 'High', dpr: 1.5, shadows: true, shadowMapSize: 1024, crowdDensity: 0.7 },
-  { id: 3, name: 'Ultra', dpr: 2, shadows: true, shadowMapSize: 2048, crowdDensity: 1 },
+  {
+    id: 0,
+    name: 'Low',
+    dpr: 0.75,
+    shadows: false,
+    shadowMapSize: 512,
+    crowdDensity: 0.15,
+    postFx: false,
+    ambientOcclusion: false,
+    envResolution: 32,
+  },
+  {
+    id: 1,
+    name: 'Medium',
+    dpr: 1,
+    shadows: true,
+    shadowMapSize: 1024,
+    crowdDensity: 0.4,
+    postFx: false,
+    ambientOcclusion: false,
+    envResolution: 64,
+  },
+  {
+    id: 2,
+    name: 'High',
+    dpr: 1.5,
+    shadows: true,
+    shadowMapSize: 2048,
+    crowdDensity: 0.7,
+    postFx: true,
+    ambientOcclusion: false,
+    envResolution: 128,
+  },
+  {
+    id: 3,
+    name: 'Ultra',
+    dpr: 2,
+    shadows: true,
+    shadowMapSize: 4096,
+    crowdDensity: 1,
+    postFx: true,
+    ambientOcclusion: true,
+    envResolution: 256,
+  },
 ];
 
 export const MANUAL_TIER: Record<Exclude<QualityMode, 'auto'>, number> = {

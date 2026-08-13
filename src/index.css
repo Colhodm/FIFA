@@ -287,6 +287,24 @@ select {
   opacity: 0.75;
 }
 
+.sb-added {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--accent);
+  margin-left: 2px;
+}
+
+/* Red-card marker next to a team that is down to ten men. */
+.sb-red {
+  display: inline-block;
+  width: 7px;
+  height: 10px;
+  margin-left: 4px;
+  border-radius: 1px;
+  background: #ef4444;
+  vertical-align: -1px;
+}
+
 .perf {
   position: absolute;
   top: 16px;
@@ -297,6 +315,77 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 5px 10px;
+}
+
+/* Restart prompt, under the banner. */
+.setpiece {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.replay-tag {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.85);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Live match feed: goals, cards, fouls and offsides as they happen. */
+.feed {
+  position: absolute;
+  left: 16px;
+  top: 96px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 300px;
+  font-size: 12px;
+}
+
+.feed li {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+}
+
+.feed li.fd-goal {
+  border-left-color: #22c55e;
+}
+
+.feed li.fd-card {
+  border-left-color: #facc15;
+}
+
+.feed li.fd-foul,
+.feed li.fd-offside {
+  border-left-color: #f97316;
+}
+
+.fd-min {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
 }
 
 .banner {
@@ -480,4 +569,88 @@ select {
   font-size: 18px;
   font-weight: 700;
   width: 30%;
+}
+
+.stats thead th {
+  font-size: 13px;
+  color: var(--text);
+  letter-spacing: 0.1em;
+}
+
+/* Post-match player ratings, one column per side. */
+.ratings-row {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.ratings {
+  flex: 1;
+}
+
+.ratings h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ratings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.ratings li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rt-shirt {
+  width: 20px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rt-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-score.is-good {
+  color: #22c55e;
+}
+
+/* Timeline of the match events on the interval and full-time screens. */
+.feed-list {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
 }

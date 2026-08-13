@@ -1,39 +1,29 @@
 import { teamById, useGameStore, useHudStore } from '../game/store';
-import { Ratings, StatsPanel } from './StatsPanel';
+import { StatsPanel } from './StatsPanel';
 
-export function FullTime() {
+/** Half-time interval: the stats screen, up until the referee restarts the match. */
+export function HalfTime() {
   const phase = useHudStore((s) => s.phase);
   const score = useHudStore((s) => s.score);
-  const possession = useHudStore((s) => s.possession);
   const stats = useHudStore((s) => s.stats);
+  const possession = useHudStore((s) => s.possession);
   const feed = useHudStore((s) => s.feed);
   const teams = useGameStore((s) => s.teams);
   const setup = useGameStore((s) => s.setup);
-  const restartMatch = useGameStore((s) => s.restartMatch);
-  const quitToMenu = useGameStore((s) => s.quitToMenu);
 
-  if (phase !== 'end') return null;
+  if (phase !== 'halftime') return null;
 
   const home = teamById(teams, setup.homeTeamId);
   const away = teamById(teams, setup.awayTeamId);
-  const human = setup.humanSide;
-  const humanScore = score[human];
-  const cpuScore = score[human === 'home' ? 'away' : 'home'];
-  const result = humanScore === cpuScore ? 'Draw' : humanScore > cpuScore ? 'You win!' : 'CPU wins';
 
   return (
     <div className="overlay">
       <div className="panel wide">
-        <h2>Full time</h2>
-        <p className="result">{result}</p>
+        <h2>Half time</h2>
         <p className="final-score">
           {home?.name ?? 'Home'} {score.home} – {score.away} {away?.name ?? 'Away'}
         </p>
         <StatsPanel stats={stats} possession={possession} home={home} away={away} />
-        <div className="ratings-row">
-          <Ratings side="home" title={home?.shortName ?? 'Home'} />
-          <Ratings side="away" title={away?.shortName ?? 'Away'} />
-        </div>
         {feed.length > 0 && (
           <ul className="feed-list">
             {feed.map((entry, i) => (
@@ -43,12 +33,7 @@ export function FullTime() {
             ))}
           </ul>
         )}
-        <button type="button" onClick={restartMatch}>
-          Rematch
-        </button>
-        <button type="button" onClick={quitToMenu}>
-          Main menu
-        </button>
+        <p className="hint">Second half starts shortly…</p>
       </div>
     </div>
   );

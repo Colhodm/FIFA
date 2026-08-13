@@ -1,10 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import { RepeatWrapping } from 'three';
 import { HALF_LENGTH, HALF_WIDTH } from '../constants';
 import { createPitchTexture, SURFACE_LENGTH, SURFACE_WIDTH } from './pitchTexture';
+import { grassNormalTexture } from './textures';
 
 const WALL_HEIGHT = 14;
 const FLAG_HEIGHT = 1.5;
+/** Concrete apron between the grass and the first row of hoardings. */
+const APRON_LENGTH = SURFACE_LENGTH + 14;
+const APRON_WIDTH = SURFACE_WIDTH + 14;
 
 const CORNERS: [number, number][] = [
   [HALF_LENGTH, HALF_WIDTH],
@@ -14,14 +19,38 @@ const CORNERS: [number, number][] = [
 ];
 
 export function Pitch({ shadows }: { shadows: boolean }) {
-  const texture = useMemo(() => createPitchTexture(2048), []);
+  const texture = useMemo(() => createPitchTexture(4096), []);
   useEffect(() => () => texture.dispose(), [texture]);
+
+  // The blade noise is tiled far more densely than the markings, which keeps the lines crisp
+  // while the surface itself still has grass-scale detail under the lights.
+  const normal = useMemo(() => {
+    const map = grassNormalTexture().clone();
+    map.wrapS = RepeatWrapping;
+    map.wrapT = RepeatWrapping;
+    map.repeat.set(SURFACE_LENGTH / 2.5, SURFACE_WIDTH / 2.5);
+    map.needsUpdate = true;
+    return map;
+  }, []);
+  useEffect(() => () => normal.dispose(), [normal]);
 
   return (
     <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow={false}>
+        <planeGeometry args={[APRON_LENGTH, APRON_WIDTH]} />
+        <meshStandardMaterial color="#2a3040" roughness={0.95} />
+      </mesh>
+
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
         <planeGeometry args={[SURFACE_LENGTH, SURFACE_WIDTH]} />
-        <meshStandardMaterial map={texture} roughness={0.96} metalness={0} />
+        <meshStandardMaterial
+          map={texture}
+          normalMap={normal}
+          normalScale={[0.55, 0.55]}
+          roughness={0.82}
+          metalness={0}
+          envMapIntensity={0.35}
+        />
       </mesh>
 
       {CORNERS.map(([x, z]) => (
