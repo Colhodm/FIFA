@@ -1,31 +1,40 @@
-import { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
 import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
-import { CanvasTexture, RepeatWrapping } from 'three';
+import { CanvasTexture, RepeatWrapping, type Mesh } from 'three';
 import { GOAL_DEPTH, GOAL_HEIGHT, HALF_GOAL_WIDTH, HALF_LENGTH, POST_RADIUS } from '../constants';
+import { runtime } from '../runtime';
 
 function createNetTexture(): CanvasTexture {
-  const size = 128;
+  const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas unavailable');
   ctx.clearRect(0, 0, size, size);
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-  ctx.lineWidth = 3;
-  const cells = 8;
-  for (let i = 0; i <= cells; i++) {
-    const p = (i / cells) * size;
-    ctx.beginPath();
-    ctx.moveTo(p, 0);
-    ctx.lineTo(p, size);
-    ctx.moveTo(0, p);
-    ctx.lineTo(size, p);
-    ctx.stroke();
+  // Real netting is a diamond weave, not a grid: two diagonals plus the vertical cords.
+  const cells = 10;
+  const step = size / cells;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for (let i = -cells; i <= cells * 2; i++) {
+    ctx.moveTo(i * step, 0);
+    ctx.lineTo(i * step + size, size);
+    ctx.moveTo(i * step, 0);
+    ctx.lineTo(i * step - size, size);
   }
+  for (let i = 0; i <= cells; i++) {
+    ctx.moveTo(i * step, 0);
+    ctx.lineTo(i * step, size);
+  }
+  ctx.stroke();
   const texture = new CanvasTexture(canvas);
   texture.wrapS = RepeatWrapping;
   texture.wrapT = RepeatWrapping;
+  texture.anisotropy = 8;
   return texture;
 }
 
@@ -38,10 +47,44 @@ interface GoalProps {
 function Goal({ dir, shadows }: GoalProps) {
   const net = useMemo(() => {
     const t = createNetTexture();
-    t.repeat.set(GOAL_DEPTH * 1.5, GOAL_HEIGHT * 1.5);
+    t.repeat.set(GOAL_DEPTH * 2.4, GOAL_HEIGHT * 2.4);
     return t;
   }, []);
   useEffect(() => () => net.dispose(), [net]);
+
+  const backNet = useRef<Mesh | null>(null);
+  const rest = useRef<Float32Array | null>(null);
+
+  // The netting bulges where the ball hits it and shivers back to rest.
+  useFrame((_state, delta) => {
+    const mesh = backNet.current;
+    if (!mesh) return;
+    const attribute = mesh.geometry.getAttribute('position');
+    if (!rest.current) rest.current = Float32Array.from(attribute.array);
+    const hit = runtime.netHit;
+    const active = hit && hit.dir === dir && hit.t > 0;
+    if (!active) {
+      if (mesh.userData.settled === true) return;
+      attribute.array.set(rest.current);
+      attribute.needsUpdate = true;
+      mesh.userData.settled = true;
+      return;
+    }
+    mesh.userData.settled = false;
+    hit.t = Math.max(0, hit.t - delta);
+    const decay = hit.t / 0.9;
+    const amplitude = 0.55 * decay * decay;
+    const wobble = Math.cos((1 - decay) * 34) * decay;
+    for (let i = 0; i < attribute.count; i++) {
+      // The plane is rotated into the yz face, so its local x/y are the goal's z/y.
+      const px = rest.current[i * 3];
+      const py = rest.current[i * 3 + 1];
+      const d = Math.hypot(px + hit.z * dir, py - (hit.y - GOAL_HEIGHT / 2));
+      const push = Math.exp(-d * d * 0.5) * amplitude * wobble;
+      attribute.setZ(i, rest.current[i * 3 + 2] - push);
+    }
+    attribute.needsUpdate = true;
+  });
 
   const line = HALF_LENGTH * dir;
   const back = (HALF_LENGTH + GOAL_DEPTH) * dir;
@@ -88,19 +131,40 @@ function Goal({ dir, shadows }: GoalProps) {
         />
       </RigidBody>
 
-      <mesh position={[back, GOAL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[HALF_GOAL_WIDTH * 2, GOAL_HEIGHT]} />
-        <meshBasicMaterial map={net} transparent opacity={0.55} depthWrite={false} />
+      <mesh ref={backNet} position={[back, GOAL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[HALF_GOAL_WIDTH * 2, GOAL_HEIGHT, 20, 12]} />
+        <meshStandardMaterial
+          map={net}
+          transparent
+          opacity={0.85}
+          depthWrite={false}
+          roughness={0.9}
+          side={2}
+        />
       </mesh>
       {[HALF_GOAL_WIDTH, -HALF_GOAL_WIDTH].map((z) => (
         <mesh key={z} position={[mid, GOAL_HEIGHT / 2, z]}>
           <planeGeometry args={[GOAL_DEPTH, GOAL_HEIGHT]} />
-          <meshBasicMaterial map={net} transparent opacity={0.45} depthWrite={false} side={2} />
+          <meshStandardMaterial
+            map={net}
+            transparent
+            opacity={0.75}
+            depthWrite={false}
+            roughness={0.9}
+            side={2}
+          />
         </mesh>
       ))}
       <mesh position={[mid, GOAL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <planeGeometry args={[GOAL_DEPTH, HALF_GOAL_WIDTH * 2]} />
-        <meshBasicMaterial map={net} transparent opacity={0.4} depthWrite={false} side={2} />
+        <meshStandardMaterial
+          map={net}
+          transparent
+          opacity={0.7}
+          depthWrite={false}
+          roughness={0.9}
+          side={2}
+        />
       </mesh>
     </group>
   );

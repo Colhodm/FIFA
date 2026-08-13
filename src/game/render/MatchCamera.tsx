@@ -15,8 +15,10 @@ const TARGET_HFOV_DEG = 78;
  * stable. `height`/`back` set the angle, `track` how much of the ball's width it follows.
  */
 const RIGS: Record<'broadcast' | 'tele', { height: number; back: number; track: number }> = {
-  broadcast: { height: 17, back: 26, track: 0.55 },
-  tele: { height: 30, back: 30, track: 0.35 },
+  // Both rigs sit inside the bowl: broadcast on the gantry at the front of the second tier,
+  // tele higher and further back, clear of the seats and under the roof.
+  broadcast: { height: 19, back: 23, track: 0.55 },
+  tele: { height: 30, back: 26, track: 0.35 },
 };
 
 /** Player cam sits behind the man on the ball and looks up the pitch. */
@@ -49,6 +51,28 @@ export function MatchCamera({ mode }: { mode: CameraMode }) {
 
     const ball = world.ball.pos;
     const active = world.players.find((p) => p.id === world.activeId);
+
+    // Replays get their own low, swinging angle, orbiting the action in slow motion.
+    if (runtime.replay.playing) {
+      const t = runtime.replay.cursor / 30;
+      const radius = 26;
+      const angle = t * 0.35 + (ball.x > 0 ? 0.4 : Math.PI - 0.4);
+      desiredFocus.current.set(ball.x, Math.max(1.2, ball.y), ball.z);
+      desiredPos.current.set(
+        ball.x - Math.cos(angle) * radius,
+        7.5,
+        ball.z - Math.sin(angle) * radius,
+      );
+      focus.current.lerp(desiredFocus.current, smoothing(dt, 0.12));
+      position.current.lerp(desiredPos.current, smoothing(dt, 0.14));
+      camera.position.copy(position.current);
+      camera.lookAt(focus.current);
+      runtime.cameraYaw = Math.atan2(
+        focus.current.x - position.current.x,
+        focus.current.z - position.current.z,
+      );
+      return;
+    }
     // Dead-ball moments always cut to the high wide angle, whatever the chosen rig.
     const cutaway =
       world.phase === 'kickoff' ||

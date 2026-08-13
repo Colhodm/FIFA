@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { Difficulty, FormationId, TeamData, TeamSide } from './types';
-import type { MatchPhase } from './sim/state';
+import {
+  emptyStats,
+  type FeedEntry,
+  type MatchPhase,
+  type MatchStats,
+  type RestartKind,
+} from './sim/state';
 import {
   defaultTier,
   MANUAL_TIER,
@@ -101,6 +107,8 @@ export interface HudState {
   phase: MatchPhase;
   half: 1 | 2;
   minute: number;
+  /** Added time at the end of the half, in minutes. */
+  stoppage: number;
   score: Record<TeamSide, number>;
   banner: string;
   activeName: string;
@@ -108,6 +116,14 @@ export interface HudState {
   stamina: number;
   possession: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
+  stats: Record<TeamSide, MatchStats>;
+  /** The last few goals, cards, fouls and offsides. */
+  feed: FeedEntry[];
+  /** Set while a restart is being taken, so the HUD can prompt the taker. */
+  setPiece: RestartKind | null;
+  replay: boolean;
+  /** True while a gamepad is connected, switching the control hints. */
+  pad: boolean;
   fps: number;
   tierName: string;
   charge: number;
@@ -119,6 +135,7 @@ export const useHudStore = create<HudState>((set) => ({
   phase: 'kickoff',
   half: 1,
   minute: 0,
+  stoppage: 0,
   score: { home: 0, away: 0 },
   banner: '',
   activeName: '',
@@ -126,6 +143,11 @@ export const useHudStore = create<HudState>((set) => ({
   stamina: 1,
   possession: { home: 50, away: 50 },
   shots: { home: 0, away: 0 },
+  stats: { home: emptyStats(), away: emptyStats() },
+  feed: [],
+  setPiece: null,
+  replay: false,
+  pad: false,
   fps: 60,
   tierName: 'High',
   charge: 0,

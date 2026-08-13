@@ -12,6 +12,7 @@ import {
   ballPos2,
   bestPass,
   bestThroughBall,
+  curlToward,
   goalCenter,
   ownGoalCenter,
   shotQuality,
@@ -37,7 +38,7 @@ export function nearestOf(
   let best: SimPlayer | null = null;
   let bestD = Infinity;
   for (const p of world.players) {
-    if (p.side !== side || p.id === exclude) continue;
+    if (p.side !== side || p.id === exclude || p.sentOff) continue;
     if (skipKeeper && p.role === 'GK') continue;
     const d = dist(p.pos, point);
     if (d < bestD) {
@@ -51,7 +52,7 @@ export function nearestOf(
 export function nearestOpponentDistance(world: SimWorld, p: SimPlayer): number {
   let best = Infinity;
   for (const o of world.players) {
-    if (o.side === p.side) continue;
+    if (o.side === p.side || o.sentOff) continue;
     best = Math.min(best, dist(o.pos, p.pos));
   }
   return best;
@@ -84,7 +85,7 @@ function markTarget(world: SimWorld, p: SimPlayer, profile: DifficultyProfile): 
   let best: SimPlayer | null = null;
   let bestD = Infinity;
   for (const o of world.players) {
-    if (o.side === p.side || o.role === 'GK') continue;
+    if (o.side === p.side || o.role === 'GK' || o.sentOff) continue;
     const d = dist(o.pos, p.pos);
     if (d < bestD && d < 22) {
       bestD = d;
@@ -147,6 +148,11 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
 
   // In possession without the ball: support the carrier and stretch the defence.
   const carrier = world.players.find((c) => c.id === world.controllerId);
+  // A pass is in flight: the closest man goes and meets it instead of holding his shape.
+  if (!carrier && chaser?.id === p.id) {
+    setIntent(p, clampToPitch(interceptPoint(world, 0.5)), p.stamina > 0.15);
+    return;
+  }
   const shape = shapeTarget(world, p);
   if (carrier && carrier.id !== p.id && dist(carrier.pos, p.pos) < 14) {
     const away = normalize(sub(p.pos, carrier.pos));
@@ -219,7 +225,8 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   const shootBar = 0.34 + (1 - profile.shotAccuracy) * 0.2;
   // Inside the box with any sort of angle, take the shot rather than walking it in.
   const goalDist = dist(p.pos, goal);
-  const pointBlank = goalDist < 16 && Math.abs(p.pos.z) < 14 && pressure > 1.6;
+  // Nobody dribbles it over the line: from the six-yard box he simply hits it.
+  const pointBlank = goalDist < 16 && Math.abs(p.pos.z) < 14 && (pressure > 1.6 || goalDist < 7);
   if (pointBlank || quality > shootBar) {
     shoot(world, p, profile, quality);
     return true;
@@ -281,14 +288,18 @@ export function shoot(
     clamp(MIN_SHOT_POWER + d * 0.62, MIN_SHOT_POWER, MAX_SHOT_POWER) *
     (0.74 + p.shooting / 260) *
     powerScale;
-  applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6));
-  world.shots[p.side] += 1;
+  // Good finishers wrap their foot around it, bending the shot back towards the corner.
+  const curl = curlToward(p.pos, dir, aim, (p.shooting / 100) * 0.5);
+  applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6), curl);
+  registerShot(world, p, aim);
   world.events.push({ type: 'shot', side: p.side, intensity: clamp(power / MAX_SHOT_POWER, 0, 1) });
 }
 
 export interface PassOptions {
   /** Vertical impulse. 0 keeps it on the deck; a lofted pass or cross needs 3+. */
   lift?: number;
+  /** Side spin in rad/s. Defaults to a little natural whip on anything lofted. */
+  curl?: number;
 }
 
 export function kickPass(
@@ -309,6 +320,18 @@ export function kickPass(
   const dir = normalize(sub(aim, p.pos));
   const power = clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
   const lift = options.lift ?? (d > 24 ? 2.4 : 0);
-  applyKick(world, p, dir, power, lift);
+  // A whipped cross bends away from the keeper; a ground pass is struck flat.
+  const curl = options.curl ?? (lift > 2.5 ? curlToward(p.pos, dir, aim, 0.35) : 0);
+  applyKick(world, p, dir, power, lift, curl);
+  world.stats[p.side].passes += 1;
+  p.tally.passes += 1;
   world.events.push({ type: 'pass', side: p.side, intensity: clamp(power / MAX_PASS_POWER, 0, 1) });
+}
+
+/** Records a shot and whether it was heading between the posts. */
+export function registerShot(world: SimWorld, p: SimPlayer, aim: Vec2): void {
+  world.shots[p.side] += 1;
+  world.stats[p.side].shots += 1;
+  p.tally.shots += 1;
+  if (Math.abs(aim.z) < HALF_GOAL_WIDTH) world.stats[p.side].onTarget += 1;
 }

@@ -5,7 +5,30 @@ import { mulberry32, type Vec2, type Vec3 } from './math';
 
 export type MatchPhase = 'kickoff' | 'in-play' | 'restart' | 'goal' | 'halftime' | 'end';
 
-export type RestartKind = 'throw-in' | 'goal-kick' | 'corner';
+export type RestartKind = 'throw-in' | 'goal-kick' | 'corner' | 'free-kick' | 'penalty';
+
+/** Drives the limb animation in the renderer; the sim owns it so replays animate too. */
+export type AnimState =
+  'run' | 'kick' | 'tackle' | 'slide' | 'dive' | 'jump' | 'skill' | 'celebrate' | 'down';
+
+/** Per-player contributions, turned into a match rating on the stats screens. */
+export interface PlayerTally {
+  goals: number;
+  shots: number;
+  passes: number;
+  tackles: number;
+  saves: number;
+  fouls: number;
+}
+
+export const emptyTally = (): PlayerTally => ({
+  goals: 0,
+  shots: 0,
+  passes: 0,
+  tackles: 0,
+  saves: 0,
+  fouls: 0,
+});
 
 export interface SimPlayer {
   id: number;
@@ -41,6 +64,45 @@ export interface SimPlayer {
   /** Formation slot in normalised attacking space. */
   slot: Vec2;
   slotRole: Role;
+  /** Height above the turf: non-zero while jumping for a header or diving. */
+  height: number;
+  verticalVel: number;
+  /** Seconds left of the current animation state. */
+  animTimer: number;
+  anim: AnimState;
+  /** -1 / +1 while a keeper is committed to a dive, 0 otherwise. */
+  diveDir: number;
+  /** Where along the goal line a diving keeper is stretching to. */
+  diveTargetZ: number;
+  /** Bookings: 2 yellows or a straight red ends the player's match. */
+  yellowCards: number;
+  sentOff: boolean;
+  /** Flagged offside when the ball was last played by a teammate. */
+  offside: boolean;
+  /** Seconds a skill move keeps the player committed (and a beaten defender off balance). */
+  skillTimer: number;
+  /** Seconds a keeper holds the ball before distributing it. */
+  holdTimer: number;
+  tally: PlayerTally;
+}
+
+/**
+ * Out of 10, in the style of a newspaper player rating: everyone starts on a competent 6.5
+ * and earns or loses from there.
+ */
+export function matchRating(player: SimPlayer): number {
+  const t = player.tally;
+  const raw =
+    6.5 +
+    t.goals * 1.2 +
+    t.shots * 0.12 +
+    t.passes * 0.03 +
+    t.tackles * 0.18 +
+    t.saves * 0.25 -
+    t.fouls * 0.25 -
+    player.yellowCards * 0.4 -
+    (player.sentOff ? 1.5 : 0);
+  return Math.round(Math.min(10, Math.max(3, raw)) * 10) / 10;
 }
 
 export interface BallState {
@@ -48,6 +110,8 @@ export interface BallState {
   vel: Vec3;
   /** Quaternion, mirrored from the physics body so snapshots are replay-ready. */
   rot: [number, number, number, number];
+  /** Rotational velocity used for curl. Only the y component bends a ball in flight. */
+  spin: Vec3;
 }
 
 export type BallCommand =
@@ -59,8 +123,13 @@ export type SimEventType =
   | 'kick'
   | 'pass'
   | 'shot'
+  | 'header'
   | 'save'
   | 'tackle'
+  | 'skill'
+  | 'foul'
+  | 'card'
+  | 'offside'
   | 'goal'
   | 'whistle'
   | 'kickoff'
@@ -75,6 +144,38 @@ export interface SimEvent {
   intensity?: number;
   text?: string;
 }
+
+/** One line of the on-screen match feed / post-match summary. */
+export interface FeedEntry {
+  minute: number;
+  kind: 'goal' | 'card' | 'foul' | 'offside' | 'save' | 'note';
+  side: TeamSide;
+  text: string;
+}
+
+export interface MatchStats {
+  shots: number;
+  onTarget: number;
+  passes: number;
+  fouls: number;
+  corners: number;
+  offsides: number;
+  yellows: number;
+  reds: number;
+  saves: number;
+}
+
+export const emptyStats = (): MatchStats => ({
+  shots: 0,
+  onTarget: 0,
+  passes: 0,
+  fouls: 0,
+  corners: 0,
+  offsides: 0,
+  yellows: 0,
+  reds: 0,
+  saves: 0,
+});
 
 export interface DifficultyProfile {
   /** Seconds between AI re-decisions. */
@@ -141,15 +242,36 @@ export interface SimWorld {
   possession: TeamSide | null;
   lastTouch: { side: TeamSide; playerId: number } | null;
   lastScorer: TeamSide | null;
+  /** Player id of the last goalscorer, so the renderer knows who celebrates. */
+  lastScorerId: number | null;
   controllerId: number | null;
   /** Player id the human is currently controlling. */
   activeId: number;
   kickoffSide: TeamSide;
-  restart: { kind: RestartKind; side: TeamSide; spot: Vec2; takerId: number } | null;
+  restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
+  stats: Record<TeamSide, MatchStats>;
+  feed: FeedEntry[];
+  /** Offside only applies once the ball has been played in open play. */
+  offsideActive: boolean;
+  /** Player who struck the ball this tick; the offside line is redrawn from him. */
+  pendingKickId: number | null;
+  /** Seconds of stoppage added to the current half. */
+  stoppage: number;
   rand: () => number;
   banner: string;
+}
+
+export interface SetPiece {
+  kind: RestartKind;
+  side: TeamSide;
+  spot: Vec2;
+  takerId: number;
+  /** Seconds until the taker may play the ball (players are still walking into position). */
+  prepare: number;
+  /** Seconds until an AI taker plays it, so a set piece can never stall the match. */
+  autoTake: number;
 }
 
 export const teamOf = (world: SimWorld, side: TeamSide): TeamData =>
@@ -197,6 +319,18 @@ export function createWorld(config: MatchConfig): SimWorld {
         shielding: false,
         slot: { x: slot.x, z: slot.z },
         slotRole: slot.role,
+        height: 0,
+        verticalVel: 0,
+        animTimer: 0,
+        anim: 'run',
+        diveDir: 0,
+        yellowCards: 0,
+        sentOff: false,
+        offside: false,
+        diveTargetZ: 0,
+        skillTimer: 0,
+        holdTimer: 0,
+        tally: emptyTally(),
       });
     });
   }
@@ -204,7 +338,12 @@ export function createWorld(config: MatchConfig): SimWorld {
   const world: SimWorld = {
     config,
     players,
-    ball: { pos: { x: 0, y: BALL_RADIUS, z: 0 }, vel: { x: 0, y: 0, z: 0 }, rot: [0, 0, 0, 1] },
+    ball: {
+      pos: { x: 0, y: BALL_RADIUS, z: 0 },
+      vel: { x: 0, y: 0, z: 0 },
+      rot: [0, 0, 0, 1],
+      spin: { x: 0, y: 0, z: 0 },
+    },
     commands: [],
     events: [],
     phase: 'kickoff',
@@ -216,12 +355,18 @@ export function createWorld(config: MatchConfig): SimWorld {
     possession: null,
     lastTouch: null,
     lastScorer: null,
+    lastScorerId: null,
     controllerId: null,
     activeId: 0,
     kickoffSide: config.humanSide,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },
+    stats: { home: emptyStats(), away: emptyStats() },
+    feed: [],
+    offsideActive: false,
+    pendingKickId: null,
+    stoppage: 0,
     rand: mulberry32(config.seed),
     banner: 'Kick off',
   };
@@ -240,7 +385,18 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
   world.possession = kickoffSide;
   world.lastTouch = null;
 
+  world.offsideActive = false;
+
   for (const p of world.players) {
+    p.offside = false;
+    p.height = 0;
+    p.verticalVel = 0;
+    p.diveDir = 0;
+    p.anim = 'run';
+    p.animTimer = 0;
+    p.skillTimer = 0;
+    p.holdTimer = 0;
+    if (p.sentOff) continue;
     const dir = world.attackDir[p.side];
     const base = slotToPitch(p.slot, dir);
     // Squeeze both teams into their own half for the kickoff.
@@ -255,7 +411,7 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
 
   // The kickoff side puts two players on the ball.
   const takers = world.players
-    .filter((p) => p.side === kickoffSide && p.role !== 'GK')
+    .filter((p) => p.side === kickoffSide && p.role !== 'GK' && !p.sentOff)
     .sort((a, b) => Math.abs(a.pos.z) - Math.abs(b.pos.z))
     .slice(0, 2);
   takers.forEach((p, i) => {
@@ -271,11 +427,14 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
 
 function pickActive(world: SimWorld, preferred: number): number {
   const human = world.config.humanSide;
-  const candidate = world.players.find((p) => p.id === preferred && p.side === human);
+  const candidate = world.players.find((p) => p.id === preferred && p.side === human && !p.sentOff);
   if (candidate) return candidate.id;
-  const outfield = world.players.find((p) => p.side === human && p.role !== 'GK');
+  const outfield = world.players.find((p) => p.side === human && p.role !== 'GK' && !p.sentOff);
   return outfield ? outfield.id : world.players[0].id;
 }
+
+/** Every player still on the pitch. Sent-off players stay in the array for the scoreboard. */
+export const onPitch = (world: SimWorld): SimPlayer[] => world.players.filter((p) => !p.sentOff);
 
 /** Plain-JSON snapshot of everything needed to restore or replay a match state. */
 export interface WorldSnapshot {
@@ -292,6 +451,10 @@ export interface WorldSnapshot {
     vel: Vec2;
     heading: number;
     stamina: number;
+    height: number;
+    gait: number;
+    anim: AnimState;
+    sentOff: boolean;
   }[];
 }
 
@@ -306,6 +469,7 @@ export function snapshot(world: SimWorld, tick: number): WorldSnapshot {
       pos: { ...world.ball.pos },
       vel: { ...world.ball.vel },
       rot: [...world.ball.rot] as [number, number, number, number],
+      spin: { ...world.ball.spin },
     },
     players: world.players.map((p) => ({
       id: p.id,
@@ -314,6 +478,10 @@ export function snapshot(world: SimWorld, tick: number): WorldSnapshot {
       vel: { ...p.vel },
       heading: p.heading,
       stamina: p.stamina,
+      height: p.height,
+      gait: p.gait,
+      anim: p.anim,
+      sentOff: p.sentOff,
     })),
   };
 }

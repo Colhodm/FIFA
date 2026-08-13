@@ -7,11 +7,29 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BALL_MASS, BALL_RADIUS, TICK_DT } from '../src/game/constants';
+import {
+  BALL_MASS,
+  BALL_RADIUS,
+  HALF_LENGTH,
+  HALF_WIDTH,
+  PENALTY_BOX_DEPTH,
+  TICK_DT,
+} from '../src/game/constants';
 import type { ActionName, InputFrame } from '../src/game/input/input';
 import { ACTIONS } from '../src/game/input/input';
-import { createWorld, snapshot, type SimWorld } from '../src/game/sim/state';
+import { applyKick } from '../src/game/sim/kick';
+import { awardFoul, book, flagOffsides, whistleOffside } from '../src/game/sim/rules';
+import { performSkill } from '../src/game/sim/skills';
+import {
+  createWorld,
+  matchRating,
+  snapshot,
+  type MatchConfig,
+  type SimPlayer,
+  type SimWorld,
+} from '../src/game/sim/state';
 import { tick } from '../src/game/sim/step';
+import type { Vec3 } from '../src/game/sim/math';
 import type { Difficulty, TeamsFile } from '../src/game/types';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -27,16 +45,64 @@ const idleActions = (): InputFrame['actions'] =>
     ]),
   ) as InputFrame['actions'];
 
-const idleInput: InputFrame = { move: { x: 0, z: 0 }, actions: idleActions() };
+const idleInput: InputFrame = {
+  move: { x: 0, z: 0 },
+  flick: { x: 0, z: 0 },
+  actions: idleActions(),
+};
+
+/** A fresh world with the kickoff teleport already consumed, ready to be posed by a check. */
+function newWorld(seed: number): SimWorld {
+  const world = createWorld(baseConfig(seed));
+  world.commands.length = 0;
+  return world;
+}
+
+const baseConfig = (seed: number): MatchConfig => ({
+  homeTeam: teams[0],
+  awayTeam: teams[1],
+  homeFormation: teams[0].formation,
+  awayFormation: teams[1].formation,
+  humanSide: 'home',
+  difficulty: 'normal',
+  halfLength: 60,
+  seed,
+});
+
+/** Runs the world (and the stand-in ball integrator) for `seconds`, collecting the events. */
+function run(world: SimWorld, seconds: number): string[] {
+  const seen: string[] = [];
+  for (let i = 0; i < Math.round(seconds * 60); i++) {
+    world.activeId = -1;
+    const before = { ...world.ball.vel };
+    tick(world, idleInput, 0, TICK_DT);
+    for (const event of world.events) seen.push(event.type);
+    stepBall(world, TICK_DT, before);
+    world.events.length = 0;
+  }
+  return seen;
+}
+
+const outfield = (world: SimWorld, side: 'home' | 'away'): SimPlayer => {
+  const p = world.players.find((q) => q.side === side && q.role !== 'GK');
+  if (!p) throw new Error('no outfield player');
+  return p;
+};
 
 const GRAVITY = -9.81;
 const RESTITUTION = 0.62;
 const ROLL_DAMPING = 0.65;
 const AIR_DAMPING = 0.32;
 
-/** Minimal stand-in for the Rapier ball body: gravity, bounce, rolling friction. */
-function stepBall(world: SimWorld, dt: number): void {
+/**
+ * Minimal stand-in for the Rapier ball body: gravity, bounce, rolling friction.
+ * `before` is the ball velocity as the tick started, standing in for the physics body's own
+ * velocity — impulses are applied to that, exactly as Rapier would, rather than to the
+ * predicted velocity the simulation writes into `world.ball` when it plays a kick.
+ */
+function stepBall(world: SimWorld, dt: number, before: Vec3): void {
   const ball = world.ball;
+  ball.vel = { ...before };
   for (const command of world.commands) {
     if (command.type === 'impulse') {
       ball.vel.x += command.impulse.x / BALL_MASS;
@@ -95,6 +161,7 @@ function playMatch(seed: number, difficulty: Difficulty, halfLength: number): Re
   while (world.phase !== 'end' && ticks < 60 * 60 * 40) {
     // No player id is -1, so every player (both teams) is driven by the AI.
     world.activeId = -1;
+    const before = { ...world.ball.vel };
     tick(world, idleInput, 0, TICK_DT);
     for (const event of world.events) {
       if (event.type === 'shot' || event.type === 'pass' || event.type === 'kick') {
@@ -104,7 +171,7 @@ function playMatch(seed: number, difficulty: Difficulty, halfLength: number): Re
         goalKinds[kind] = (goalKinds[kind] ?? 0) + 1;
       }
     }
-    stepBall(world, TICK_DT);
+    stepBall(world, TICK_DT, before);
     world.events.length = 0;
     ticks += 1;
     const ball = world.ball.pos;
@@ -150,9 +217,10 @@ function checkKickAndReset(): void {
   // Kickoff countdown, then let play run until someone strikes the ball.
   let kicked = false;
   for (let i = 0; i < 60 * 30 && !kicked; i++) {
+    const before = { ...world.ball.vel };
     tick(world, idleInput, 0, TICK_DT);
     kicked = world.commands.some((c) => c.type === 'impulse');
-    stepBall(world, TICK_DT);
+    stepBall(world, TICK_DT, before);
     world.events.length = 0;
   }
   if (!kicked) throw new Error('no kick was applied in the first 30 seconds');
@@ -222,7 +290,7 @@ function checkHumanControls(): void {
     for (const mod of test.mods ?? []) {
       actions[mod] = { ...actions[mod], down: true };
     }
-    tick(world, { move: { x: 1, z: 0 }, actions }, 0, TICK_DT);
+    tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT);
 
     const impulse = world.commands.find((c) => c.type === 'impulse');
     if (!impulse || impulse.type !== 'impulse') {
@@ -245,10 +313,177 @@ function checkHumanControls(): void {
   console.log(`human control checks passed (${CONTROL_CASES.length} kicks)`);
 }
 
+/** Throw-ins, corners and goal kicks must stop play, then be taken so the match restarts. */
+function checkRestarts(): void {
+  const cases: { name: string; pos: { x: number; y: number; z: number }; kind: string }[] = [
+    { name: 'throw-in', pos: { x: 0, y: BALL_RADIUS, z: HALF_WIDTH + 1 }, kind: 'throw-in' },
+    { name: 'corner', pos: { x: HALF_LENGTH + 1, y: BALL_RADIUS, z: 12 }, kind: 'corner' },
+    { name: 'goal kick', pos: { x: HALF_LENGTH + 1, y: BALL_RADIUS, z: 12 }, kind: 'goal-kick' },
+  ];
+  for (const test of cases) {
+    const world = newWorld(21);
+    world.phase = 'in-play';
+    const attacker = outfield(world, world.attackDir.home === 1 ? 'home' : 'away');
+    const defender = outfield(world, world.attackDir.home === 1 ? 'away' : 'home');
+    // The last touch decides between a corner and a goal kick.
+    const toucher = test.kind === 'goal-kick' ? attacker : defender;
+    world.lastTouch = { side: toucher.side, playerId: toucher.id };
+    world.ball.pos = { ...test.pos };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+
+    run(world, TICK_DT);
+    if (world.phase !== 'restart' || world.restart?.kind !== test.kind) {
+      throw new Error(
+        `${test.name}: expected a ${test.kind}, got ${world.restart?.kind ?? 'none'}`,
+      );
+    }
+
+    // The CPU should line up and then put the ball back in play on its own.
+    const events = run(world, 8);
+    if (!events.some((e) => e === 'pass' || e === 'kick' || e === 'shot')) {
+      throw new Error(`${test.name}: was never taken`);
+    }
+  }
+  console.log(`set-piece restart checks passed (${cases.length} restarts)`);
+}
+
+/** A foul in the box is a penalty, and the CPU taker must strike it at goal. */
+function checkPenalty(): void {
+  const world = newWorld(33);
+  world.phase = 'in-play';
+  const attacking: 'home' | 'away' = 'away';
+  const victim = outfield(world, attacking);
+  const offender = outfield(world, 'home');
+  const dir = world.attackDir[attacking];
+  victim.pos = { x: (HALF_LENGTH - PENALTY_BOX_DEPTH / 2) * dir, z: 3 };
+  offender.pos = { x: victim.pos.x, z: victim.pos.z + 0.5 };
+
+  awardFoul(world, offender, victim, { severity: 0.3 });
+  if (world.restart?.kind !== 'penalty') {
+    throw new Error(`foul in the box gave a ${world.restart?.kind ?? 'nothing'}`);
+  }
+  if (world.stats.home.fouls !== 1) throw new Error('the foul was not counted');
+
+  const events = run(world, 8);
+  if (!events.includes('shot')) throw new Error('the penalty was never struck at goal');
+  console.log('penalty check passed');
+}
+
+/** A pass to a player beyond the second-last defender must be flagged and punished. */
+function checkOffside(): void {
+  const world = newWorld(41);
+  world.phase = 'in-play';
+  world.offsideActive = true;
+  const attack = world.attackDir.home;
+  const passer = outfield(world, 'home');
+  const runner = world.players.find(
+    (p) => p.side === 'home' && p.role !== 'GK' && p.id !== passer.id,
+  );
+  if (!runner) throw new Error('no runner');
+  passer.pos = { x: 10 * attack, z: 0 };
+  world.ball.pos = { x: passer.pos.x, y: BALL_RADIUS, z: passer.pos.z };
+  // Everyone but the keeper is behind the runner, so he is clearly beyond the last man.
+  for (const p of world.players) {
+    if (p.side === 'away' && p.role !== 'GK') p.pos = { x: 5 * attack, z: p.pos.z };
+  }
+  runner.pos = { x: 42 * attack, z: 4 };
+
+  flagOffsides(world, passer);
+  if (!runner.offside) throw new Error('the runner was not flagged offside');
+
+  whistleOffside(world, runner);
+  if (world.stats.home.offsides !== 1) throw new Error('the offside was not counted');
+  if (world.restart?.kind !== 'free-kick' || world.restart.side !== 'away') {
+    throw new Error('an offside did not award a free kick the other way');
+  }
+  console.log('offside check passed');
+}
+
+/** Two yellows is a red, and a sent-off player leaves the pitch for good. */
+function checkCards(): void {
+  const world = newWorld(53);
+  const offender = outfield(world, 'away');
+  book(world, offender);
+  if (world.stats.away.yellows !== 1 || offender.sentOff) throw new Error('first yellow is wrong');
+  book(world, offender);
+  if (!offender.sentOff || world.stats.away.reds !== 1) {
+    throw new Error('a second yellow did not produce a red card');
+  }
+  if (matchRating(offender) >= 6.5) throw new Error('a sending off should hurt the rating');
+  console.log('card check passed');
+}
+
+/** A shot on target must draw the keeper into a dive or a save. */
+function checkKeeper(): void {
+  const world = newWorld(67);
+  world.phase = 'in-play';
+  const attack = world.attackDir.home;
+  const striker = outfield(world, 'home');
+  striker.pos = { x: (HALF_LENGTH - 16) * attack, z: 4 };
+  world.ball.pos = { x: striker.pos.x, y: BALL_RADIUS, z: striker.pos.z };
+  world.ball.vel = { x: 0, y: 0, z: 0 };
+  const keeper = world.players.find((p) => p.side === 'away' && p.role === 'GK');
+  if (!keeper) throw new Error('no keeper');
+  keeper.pos = { x: (HALF_LENGTH - 1) * attack, z: 0 };
+  // Nobody else is near enough to block it, so this is purely the keeper's ball.
+  for (const p of world.players) {
+    if (p.id !== striker.id && p.id !== keeper.id) p.pos = { x: -20 * attack, z: p.pos.z };
+  }
+  applyKick(world, striker, { x: attack, z: -0.26 }, 22, 0.5);
+
+  const events = run(world, 3);
+  const dived = keeper.diveDir !== 0 || keeper.anim === 'dive';
+  if (!events.includes('save') && !dived && world.stats.away.saves === 0) {
+    throw new Error('the keeper ignored a shot on target');
+  }
+  console.log('goalkeeper check passed');
+}
+
+/** Skill moves have to actually knock the ball somewhere and commit the dribbler. */
+function checkSkills(): void {
+  const world = newWorld(71);
+  world.phase = 'in-play';
+  const dribbler = outfield(world, 'home');
+  dribbler.pos = { x: 0, z: 0 };
+  dribbler.heading = Math.PI / 2;
+  dribbler.dribbling = 85;
+  world.ball.pos = { x: 0.4, y: BALL_RADIUS, z: 0 };
+  world.ball.vel = { x: 0, y: 0, z: 0 };
+  world.controllerId = dribbler.id;
+  world.possession = 'home';
+
+  if (!performSkill(world, dribbler, 'knock-on', { x: 1, z: 0 })) {
+    throw new Error('the skill move was refused');
+  }
+  if (Math.hypot(world.ball.vel.x, world.ball.vel.z) < 1) {
+    throw new Error('the skill move did not move the ball');
+  }
+  if (dribbler.skillTimer <= 0) throw new Error('the skill move did not commit the dribbler');
+  console.log('skill move check passed');
+}
+
+/** A curled kick has to leave side-spin on the ball for the renderer's Magnus force. */
+function checkCurl(): void {
+  const world = newWorld(79);
+  const striker = outfield(world, 'home');
+  applyKick(world, striker, { x: 1, z: 0 }, 22, 3, 14);
+  if (world.ball.spin.y !== 14) throw new Error('curl was not stored on the ball');
+  applyKick(world, striker, { x: 1, z: 0 }, 22, 0);
+  if (world.ball.spin.y !== 0) throw new Error('a flat kick should clear the spin');
+  console.log('ball curl check passed');
+}
+
 const matches = Number(process.argv[2] ?? 3);
 checkKickAndReset();
 console.log('kick + reset checks passed');
 checkHumanControls();
+checkRestarts();
+checkPenalty();
+checkOffside();
+checkCards();
+checkKeeper();
+checkSkills();
+checkCurl();
 
 let goals = 0;
 for (let i = 0; i < matches; i++) {
