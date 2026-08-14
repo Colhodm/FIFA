@@ -1,0 +1,26 @@
+{
+  "//": "Gameplay tunables. Anything omitted falls back to the built-in defaults in src/game/config.ts.",
+  "pass": {
+    "ground": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 22 },
+    "lob": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 18 },
+    "through": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 20 },
+    "lobAngleDegrees": [30, 45],
+    "groundLeadSeconds": 0.25,
+    "coneDegrees": 35
+  },
+  "shot": {
+    "maxChargeSeconds": 1.2,
+    "minPowerFraction": 0.3,
+    "maxSpeed": 30,
+    "overchargeThreshold": 0.85,
+    "overchargeConeDegrees": 8
+  },
+  "switching": {
+    "predictedDistance": 1.0,
+    "currentDistance": 0.4,
+    "anglePenalty": 0.3,
+    "predictSeconds": 0.5,
+    "cycleWindowSeconds": 0.8,
+    "manualHoldSeconds": 0.5
+  }
+}
