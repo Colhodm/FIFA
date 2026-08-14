@@ -546,6 +546,43 @@ function checkSwitchOnPass(): void {
 }
 
 /**
+ * Losing the ball has to hand you somebody who can defend. The switch is made before
+ * `world.possession` catches up, so ranking used to think the team was still attacking and
+ * ignored the goal-side term — handing over whichever forward happened to be nearest the ball
+ * rather than a defender getting back.
+ */
+function checkDefensiveSwitch(): void {
+  let goalSide = 0;
+  let trials = 0;
+  for (let s = 0; s < 20; s++) {
+    const world = newWorld(s * 23 + 5);
+    world.phase = 'in-play';
+    const attack = world.attackDir.home;
+    // We have just lost it in their half: the ball is upfield and breaking back at us.
+    world.ball.pos = { x: 24 * attack, y: BALL_RADIUS, z: 6 };
+    world.ball.vel = { x: -16 * attack, y: 0, z: 0 };
+    world.possession = 'home';
+    world.switching.sinceManual = 99;
+    const thief = world.players.find((p) => p.side === 'away' && p.role !== 'GK');
+    if (!thief) throw new Error('no opponent');
+    thief.pos = { x: 24 * attack, z: 6 };
+
+    const picked = rankSwitchCandidates(world, false, true)[0];
+    if (!picked) continue;
+    const man = world.players.find((p) => p.id === picked.id);
+    if (!man || man.role === 'GK') throw new Error('defensive switch offered the keeper');
+    trials++;
+    // Goal-side means between the ball and our own goal, in attacking coordinates.
+    if (man.pos.x * attack < world.ball.pos.x * attack) goalSide++;
+  }
+  const pct = Math.round((goalSide / trials) * 100);
+  if (pct < 80) {
+    throw new Error(`only ${pct}% of defensive switches gave a goal-side player, expected >= 80%`);
+  }
+  console.log(`defensive switch check passed (${pct}% goal-side across ${trials} turnovers)`);
+}
+
+/**
  * Bug #2: switching must pick a defender near where the ball is *going*, must never hand over
  * the keeper in open play, and repeated presses must cycle rather than stick.
  */
@@ -761,6 +798,7 @@ checkHumanControls();
 checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
+checkDefensiveSwitch();
 checkSwitching();
 checkRestarts();
 checkPenalty();

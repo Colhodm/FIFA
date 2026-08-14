@@ -10,7 +10,17 @@ export type RestartKind = 'throw-in' | 'goal-kick' | 'corner' | 'free-kick' | 'p
 
 /** Drives the limb animation in the renderer; the sim owns it so replays animate too. */
 export type AnimState =
-  'run' | 'kick' | 'tackle' | 'slide' | 'dive' | 'jump' | 'skill' | 'celebrate' | 'down';
+  | 'run'
+  | 'kick'
+  | 'shot'
+  | 'pass'
+  | 'tackle'
+  | 'slide'
+  | 'dive'
+  | 'jump'
+  | 'skill'
+  | 'celebrate'
+  | 'down';
 
 /** Per-player contributions, turned into a match rating on the stats screens. */
 export interface PlayerTally {

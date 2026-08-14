@@ -6,6 +6,8 @@ const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 /** How long each clip runs, so `animTimer` can be turned into a 0..1 playhead. */
 const CLIP_LENGTH: Record<string, number> = {
   kick: 0.3,
+  shot: 0.45,
+  pass: 0.28,
   tackle: 0.3,
   slide: 0.8,
   dive: 0.9,
@@ -41,14 +43,49 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   const t = length > 0 ? clamp01(1 - player.animTimer / length) : 0;
 
   switch (player.anim) {
+    /*
+     * The ball leaves the boot on the very first frame of these clips, so they are
+     * follow-throughs, not wind-ups: the leg is already through the ball at t = 0 and carries
+     * on from there. Swinging up from nothing (the old shared `kick` clip) played the whole
+     * motion *after* the ball had gone, which read as the player twitching at thin air.
+     *
+     * `contact` decays from the moment of impact; `lift` peaks mid-clip as the leg rises.
+     */
+    case 'shot': {
+      const contact = (1 - t) ** 0.7;
+      const lift = Math.sin(t * Math.PI);
+      // Driving leg swings through and high, plant leg braced, hips open, chest over the ball.
+      legR = -(1.25 * contact + 0.85 * lift);
+      legL = 0.5 * contact;
+      armL = 1.2 * contact + 0.45 * lift;
+      armR = -0.8 * contact;
+      lean = 0.3 * contact - 0.12 * lift;
+      twist = -0.38 * contact;
+      bob = 0.07 * lift;
+      break;
+    }
+    case 'pass': {
+      // Side-foot: short, compact, hips opened to the ball, very little follow-through.
+      const contact = (1 - t) ** 0.8;
+      const lift = Math.sin(t * Math.PI);
+      legR = -(0.72 * contact + 0.2 * lift);
+      legL = 0.24 * contact;
+      armL = 0.55 * contact;
+      armR = -0.42 * contact;
+      lean = 0.1 * contact;
+      twist = -0.3 * contact;
+      break;
+    }
     case 'kick': {
-      // Plant, swing through, follow through.
-      const strike = Math.sin(t * Math.PI);
-      legR = -1.5 * strike;
-      legL = 0.35 * strike;
-      armL = 0.9 * strike;
-      armR = -0.5 * strike;
-      lean = 0.18 * strike;
+      // Generic clearance: a firm hoof with a modest follow-through.
+      const contact = (1 - t) ** 0.75;
+      const lift = Math.sin(t * Math.PI);
+      legR = -(1 * contact + 0.5 * lift);
+      legL = 0.35 * contact;
+      armL = 0.9 * contact;
+      armR = -0.5 * contact;
+      lean = 0.2 * contact;
+      twist = -0.25 * contact;
       break;
     }
     case 'tackle': {
