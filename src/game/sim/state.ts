@@ -263,6 +263,12 @@ export interface SimWorld {
   /** Player id of the last goalscorer, so the renderer knows who celebrates. */
   lastScorerId: number | null;
   controllerId: number | null;
+  /**
+   * The man a pass has been played to, and where it was aimed. Without this the only player who
+   * goes to meet a pass is whoever happens to be nearest the ball as it leaves the boot — which
+   * is never the intended receiver — so defenders, who do attack the ball, win most of them.
+   */
+  passTarget: { playerId: number; spot: Vec2 } | null;
   /** Player id the human is currently controlling. */
   activeId: number;
   kickoffSide: TeamSide;
@@ -377,6 +383,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     lastScorer: null,
     lastScorerId: null,
     controllerId: null,
+    passTarget: null,
     activeId: 0,
     kickoffSide: config.humanSide,
     restart: null,

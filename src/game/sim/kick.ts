@@ -104,15 +104,30 @@ export interface PassOption {
 }
 
 /**
- * Ranks teammates as pass receivers. `prefDir` biases towards where the passer is aiming
- * (the human's stick/keys) so manual passes feel directed rather than automatic.
+ * How far a ball struck at `speed` will run before it is no longer worth chasing. Rolling
+ * friction makes this close to linear in the launch speed over the range a pass uses.
  */
-export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): PassOption | null {
+export const passReach = (speed: number): number => speed * 1.6;
+
+/**
+ * Ranks teammates as pass receivers. `prefDir` biases towards where the passer is aiming (the
+ * human's stick/keys) so manual passes feel directed rather than automatic, and `power` is the
+ * launch speed the charge asked for, so the choice respects what the strike can reach.
+ */
+export function bestPass(
+  world: SimWorld,
+  passer: SimPlayer,
+  prefDir?: Vec2,
+  power?: number,
+): PassOption | null {
   const attack = world.attackDir[passer.side];
   const line = world.offsideActive ? offsideLine(world, passer.side) : Infinity;
   // A manually aimed pass only considers receivers inside the cone the player is pointing at.
   const cone = prefDir ? Math.cos((world.tuning.pass.coneDegrees * Math.PI) / 180) : -1;
   const aimUnit = prefDir ? normalize(prefDir) : null;
+  // Pick a receiver the charged power can actually find: a tapped pass should look for the man
+  // alongside you, not the winger 35 m away that the ball will never reach.
+  const reach = power ? passReach(power) : Infinity;
   let best: PassOption | null = null;
   for (const mate of world.players) {
     if (mate.side !== passer.side || mate.id === passer.id || mate.sentOff) continue;
@@ -122,8 +137,12 @@ export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): Pa
       const toMateNow = normalize(sub(mate.pos, passer.pos));
       if (toMateNow.x * aimUnit.x + toMateNow.z * aimUnit.z < cone) continue;
     }
-    // Lead the receiver by a slice of his run so the ball meets him rather than his shadow.
-    const travel = aimUnit ? world.tuning.pass.groundLeadSeconds : clamp(d / 16, 0.15, 1.2);
+    // Lead the receiver by how long the ball will actually be in flight, so it meets him rather
+    // than his shadow. A 22 m pass takes well over a second to arrive; leading it by a flat
+    // quarter-second aims at where the receiver was standing when the ball was struck.
+    // `groundLeadSeconds` is the floor for a short ball that gets there almost immediately.
+    const flight = clamp(d / Math.max(6, (power ?? 16) * 0.7), 0.15, 1.6);
+    const travel = aimUnit ? Math.max(world.tuning.pass.groundLeadSeconds, flight) : flight;
     const spot = { x: mate.pos.x + mate.vel.x * travel, z: mate.pos.z + mate.vel.z * travel };
     const open = laneOpenness(world, passer.pos, spot, passer.side);
     const forward = ((spot.x - passer.pos.x) * attack) / 40;
@@ -131,12 +150,16 @@ export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): Pa
     const aim = prefDir ? dot(toMate, normalize(prefDir)) : 0;
     const keeperPenalty = mate.role === 'GK' ? -0.6 : 0;
     const offsidePenalty = mate.pos.x * attack > line + 0.4 ? -3 : 0;
+    // Anything past the reach of this strike is heavily penalised rather than excluded, so a
+    // pass is still played if every option is a stretch.
+    const overshoot = Math.max(0, d - reach) / 6;
     const score =
       offsidePenalty +
       open * 1.6 +
       forward * 1.1 +
       aim * (prefDir ? 1.5 : 0) -
-      d / 90 +
+      d / 90 -
+      overshoot +
       keeperPenalty +
       (mate.passing / 100) * 0.15;
     if (!best || score > best.score) best = { target: mate, spot, score };
