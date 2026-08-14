@@ -44,7 +44,12 @@ export function Simulation({ world }: { world: SimWorld }) {
     const qualityStep = sampler.sample(delta);
     if (qualityStep !== 0) {
       const game = useGameStore.getState();
-      if (game.quality === 'auto') game.setTier(game.tier.id + qualityStep);
+      if (game.quality === 'auto' && game.tier.id + qualityStep !== game.tier.id) {
+        const before = game.tier.id;
+        game.setTier(before + qualityStep);
+        // Rebuilding the renderer costs a frame; do not read it back as a slow tier.
+        if (useGameStore.getState().tier.id !== before) sampler.notifyTierChange();
+      }
     }
 
     if (useGameStore.getState().paused) return;
