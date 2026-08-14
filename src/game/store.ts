@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { defaultConfig, type GameConfig } from './config';
+import { applyConfig } from './runtime';
 import type { Difficulty, FormationId, TeamData, TeamSide } from './types';
 import {
   emptyStats,
@@ -36,6 +38,8 @@ interface GameState {
   paused: boolean;
   teams: TeamData[];
   teamsError: string | null;
+  /** Key bindings and gameplay tunables, loaded from public/config at boot. */
+  config: GameConfig;
   setup: MatchSetup;
   quality: QualityMode;
   tier: QualityTier;
@@ -43,8 +47,12 @@ interface GameState {
   audioEnabled: boolean;
   /** Bumped on every restart so the scene remounts with a fresh world. */
   matchKey: number;
+  /** F1 diagnostics overlay. Dev builds only. */
+  debug: boolean;
+  toggleDebug: () => void;
   setTeams: (teams: TeamData[]) => void;
   setTeamsError: (message: string) => void;
+  setConfig: (config: GameConfig) => void;
   updateSetup: (patch: Partial<MatchSetup>) => void;
   setQuality: (mode: QualityMode) => void;
   setTier: (id: number) => void;
@@ -61,6 +69,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   paused: false,
   teams: [],
   teamsError: null,
+  config: defaultConfig(),
   setup: {
     homeTeamId: '',
     awayTeamId: '',
@@ -75,6 +84,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   camera: 'broadcast',
   audioEnabled: true,
   matchKey: 0,
+  debug: false,
+  toggleDebug: () => set((state) => ({ debug: !state.debug })),
   setTeams: (teams) =>
     set((state) => ({
       teams,
@@ -87,6 +98,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       },
     })),
   setTeamsError: (message) => set({ teamsError: message }),
+  setConfig: (config) => {
+    applyConfig(config);
+    set({ config });
+  },
   updateSetup: (patch) => set((state) => ({ setup: { ...state.setup, ...patch } })),
   setQuality: (mode) =>
     set({ quality: mode, tier: mode === 'auto' ? get().tier : TIERS[MANUAL_TIER[mode]] }),

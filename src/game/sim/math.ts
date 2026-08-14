@@ -36,6 +36,22 @@ export function angleTo(from: Vec2, to: Vec2): number {
   return Math.atan2(to.x - from.x, to.z - from.z);
 }
 
+/**
+ * Rotates camera-relative input (x = screen right, z = screen up) into pitch space.
+ *
+ * The camera looks along `forward = (sin yaw, cos yaw)`. Screen right is `cross(forward, up)`
+ * with up = +y, which is `(-cos yaw, sin yaw)` — *not* `(cos yaw, -sin yaw)`. Getting that
+ * sign wrong mirrors every horizontal input: pressing right walks the player left.
+ */
+export function cameraRelative(move: Vec2, cameraYaw: number): Vec2 {
+  const sin = Math.sin(cameraYaw);
+  const cos = Math.cos(cameraYaw);
+  return {
+    x: move.z * sin - move.x * cos,
+    z: move.z * cos + move.x * sin,
+  };
+}
+
 /** Shortest signed delta between two angles, in (-PI, PI]. */
 export function angleDelta(from: number, to: number): number {
   let d = (to - from) % (Math.PI * 2);

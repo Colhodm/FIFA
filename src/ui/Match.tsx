@@ -5,6 +5,7 @@ import { disposeTextures } from '../game/render/textures';
 import { attachDevices, runtime, setWorld } from '../game/runtime';
 import { createWorld } from '../game/sim/state';
 import { teamById, useGameStore, useHudStore } from '../game/store';
+import { DebugPanel } from './DebugPanel';
 import { FullTime } from './FullTime';
 import { HalfTime } from './HalfTime';
 import { Hud } from './Hud';
@@ -16,6 +17,8 @@ export function Match() {
   const matchKey = useGameStore((s) => s.matchKey);
   const paused = useGameStore((s) => s.paused);
   const quitToMenu = useGameStore((s) => s.quitToMenu);
+  const tuning = useGameStore((s) => s.config.tuning);
+  const debug = useGameStore((s) => s.debug);
 
   const world = useMemo(() => {
     const home = teamById(teams, setup.homeTeamId);
@@ -30,8 +33,9 @@ export function Match() {
       difficulty: setup.difficulty,
       halfLength: setup.halfLength,
       seed: matchKey * 7919 + 13,
+      tuning,
     });
-  }, [teams, setup, matchKey]);
+  }, [teams, setup, matchKey, tuning]);
 
   useEffect(() => {
     if (!world) return;
@@ -55,6 +59,9 @@ export function Match() {
 
   useEffect(() => {
     runtime.input.enabled = !paused;
+    // Drop held keys and any pending buffer across the pause, so nothing is stuck down or
+    // fires the moment play resumes.
+    runtime.input.reset();
     if (paused) audio.setCrowdIntensity(0.05);
   }, [paused]);
 
@@ -67,6 +74,7 @@ export function Match() {
     <div className="match">
       <Scene key={matchKey} world={world} />
       <Hud />
+      {import.meta.env.DEV && debug && <DebugPanel />}
       <PauseMenu />
       <HalfTime />
       <FullTime />

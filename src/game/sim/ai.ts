@@ -300,6 +300,11 @@ export interface PassOptions {
   lift?: number;
   /** Side spin in rad/s. Defaults to a little natural whip on anything lofted. */
   curl?: number;
+  /**
+   * Explicit horizontal ball speed in m/s. The human's hold-to-power model sets this so the
+   * charge decides the pace; leave it unset and the AI's distance-based strength is used.
+   */
+  speed?: number;
 }
 
 export function kickPass(
@@ -318,7 +323,7 @@ export function kickPass(
     z: spot.z + (world.rand() * 2 - 1) * spread,
   };
   const dir = normalize(sub(aim, p.pos));
-  const power = clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
+  const power = options.speed ?? clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
   const lift = options.lift ?? (d > 24 ? 2.4 : 0);
   // A whipped cross bends away from the keeper; a ground pass is struck flat.
   const curl = options.curl ?? (lift > 2.5 ? curlToward(p.pos, dir, aim, 0.35) : 0);

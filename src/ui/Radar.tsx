@@ -26,8 +26,11 @@ export function Radar({ homeKit, awayKit }: { homeKit?: Kit; awayKit?: Kit }) {
     ctx.scale(dpr, dpr);
 
     let frame = 0;
-    const toX = (x: number) => PAD + ((x + HALF_LENGTH) / (HALF_LENGTH * 2)) * (WIDTH - PAD * 2);
-    const toY = (z: number) => PAD + ((z + HALF_WIDTH) / (HALF_WIDTH * 2)) * (HEIGHT - PAD * 2);
+    // The broadcast camera sits on the -z touchline looking towards +z, so on screen world +x
+    // runs to the *left* and +z runs *up*. Both radar axes are flipped to match, otherwise a
+    // player in the top-right of the picture shows up bottom-left on the map.
+    const toX = (x: number) => PAD + ((HALF_LENGTH - x) / (HALF_LENGTH * 2)) * (WIDTH - PAD * 2);
+    const toY = (z: number) => PAD + ((HALF_WIDTH - z) / (HALF_WIDTH * 2)) * (HEIGHT - PAD * 2);
 
     const draw = () => {
       frame = requestAnimationFrame(draw);

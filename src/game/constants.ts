@@ -31,8 +31,13 @@ export const PLAYER_HEIGHT = 1.8;
 /** Fixed simulation tick. Physics, AI and input sampling all advance in these steps. */
 export const TICK_RATE = 60;
 export const TICK_DT = 1 / TICK_RATE;
-/** Never advance more than this many ticks in one frame (avoids spiral of death after a stall). */
-export const MAX_TICKS_PER_FRAME = 5;
+/**
+ * Never advance more than this many ticks in one frame (avoids spiral of death after a stall).
+ * This is the catch-up budget: at 60 Hz it lets a frame absorb 200 ms of backlog, so an ordinary
+ * hitch is caught up rather than discarded. Set it too low and the match silently runs in slow
+ * motion on any machine that dips below `TICK_RATE / MAX_TICKS_PER_FRAME` fps.
+ */
+export const MAX_TICKS_PER_FRAME = 12;
 
 /** Distance at which a player can take a touch on the ball. */
 export const CONTROL_RADIUS = 1.25;

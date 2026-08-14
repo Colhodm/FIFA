@@ -37,6 +37,7 @@ export function MatchCamera({ mode }: { mode: CameraMode }) {
   useFrame((_state, delta) => {
     const world = runtime.world;
     if (!world) return;
+    runtime.camera = camera;
     const dt = Math.min(delta, 0.1);
 
     if (camera instanceof PerspectiveCamera) {

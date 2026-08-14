@@ -16,7 +16,7 @@ import {
   TICK_DT,
 } from '../src/game/constants';
 import type { ActionName, InputFrame } from '../src/game/input/input';
-import { ACTIONS } from '../src/game/input/input';
+import { ACTIONS, InputManager } from '../src/game/input/input';
 import { applyKick } from '../src/game/sim/kick';
 import { awardFoul, book, flagOffsides, whistleOffside } from '../src/game/sim/rules';
 import { performSkill } from '../src/game/sim/skills';
@@ -29,6 +29,7 @@ import {
   type SimWorld,
 } from '../src/game/sim/state';
 import { tick } from '../src/game/sim/step';
+import { predictedBall, rankSwitchCandidates, requestSwitch } from '../src/game/sim/switching';
 import type { Vec3 } from '../src/game/sim/math';
 import type { Difficulty, TeamsFile } from '../src/game/types';
 
@@ -41,7 +42,16 @@ const idleActions = (): InputFrame['actions'] =>
   Object.fromEntries(
     ACTIONS.map((a) => [
       a,
-      { down: false, pressed: false, released: false, heldTime: 0, doubleTap: false },
+      {
+        down: false,
+        pressed: false,
+        released: false,
+        heldTime: 0,
+        doubleTap: false,
+        fired: false,
+        charge: 0,
+        autoFired: false,
+      },
     ]),
   ) as InputFrame['actions'];
 
@@ -50,6 +60,12 @@ const idleInput: InputFrame = {
   flick: { x: 0, z: 0 },
   actions: idleActions(),
 };
+
+/**
+ * A bare input manager for the sim: the harness drives `InputFrame`s directly, so the manager is
+ * only here to carry the attack/defence context and the action buffer.
+ */
+const manager = (): InputManager => new InputManager();
 
 /** A fresh world with the kickoff teleport already consumed, ready to be posed by a check. */
 function newWorld(seed: number): SimWorld {
@@ -75,7 +91,7 @@ function run(world: SimWorld, seconds: number): string[] {
   for (let i = 0; i < Math.round(seconds * 60); i++) {
     world.activeId = -1;
     const before = { ...world.ball.vel };
-    tick(world, idleInput, 0, TICK_DT);
+    tick(world, idleInput, 0, TICK_DT, manager());
     for (const event of world.events) seen.push(event.type);
     stepBall(world, TICK_DT, before);
     world.events.length = 0;
@@ -162,7 +178,7 @@ function playMatch(seed: number, difficulty: Difficulty, halfLength: number): Re
     // No player id is -1, so every player (both teams) is driven by the AI.
     world.activeId = -1;
     const before = { ...world.ball.vel };
-    tick(world, idleInput, 0, TICK_DT);
+    tick(world, idleInput, 0, TICK_DT, manager());
     for (const event of world.events) {
       if (event.type === 'shot' || event.type === 'pass' || event.type === 'kick') {
         lastKick = { tick: ticks, type: event.type };
@@ -218,7 +234,7 @@ function checkKickAndReset(): void {
   let kicked = false;
   for (let i = 0; i < 60 * 30 && !kicked; i++) {
     const before = { ...world.ball.vel };
-    tick(world, idleInput, 0, TICK_DT);
+    tick(world, idleInput, 0, TICK_DT, manager());
     kicked = world.commands.some((c) => c.type === 'impulse');
     stepBall(world, TICK_DT, before);
     world.events.length = 0;
@@ -238,6 +254,8 @@ interface ControlCase {
   minSpeed: number;
   /** Whether the kick is expected to leave the ground. */
   lofted?: boolean;
+  /** Normalised 0..1 hold. Defaults to a half charge. */
+  charge?: number;
 }
 
 const CONTROL_CASES: ControlCase[] = [
@@ -281,16 +299,17 @@ function checkHumanControls(): void {
 
     const actions = idleActions();
     actions[test.action] = {
-      down: false,
-      pressed: false,
+      ...actions[test.action],
       released: true,
       heldTime: 0.35,
       doubleTap: test.doubleTap ?? false,
+      fired: true,
+      charge: test.charge ?? 0.5,
     };
     for (const mod of test.mods ?? []) {
       actions[mod] = { ...actions[mod], down: true };
     }
-    tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT);
+    tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, manager());
 
     const impulse = world.commands.find((c) => c.type === 'impulse');
     if (!impulse || impulse.type !== 'impulse') {
@@ -311,6 +330,132 @@ function checkHumanControls(): void {
     }
   }
   console.log(`human control checks passed (${CONTROL_CASES.length} kicks)`);
+}
+
+/** Poses a world with the human on the ball at the halfway line, ready to strike it. */
+function worldOnTheBall(seed = 11): { world: SimWorld; active: SimPlayer } {
+  const world = createWorld({
+    homeTeam: teams[0],
+    awayTeam: teams[1],
+    homeFormation: teams[0].formation,
+    awayFormation: teams[1].formation,
+    humanSide: 'home',
+    difficulty: 'normal',
+    halfLength: 60,
+    seed,
+  });
+  world.phase = 'in-play';
+  const active = world.players.find((p) => p.id === world.activeId);
+  if (!active) throw new Error('no active player');
+  active.pos = { x: -6, z: 0 };
+  active.vel = { x: 0, z: 0 };
+  active.heading = Math.PI / 2;
+  world.ball.pos = { x: active.pos.x + 0.4, y: BALL_RADIUS, z: active.pos.z };
+  world.ball.vel = { x: 0, y: 0, z: 0 };
+  world.controllerId = active.id;
+  world.possession = 'home';
+  world.commands.length = 0;
+  return { world, active };
+}
+
+/** Launch speed of the single impulse a kick produces. */
+function struckSpeed(world: SimWorld): number {
+  const impulse = world.commands.find((c) => c.type === 'impulse');
+  if (!impulse || impulse.type !== 'impulse') throw new Error('no impulse was applied');
+  return Math.hypot(
+    impulse.impulse.x / BALL_MASS,
+    impulse.impulse.y / BALL_MASS,
+    impulse.impulse.z / BALL_MASS,
+  );
+}
+
+/**
+ * Bug #3: hold duration has to change the pace of the ball. Three holds must produce three
+ * clearly distinct, increasing launch speeds for every charged action.
+ */
+function checkPassPower(): void {
+  const charges = [0.1, 0.5, 1];
+  for (const action of ['pass', 'cross', 'through', 'shoot'] as ActionName[]) {
+    const speeds = charges.map((charge) => {
+      const { world } = worldOnTheBall();
+      const actions = idleActions();
+      actions[action] = {
+        ...actions[action],
+        released: true,
+        fired: true,
+        charge,
+        heldTime: charge,
+      };
+      tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, manager());
+      return struckSpeed(world);
+    });
+    for (let i = 1; i < speeds.length; i++) {
+      if (speeds[i] <= speeds[i - 1]) {
+        throw new Error(
+          `${action}: power is not monotonic in hold time — ${speeds.map((s) => s.toFixed(1)).join(' / ')} m/s`,
+        );
+      }
+    }
+    // "Clearly distinct" — a tap and a full charge must not be within noise of each other.
+    if (speeds[2] - speeds[0] < 4) {
+      throw new Error(
+        `${action}: tap and full charge differ by only ${(speeds[2] - speeds[0]).toFixed(1)} m/s`,
+      );
+    }
+    console.log(
+      `  ${action}: ${speeds.map((s, i) => `${charges[i]}=${s.toFixed(1)}`).join('  ')} m/s`,
+    );
+  }
+  console.log('pass/shot power checks passed');
+}
+
+/**
+ * Bug #2: switching must pick a defender near where the ball is *going*, must never hand over
+ * the keeper in open play, and repeated presses must cycle rather than stick.
+ */
+function checkSwitching(): void {
+  const { world } = worldOnTheBall(77);
+  // Opponent breaking down their left wing, ball travelling up the pitch.
+  world.possession = 'away';
+  world.controllerId = null;
+  world.ball.pos = { x: 0, y: BALL_RADIUS, z: -20 };
+  world.ball.vel = { x: -18, y: 0, z: 0 };
+
+  const ranked = rankSwitchCandidates(world);
+  if (ranked.length === 0) throw new Error('no switch candidates');
+  if (ranked.some((c) => world.players.find((p) => p.id === c.id)?.role === 'GK')) {
+    throw new Error('the keeper was offered as a switch candidate in open play');
+  }
+  if (ranked.some((c) => c.id === world.activeId)) {
+    throw new Error('the currently controlled player was offered as a candidate');
+  }
+
+  // The best pick must be closer to where the ball is heading than the average of the squad.
+  const ahead = predictedBall(world, world.tuning.switching.predictSeconds);
+  const best = world.players.find((p) => p.id === ranked[0].id);
+  if (!best) throw new Error('ranked a player who does not exist');
+  const bestGap = Math.hypot(best.pos.x - ahead.x, best.pos.z - ahead.z);
+  const outfield = world.players.filter((p) => p.side === 'home' && p.role !== 'GK');
+  const meanGap =
+    outfield.reduce((sum, p) => sum + Math.hypot(p.pos.x - ahead.x, p.pos.z - ahead.z), 0) /
+    outfield.length;
+  if (bestGap >= meanGap) {
+    throw new Error(
+      `switch picked a player ${bestGap.toFixed(1)}m from the ball's path, worse than the ${meanGap.toFixed(1)}m squad average`,
+    );
+  }
+
+  // Cycling: three presses inside the window must produce three different players.
+  const picked = new Set<number>();
+  for (let i = 0; i < 3; i++) {
+    world.switching.sincePress = 0.2; // inside the cycle window, outside the debounce
+    requestSwitch(world);
+    picked.add(world.activeId);
+  }
+  if (picked.size < 3) {
+    throw new Error(`cycling produced only ${picked.size} distinct players, expected 3`);
+  }
+  console.log(`switching checks passed (${ranked.length} candidates, cycled ${picked.size})`);
 }
 
 /** Throw-ins, corners and goal kicks must stop play, then be taken so the match restarts. */
@@ -477,6 +622,8 @@ const matches = Number(process.argv[2] ?? 3);
 checkKickAndReset();
 console.log('kick + reset checks passed');
 checkHumanControls();
+checkPassPower();
+checkSwitching();
 checkRestarts();
 checkPenalty();
 checkOffside();

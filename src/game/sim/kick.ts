@@ -110,12 +110,20 @@ export interface PassOption {
 export function bestPass(world: SimWorld, passer: SimPlayer, prefDir?: Vec2): PassOption | null {
   const attack = world.attackDir[passer.side];
   const line = world.offsideActive ? offsideLine(world, passer.side) : Infinity;
+  // A manually aimed pass only considers receivers inside the cone the player is pointing at.
+  const cone = prefDir ? Math.cos((world.tuning.pass.coneDegrees * Math.PI) / 180) : -1;
+  const aimUnit = prefDir ? normalize(prefDir) : null;
   let best: PassOption | null = null;
   for (const mate of world.players) {
     if (mate.side !== passer.side || mate.id === passer.id || mate.sentOff) continue;
     const d = dist(passer.pos, mate.pos);
     if (d < 3 || d > 42) continue;
-    const travel = clamp(d / 16, 0.15, 1.2);
+    if (aimUnit) {
+      const toMateNow = normalize(sub(mate.pos, passer.pos));
+      if (toMateNow.x * aimUnit.x + toMateNow.z * aimUnit.z < cone) continue;
+    }
+    // Lead the receiver by a slice of his run so the ball meets him rather than his shadow.
+    const travel = aimUnit ? world.tuning.pass.groundLeadSeconds : clamp(d / 16, 0.15, 1.2);
     const spot = { x: mate.pos.x + mate.vel.x * travel, z: mate.pos.z + mate.vel.z * travel };
     const open = laneOpenness(world, passer.pos, spot, passer.side);
     const forward = ((spot.x - passer.pos.x) * attack) / 40;

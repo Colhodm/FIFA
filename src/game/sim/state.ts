@@ -1,3 +1,4 @@
+import { DEFAULT_TUNING, type Tuning } from '../tuning';
 import { BALL_RADIUS, PITCH_LENGTH, PITCH_WIDTH } from '../constants';
 import { FORMATIONS } from '../formations';
 import type { Difficulty, FormationId, Role, TeamData, TeamSide } from '../types';
@@ -221,10 +222,27 @@ export interface MatchConfig {
   /** Real seconds per half. */
   halfLength: number;
   seed: number;
+  /** Gameplay tunables; falls back to the built-in defaults when omitted. */
+  tuning?: Tuning;
+}
+
+/** State backing manual player switching: the ranking to cycle and the debounce timers. */
+export interface SwitchState {
+  /** Candidate ids ranked at the first press, cycled by subsequent presses. */
+  ranking: number[];
+  /** How far through `ranking` the player has cycled. */
+  cursor: number;
+  /** Seconds since the last switch press, for the cycle window and key-repeat debounce. */
+  sincePress: number;
+  /** Seconds since a manual switch, during which auto-switch defers to the player. */
+  sinceManual: number;
 }
 
 export interface SimWorld {
   config: MatchConfig;
+  /** Resolved gameplay tunables, never undefined once the world exists. */
+  tuning: Tuning;
+  switching: SwitchState;
   players: SimPlayer[];
   ball: BallState;
   /** Drained by the physics layer every tick. */
@@ -337,6 +355,8 @@ export function createWorld(config: MatchConfig): SimWorld {
 
   const world: SimWorld = {
     config,
+    tuning: config.tuning ?? DEFAULT_TUNING,
+    switching: { ranking: [], cursor: 0, sincePress: Infinity, sinceManual: Infinity },
     players,
     ball: {
       pos: { x: 0, y: BALL_RADIUS, z: 0 },

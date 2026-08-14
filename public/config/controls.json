@@ -1,0 +1,5 @@
+{
+  "//": "Rebind the keyboard here. Keys are KeyboardEvent.code values; targets are up/down/left/right or an action name (pass, cross, through, shoot, sprint, jockey, modR1, modL1, skill, switch, pause, debug). Entries layer over the built-in defaults unless replaceDefaults is true.",
+  "replaceDefaults": false,
+  "keyboard": {}
+}

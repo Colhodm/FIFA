@@ -4,24 +4,23 @@ import { Radar } from './Radar';
 
 /** What the taker is being asked to do, keyboard-side. */
 const SET_PIECE_HINT: Record<RestartKind, string> = {
-  'throw-in': 'Aim with ← → ↑ ↓, A to throw short',
-  'goal-kick': 'Hold A or D to launch it, aim with the arrows',
-  corner: 'Aim with the arrows, hold S to whip it in',
-  'free-kick': 'Aim with the arrows · hold D to shoot, S to cross',
-  penalty: 'Aim with ← →, hold D for power',
+  'throw-in': 'Aim with WASD or the arrows, K to throw short',
+  'goal-kick': 'Hold K or L to launch it, aim with WASD',
+  corner: 'Aim with WASD, hold J to whip it in',
+  'free-kick': 'Aim with WASD · hold L to shoot, J to cross',
+  penalty: 'Aim left/right, hold L for power',
 };
 
 const KEYBOARD_HINTS = [
-  '← ↑ ↓ → move',
+  'WASD / arrows move',
   'Shift sprint',
-  'Z jockey',
-  'A pass / contain',
-  'S cross / slide',
-  'Q through ball',
-  'D shoot / tackle',
-  'W driven · E lofted',
-  'C skill move',
-  'Space switch',
+  'K pass / jockey',
+  'J cross / slide',
+  'I through / contain',
+  'L shoot / tackle',
+  'O driven · U lofted',
+  'Space skill move',
+  'Q switch',
   'Esc pause',
 ];
 

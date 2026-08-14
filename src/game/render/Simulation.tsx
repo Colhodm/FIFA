@@ -10,12 +10,15 @@ import {
   SPIN_DECAY,
   TICK_DT,
 } from '../constants';
+import { CHARGED_ACTIONS } from '../input/input';
 import { FrameSampler } from '../perf/quality';
 import { padConnected, runtime, type ReplayFrame } from '../runtime';
-import { clamp } from '../sim/math';
+import { cameraRelative, clamp } from '../sim/math';
+import { speedFor } from '../sim/power';
 import { matchMinute, stoppageMinutes } from '../sim/rules';
 import type { SimWorld } from '../sim/state';
 import { tick } from '../sim/step';
+import { predictedBall, rankSwitchCandidates } from '../sim/switching';
 import { useGameStore, useHudStore } from '../store';
 import { poseRig } from './animation';
 
@@ -37,7 +40,8 @@ export function Simulation({ world }: { world: SimWorld }) {
     const dt = Math.min(delta, 0.25);
     clock.current += dt;
 
-    const qualityStep = sampler.sample(dt);
+    // Sampled from the true frame time, not the clamped simulation dt.
+    const qualityStep = sampler.sample(delta);
     if (qualityStep !== 0) {
       const game = useGameStore.getState();
       if (game.quality === 'auto') game.setTier(game.tier.id + qualityStep);
@@ -62,18 +66,28 @@ export function Simulation({ world }: { world: SimWorld }) {
       accumulator.current -= TICK_DT;
       ticks += 1;
       const frame = runtime.input.update(TICK_DT);
-      tick(world, frame, runtime.cameraYaw, TICK_DT);
+      tick(world, frame, runtime.cameraYaw, TICK_DT, runtime.input);
       if (frame.actions.pause.pressed) useGameStore.getState().setPaused(true);
-      // Any of the four kick buttons fills the same power meter.
-      const held = Math.max(
-        frame.actions.shoot.down ? frame.actions.shoot.heldTime : 0,
-        frame.actions.pass.down ? frame.actions.pass.heldTime : 0,
-        frame.actions.cross.down ? frame.actions.cross.heldTime : 0,
-        frame.actions.through.down ? frame.actions.through.heldTime : 0,
-      );
-      runtime.charge = clamp(held / CHARGE_TIME, 0, 1);
+      if (import.meta.env.DEV && frame.actions.debug.pressed) useGameStore.getState().toggleDebug();
+      // Any of the four kick buttons fills the same power meter, and the meter shows the real
+      // hold against that action's own maximum rather than a shared guess.
+      let charge = 0;
+      for (const action of CHARGED_ACTIONS) {
+        const state = frame.actions[action];
+        if (!state.down) continue;
+        const limit = runtime.input.chargeLimits[action] ?? CHARGE_TIME;
+        charge = Math.max(charge, clamp(state.heldTime / limit, 0, 1));
+      }
+      runtime.charge = charge;
     }
-    if (accumulator.current > TICK_DT * MAX_TICKS_PER_FRAME) accumulator.current = 0;
+    if (import.meta.env.DEV && useGameStore.getState().debug) publishDebug(world);
+
+    runtime.diag.frames += 1;
+    runtime.diag.ticks += ticks;
+    if (accumulator.current >= TICK_DT) runtime.diag.starvedFrames += 1;
+    // Keep a frame's worth of backlog so a hitch is caught up on the next frame; drop anything
+    // beyond that rather than zeroing, which used to throw away real time and stall the clock.
+    accumulator.current = Math.min(accumulator.current, TICK_DT * MAX_TICKS_PER_FRAME);
 
     if (body) {
       for (const command of world.commands) {
@@ -143,12 +157,11 @@ export function Simulation({ world }: { world: SimWorld }) {
         set && active && set.takerId === active.id && active.side === world.config.humanSide;
       runtime.aim.visible = Boolean(human);
       if (human && set) {
-        const move = runtime.input.frame.move;
-        const yaw = runtime.cameraYaw;
-        const dirX = move.z * Math.sin(yaw) + move.x * Math.cos(yaw);
-        const dirZ = move.z * Math.cos(yaw) - move.x * Math.sin(yaw);
+        const aimDir = cameraRelative(runtime.input.frame.move, runtime.cameraYaw);
         const heading =
-          Math.hypot(dirX, dirZ) > 0.2 ? Math.atan2(dirX, dirZ) : (active?.heading ?? 0);
+          Math.hypot(aimDir.x, aimDir.z) > 0.2
+            ? Math.atan2(aimDir.x, aimDir.z)
+            : (active?.heading ?? 0);
         runtime.aim.position.set(set.spot.x, 0, set.spot.z);
         runtime.aim.rotation.set(0, heading, 0);
         runtime.aim.scale.setScalar(0.7 + runtime.charge * 0.8);
@@ -250,6 +263,62 @@ export function Simulation({ world }: { world: SimWorld }) {
 
   return null;
 }
+
+/**
+ * Fills `runtime.debug` for the F1 overlay. Everything here is derived from the same pure
+ * functions gameplay uses, so the overlay cannot disagree with what the match is doing.
+ */
+function publishDebug(world: SimWorld): void {
+  const manager = runtime.input;
+  const frame = manager.frame;
+  const debug = runtime.debug;
+
+  debug.raw = { ...frame.move };
+  debug.world = cameraRelative(frame.move, runtime.cameraYaw);
+  debug.context = manager.context;
+  debug.buffered = manager.buffer?.action ?? null;
+  debug.bufferAge = manager.buffer?.age ?? 0;
+  debug.candidates = rankSwitchCandidates(world).slice(0, 3);
+  debug.predicted = predictedBall(world, world.tuning.switching.predictSeconds);
+
+  debug.charge = 0;
+  debug.chargeAction = null;
+  for (const action of CHARGED_ACTIONS) {
+    const state = frame.actions[action];
+    const limit = manager.chargeLimits[action] ?? CHARGE_TIME;
+    if (state.down) {
+      const live = clamp(state.heldTime / limit, 0, 1);
+      if (live >= debug.charge) {
+        debug.charge = live;
+        debug.chargeAction = action;
+        debug.holdSeconds = state.heldTime;
+      }
+    }
+    // Record the power a completed charge asked for, and log it, as the spec requires.
+    if (state.fired) {
+      const sample = {
+        action,
+        hold: state.heldTime,
+        charge: state.charge,
+        speed: speedFor(state.charge, tuningFor(world, action)),
+      };
+      debug.recent.push(sample);
+      if (debug.recent.length > 5) debug.recent.shift();
+      console.log(
+        `[charge] ${action} hold=${sample.hold.toFixed(2)}s charge=${sample.charge.toFixed(2)} power=${sample.speed.toFixed(1)} m/s`,
+      );
+    }
+  }
+}
+
+const tuningFor = (world: SimWorld, action: (typeof CHARGED_ACTIONS)[number]) =>
+  action === 'shoot'
+    ? world.tuning.shot
+    : action === 'cross'
+      ? world.tuning.pass.lob
+      : action === 'through'
+        ? world.tuning.pass.through
+        : world.tuning.pass.ground;
 
 /** Keeps a rolling window of the match so a goal can be shown back straight away. */
 function recordReplay(world: SimWorld, dt: number, timer: { current: number }): void {
