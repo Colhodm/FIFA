@@ -585,9 +585,10 @@ function autoSwitch(world: SimWorld, holder: SimPlayer): void {
     if (holder.role !== 'GK') world.activeId = holder.id;
     return;
   }
-  // Never hand the player his goalkeeper unasked. Pressing switch inside your own box still
-  // offers him (the laws of the switch, §3.1), but the game choosing him for you is jarring.
-  const best = rankSwitchCandidates(world, false)[0];
+  // The ball has gone to the opposition, so rank for defending — goal-side cover counts — even
+  // though `world.possession` has not caught up yet. Never hand the player his goalkeeper
+  // unasked; pressing switch inside your own box still offers him (§3.1).
+  const best = rankSwitchCandidates(world, false, true)[0];
   if (best) world.activeId = best.id;
 }
 
@@ -803,7 +804,7 @@ function playShot(
   if (l1) {
     // Chip: little power, plenty of loft, aimed over the keeper.
     const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
-    applyKick(world, active, dir, speed * 0.55, 4.2);
+    applyKick(world, active, dir, speed * 0.55, 4.2, 0, 'shot');
     world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
     registerShot(world, active, goal);
     return;
@@ -831,6 +832,7 @@ function playShot(
     speed,
     r1 ? 0.6 : 1.8,
     r1 ? 0 : curlToward(active.pos, dir, goal, 0.4),
+    'shot',
   );
   world.events.push({ type: 'kick', side: active.side, intensity: charge });
 }
@@ -893,7 +895,7 @@ function playGroundPass(
   const option = bestPass(world, active, aimDir, speed);
   if (!option) {
     // Nobody in the cone: strike it into space rather than swallowing the press.
-    applyKick(world, active, aimDir, speed, lofted ? 3 : 0);
+    applyKick(world, active, aimDir, speed, lofted ? 3 : 0, 0, 'pass');
     world.events.push({ type: 'kick', side: active.side, intensity: charge });
     return;
   }
@@ -917,7 +919,7 @@ function volley(world: SimWorld, player: SimPlayer, aimDir: Vec2): void {
     z: dir.z + (world.rand() * 2 - 1) * spread,
   });
   const power = 16 + (player.shooting / 100) * 10;
-  applyKick(world, player, aimed, power, clamp(1.4 - world.ball.pos.y, 0.1, 1.2));
+  applyKick(world, player, aimed, power, clamp(1.4 - world.ball.pos.y, 0.1, 1.2), 0, 'shot');
   registerShot(world, player, { x: goal.x, z: player.pos.z + aimed.z * 4 });
   world.events.push({ type: 'shot', side: player.side, intensity: 0.9 });
 }

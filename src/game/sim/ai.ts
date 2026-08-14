@@ -306,7 +306,7 @@ export function shoot(
       powerScale;
   // Good finishers wrap their foot around it, bending the shot back towards the corner.
   const curl = curlToward(p.pos, dir, aim, (p.shooting / 100) * 0.5);
-  applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6), curl);
+  applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6), curl, 'shot');
   registerShot(world, p, aim);
   world.events.push({ type: 'shot', side: p.side, intensity: clamp(power / MAX_SHOT_POWER, 0, 1) });
 }
@@ -345,7 +345,7 @@ export function kickPass(
   const lift = options.lift ?? (d > 24 ? 2.4 : 0);
   // A whipped cross bends away from the keeper; a ground pass is struck flat.
   const curl = options.curl ?? (lift > 2.5 ? curlToward(p.pos, dir, aim, 0.35) : 0);
-  applyKick(world, p, dir, power, lift, curl);
+  applyKick(world, p, dir, power, lift, curl, 'pass');
   // Tell the intended receiver the ball is for him; cleared as soon as anyone controls it.
   if (options.receiverId !== undefined) {
     world.passTarget = { playerId: options.receiverId, spot };

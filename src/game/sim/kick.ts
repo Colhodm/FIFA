@@ -23,6 +23,11 @@ export const ballPos2 = (world: SimWorld): Vec2 => ({
  * momentum. The contact offset is what makes the ball pick up roll instead of sliding.
  * `curl` is side-spin in rad/s: positive bends the ball to the kicker's right.
  */
+/** Which strike animation to play. Contact is instantaneous, so these are follow-throughs. */
+export type KickClip = 'kick' | 'shot' | 'pass';
+
+const CLIP_HOLD: Record<KickClip, number> = { kick: 0.3, shot: 0.45, pass: 0.28 };
+
 export function applyKick(
   world: SimWorld,
   player: SimPlayer,
@@ -30,6 +35,7 @@ export function applyKick(
   speed: number,
   lift: number,
   curl = 0,
+  clip: KickClip = 'kick',
 ): void {
   const d = normalize(dir);
   const ball = world.ball;
@@ -54,8 +60,8 @@ export function applyKick(
   ball.vel = target;
   ball.spin = { x: 0, y: curl, z: 0 };
   player.kickCooldown = KICK_COOLDOWN;
-  player.anim = 'kick';
-  player.animTimer = 0.3;
+  player.anim = clip;
+  player.animTimer = CLIP_HOLD[clip];
   world.controllerId = null;
   world.lastTouch = { side: player.side, playerId: player.id };
   world.possession = player.side;

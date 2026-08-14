@@ -41,13 +41,23 @@ const inOwnPenaltyArea = (world: SimWorld, side: SimPlayer['side'], p: Vec2): bo
  * who is the wrong side of the ball while defending. The currently controlled player is never a
  * candidate, and the keeper only becomes one inside his own box when nobody else is close.
  */
-export function rankSwitchCandidates(world: SimWorld, allowKeeper = true): SwitchCandidate[] {
+export function rankSwitchCandidates(
+  world: SimWorld,
+  allowKeeper = true,
+  /**
+   * Whether to weigh being goal-side. Callers must pass this explicitly at a turnover:
+   * `world.possession` is not updated until after the switch is made, so reading it here
+   * reported "we are still attacking" at the exact moment the ball was lost, and handed the
+   * player whichever forward happened to be nearest instead of a defender getting back.
+   */
+  defendingOverride?: boolean,
+): SwitchCandidate[] {
   const w = world.tuning.switching;
   const human = world.config.humanSide;
   const ball = ballPos2(world);
   const ahead = predictedBall(world, w.predictSeconds);
   const own = ownGoalCenter(world, human);
-  const defending = world.possession !== null && world.possession !== human;
+  const defending = defendingOverride ?? (world.possession !== null && world.possession !== human);
 
   const outfield = world.players.filter(
     (p) => p.side === human && !p.sentOff && p.id !== world.activeId && p.role !== 'GK',
