@@ -80,19 +80,47 @@ export function defaultTier(): number {
   return coarse ? Math.max(0, base - 1) : base;
 }
 
+/** Ignore the first moments of a match: shader compilation and texture generation are not tiers. */
+const WARMUP_SECONDS = 4;
+/** After changing tier the renderer rebuilds, which costs a frame. Do not read that frame. */
+const SETTLE_SECONDS = 1.5;
+
 /**
  * Measures real frame time over one-second windows and recommends a tier.
- * Steps down immediately when a window is slow, and only steps up after sustained headroom.
+ *
+ * Three things this has to get right, each of which was got wrong before:
+ *
+ * - **Warm-up.** The opening seconds of a match are slow because shaders are compiling and the
+ *   kit/crowd textures are being generated, not because the tier is too high. Sampling them
+ *   walked the ladder from Ultra to Low within five seconds of every kickoff.
+ * - **Hitches.** A single long frame should not condemn a whole window, so the decision is made
+ *   on the *median* frame time rather than the mean.
+ * - **A reachable ceiling.** Stepping up required beating a fixed 58 fps, so anything capped
+ *   below that — a 30 Hz panel, a throttled tab, vsync at 50 — could never climb back out of
+ *   Low no matter how much headroom it had. The target now tracks the best frame rate actually
+ *   observed, so the test is "is there headroom", not "is it 60 fps".
  */
 export class FrameSampler {
-  private frames = 0;
+  private frameTimes: number[] = [];
   private elapsed = 0;
   private goodWindows = 0;
+  private warmup = 0;
+  private settle = 0;
+  /** Best frame rate seen so far, used as the achievable ceiling. */
+  private ceiling = 0;
   fps = 60;
   private targetFps: number;
 
   constructor(targetFps = 58) {
     this.targetFps = targetFps;
+  }
+
+  /** Call after changing tier, so the rebuild frame is not mistaken for a slow tier. */
+  notifyTierChange(): void {
+    this.settle = SETTLE_SECONDS;
+    this.frameTimes.length = 0;
+    this.elapsed = 0;
+    this.goodWindows = 0;
   }
 
   /**
@@ -103,17 +131,35 @@ export class FrameSampler {
    * a healthy frame rate on a struggling machine and stops the quality ladder stepping down.
    */
   sample(dt: number): number {
-    this.frames += 1;
+    if (this.warmup < WARMUP_SECONDS) {
+      this.warmup += dt;
+      return 0;
+    }
+    if (this.settle > 0) {
+      this.settle -= dt;
+      return 0;
+    }
+
+    this.frameTimes.push(dt);
     this.elapsed += dt;
     if (this.elapsed < 1) return 0;
-    this.fps = this.frames / this.elapsed;
-    this.frames = 0;
+
+    // Median frame time: one 300 ms hitch in a good second must not read as 3 fps.
+    const sorted = this.frameTimes.slice().sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] || 1 / 60;
+    this.fps = 1 / median;
+    this.frameTimes.length = 0;
     this.elapsed = 0;
-    if (this.fps < this.targetFps - 10) {
+
+    this.ceiling = Math.max(this.ceiling, this.fps);
+    // Never demand more than this machine has been seen to manage, less a little slack.
+    const target = Math.min(this.targetFps, this.ceiling * 0.95);
+
+    if (this.fps < target - 10) {
       this.goodWindows = 0;
       return -1;
     }
-    if (this.fps > this.targetFps) {
+    if (this.fps >= target) {
       this.goodWindows += 1;
       if (this.goodWindows >= 4) {
         this.goodWindows = 0;
