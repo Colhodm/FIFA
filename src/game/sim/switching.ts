@@ -41,7 +41,7 @@ const inOwnPenaltyArea = (world: SimWorld, side: SimPlayer['side'], p: Vec2): bo
  * who is the wrong side of the ball while defending. The currently controlled player is never a
  * candidate, and the keeper only becomes one inside his own box when nobody else is close.
  */
-export function rankSwitchCandidates(world: SimWorld): SwitchCandidate[] {
+export function rankSwitchCandidates(world: SimWorld, allowKeeper = true): SwitchCandidate[] {
   const w = world.tuning.switching;
   const human = world.config.humanSide;
   const ball = ballPos2(world);
@@ -56,7 +56,12 @@ export function rankSwitchCandidates(world: SimWorld): SwitchCandidate[] {
   // The keeper is only a legitimate pick inside his own area with nobody else near the ball.
   const keeper = world.players.find((p) => p.side === human && p.role === 'GK' && !p.sentOff);
   const pool = [...outfield];
-  if (keeper && keeper.id !== world.activeId && inOwnPenaltyArea(world, human, ball)) {
+  if (
+    allowKeeper &&
+    keeper &&
+    keeper.id !== world.activeId &&
+    inOwnPenaltyArea(world, human, ball)
+  ) {
     const nearestOutfield = outfield.reduce(
       (best, p) => Math.min(best, dist(p.pos, ball)),
       Infinity,
