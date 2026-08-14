@@ -1,15 +1,10 @@
 import {
   ACCELERATION,
   BASE_SPEED,
-  CHARGE_TIME,
   CONTROL_RADIUS,
   HALF_LENGTH,
   HALF_WIDTH,
   KICK_COOLDOWN,
-  MAX_PASS_POWER,
-  MAX_SHOT_POWER,
-  MIN_PASS_POWER,
-  MIN_SHOT_POWER,
   PLAYER_RADIUS,
   SPRINT_MULTIPLIER,
   STAMINA_DRAIN_RUN,
@@ -17,10 +12,15 @@ import {
   STAMINA_RECOVERY,
   TURN_RATE,
 } from '../constants';
-import type { InputFrame } from '../input/input';
+import {
+  CHARGED_ACTIONS,
+  type ActionName,
+  type InputFrame,
+  type InputManager,
+} from '../input/input';
 import type { TeamSide } from '../types';
 import { resolveAerials, updateBodies, updateKeepers, type HeaderIntent } from './aerial';
-import { decideOffBall, decideOnBall, kickPass, nearestOf, registerShot, shoot } from './ai';
+import { decideOffBall, decideOnBall, kickPass, registerShot, shoot } from './ai';
 import {
   applyKick,
   ballPos2,
@@ -31,7 +31,7 @@ import {
   goalCenter,
   ownGoalCenter,
 } from './kick';
-import { angleDelta, clamp, dist, normalize, sub, type Vec2 } from './math';
+import { angleDelta, cameraRelative, clamp, dist, normalize, sub, type Vec2 } from './math';
 import {
   advanceClock,
   awardFoul,
@@ -41,7 +41,14 @@ import {
   whistleOffside,
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
+import { groundSpeedFor, liftFor, lobAngle, speedFor } from './power';
 import { firstTouchError, performSkill, skillFromDirection } from './skills';
+import {
+  advanceSwitchTimers,
+  manualSwitchHeld,
+  rankSwitchCandidates,
+  requestSwitch,
+} from './switching';
 import {
   DIFFICULTY,
   TEAMMATE_PROFILE,
@@ -64,22 +71,23 @@ const other = (side: TeamSide): TeamSide => (side === 'home' ? 'away' : 'home');
 const profileFor = (world: SimWorld, p: SimPlayer): DifficultyProfile =>
   p.side === world.config.humanSide ? TEAMMATE_PROFILE : DIFFICULTY[world.config.difficulty];
 
-/** Rotates camera-relative input into pitch space. */
-function inputToWorld(move: Vec2, cameraYaw: number): Vec2 {
-  const sin = Math.sin(cameraYaw);
-  const cos = Math.cos(cameraYaw);
-  return {
-    x: move.z * sin + move.x * cos,
-    z: move.z * cos - move.x * sin,
-  };
-}
-
 const isLive = (world: SimWorld): boolean => world.phase === 'in-play';
 const playersMove = (world: SimWorld): boolean =>
   world.phase !== 'end' && world.phase !== 'halftime';
 
-export function tick(world: SimWorld, input: InputFrame, cameraYaw: number, dt: number): void {
+export function tick(
+  world: SimWorld,
+  input: InputFrame,
+  cameraYaw: number,
+  dt: number,
+  manager: InputManager,
+): void {
   world.pendingKickId = null;
+  advanceSwitchTimers(world, dt);
+  // The face buttons mean different things with and without the ball; publish which it is so
+  // the input layer can resolve a press against the state it was made in.
+  const human = world.config.humanSide;
+  manager.setContext(world.possession === human ? 'ATTACK' : 'DEFENCE');
 
   switch (world.phase) {
     case 'kickoff':
@@ -123,14 +131,17 @@ export function tick(world: SimWorld, input: InputFrame, cameraYaw: number, dt: 
     resolveOverlaps(world);
   }
 
-  if (world.phase === 'restart') updateRestart(world, input, cameraYaw, dt);
+  if (world.phase === 'restart') updateRestart(world, input, cameraYaw, dt, manager);
 
   if (isLive(world)) {
     resolveChallenges(world, dt);
     resolveAerials(world, headerIntent(world, input, cameraYaw));
     updateKeepers(world, dt);
     updateControl(world, dt);
-    handleHumanActions(world, input, cameraYaw);
+    // Manual switching is read before the action handler so the new man acts this same tick.
+    if (input.actions.switch.pressed) requestSwitch(world);
+    handleHumanActions(world, input, cameraYaw, manager);
+    releaseBuffered(world, input, cameraYaw, manager);
     if (world.possession) world.possessionTicks[world.possession] += 1;
     checkBallOut(world);
   }
@@ -194,17 +205,18 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
 
     if (p.id === humanControlled) {
       const hasBall = world.controllerId === p.id;
-      const jockey = input.actions.jockey.down;
-      // Hold pass off the ball to contain: the player backs off goal-side of the carrier.
-      const contain = !hasBall && input.actions.pass.down;
+      // Out of possession the pass button jockeys and the shoot button closes the carrier down;
+      // the pad's dedicated jockey trigger still works either way.
+      const jockey = !hasBall && (input.actions.pass.down || input.actions.jockey.down);
+      const closeDown = !hasBall && input.actions.shoot.down;
       p.shielding = jockey;
-      desired = inputToWorld(input.move, cameraYaw);
-      if (contain) desired = containTarget(world, p);
+      desired = cameraRelative(input.move, cameraYaw);
+      if (closeDown) desired = containTarget(world, p);
       if (jockey) {
         desired = { x: desired.x * 0.55, z: desired.z * 0.55 };
         face = sub(ballPos2(world), p.pos);
       }
-      sprint = input.actions.sprint.down && !jockey && !contain && p.stamina > 0.05;
+      sprint = input.actions.sprint.down && !jockey && !closeDown && p.stamina > 0.05;
     } else {
       // Only the carrier shields; decideOnBall re-arms this on its own cadence.
       if (world.controllerId !== p.id) p.shielding = false;
@@ -537,22 +549,25 @@ function updateControl(world: SimWorld, dt: number): void {
   world.commands.push({ type: 'velocity', vel: { x: vx, y: world.ball.vel.y, z: vz } });
 }
 
-/** Hands the human the most useful player when possession flips. */
+/**
+ * Hands the human the most useful player when possession flips — unless he has just switched
+ * by hand, in which case his intent wins for a moment.
+ */
 function autoSwitch(world: SimWorld, holder: SimPlayer): void {
+  if (manualSwitchHeld(world)) return;
   const human = world.config.humanSide;
   if (holder.side === human) {
+    // Control follows the ball to whoever receives it.
     if (holder.role !== 'GK') world.activeId = holder.id;
     return;
   }
-  const chaser = nearestOf(world, holder.pos, human);
-  if (chaser) world.activeId = chaser.id;
+  const best = rankSwitchCandidates(world)[0];
+  if (best) world.activeId = best.id;
 }
-
-const chargeOf = (heldTime: number): number => clamp(heldTime / CHARGE_TIME, 0.15, 1);
 
 /** Direction the human is aiming: his stick, or where he is facing if it is centred. */
 function aimOf(player: SimPlayer, input: InputFrame, cameraYaw: number): Vec2 {
-  const moveDir = inputToWorld(input.move, cameraYaw);
+  const moveDir = cameraRelative(input.move, cameraYaw);
   const facing = { x: Math.sin(player.heading), z: Math.cos(player.heading) };
   return Math.hypot(moveDir.x, moveDir.z) > 0.2 ? moveDir : facing;
 }
@@ -569,7 +584,13 @@ function headerIntent(world: SimWorld, input: InputFrame, cameraYaw: number): He
 }
 
 /** Set pieces: the taker holds the ball until he plays it, and the phase ends on contact. */
-function updateRestart(world: SimWorld, input: InputFrame, cameraYaw: number, dt: number): void {
+function updateRestart(
+  world: SimWorld,
+  input: InputFrame,
+  cameraYaw: number,
+  dt: number,
+  manager: InputManager,
+): void {
   const set = world.restart;
   if (!set) {
     world.phase = 'in-play';
@@ -594,10 +615,9 @@ function updateRestart(world: SimWorld, input: InputFrame, cameraYaw: number, dt
   if (humanTaker) {
     const a = input.actions;
     if (set.kind === 'penalty') {
-      if (a.shoot.released)
-        takePenalty(world, taker, aimOf(taker, input, cameraYaw), chargeOf(a.shoot.heldTime));
+      if (a.shoot.fired) takePenalty(world, taker, aimOf(taker, input, cameraYaw), a.shoot.charge);
     } else {
-      handleHumanActions(world, input, cameraYaw);
+      handleHumanActions(world, input, cameraYaw, manager);
     }
     // If the human never takes it, the referee's patience runs out.
     if (set.autoTake < -10) aiTakeSetPiece(world, set, taker);
@@ -616,11 +636,20 @@ function resumePlay(world: SimWorld): void {
 
 /**
  * Face buttons do different jobs with and without the ball, exactly like the pad: shoot/tackle,
- * cross/slide, pass/contain, through ball/nothing. R1 (driven, finesse, threaded) and L1
+ * cross/slide, pass/jockey, through ball/contain. R1 (driven, finesse, threaded) and L1
  * (chipped, lofted, high) modify whichever kick is played, and the skill button plus a
  * direction plays a trick.
+ *
+ * Which half of the scheme applies is decided by `InputManager.contextForPress()`, not by who
+ * happens to hold the ball this instant, so a pass squeezed off as possession is lost still
+ * comes out as a pass.
  */
-function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: number): void {
+function handleHumanActions(
+  world: SimWorld,
+  input: InputFrame,
+  cameraYaw: number,
+  manager: InputManager,
+): void {
   const active = world.players.find((p) => p.id === world.activeId);
   if (!active || active.sentOff) return;
   const a = input.actions;
@@ -628,8 +657,18 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
   const hasBall = world.controllerId === active.id;
   const r1 = a.modR1.down;
   const l1 = a.modL1.down;
+  const attacking = manager.contextForPress() === 'ATTACK';
 
-  if (!hasBall) {
+  // An uninterruptible animation swallows the press; buffer it and play it when he is free.
+  const locked = active.kickCooldown > 0 || active.skillTimer > 0.15 || active.anim === 'dive';
+  if (locked) {
+    for (const action of CHARGED_ACTIONS) {
+      if (a[action].fired) manager.bufferAction(action, a[action].charge);
+    }
+    return;
+  }
+
+  if (!hasBall && !attacking) {
     // Volley: meet a dropping ball on the run without waiting to control it.
     const airborne = world.ball.pos.y > 0.3 && world.ball.pos.y < 1.6;
     if (airborne && a.shoot.pressed && active.kickCooldown <= 0) {
@@ -638,17 +677,18 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
         return;
       }
     }
-    if (a.switch.pressed || a.modL1.pressed) switchPlayer(world);
-    if (a.shoot.pressed) tackle(world, active, r1 ? 1.35 : 1);
+    // A tap tackles; holding shoot is the automatic close-down handled in updatePlayers.
+    if (a.shoot.released && a.shoot.heldTime < 0.25) tackle(world, active, r1 ? 1.35 : 1);
     if (a.cross.pressed) slideTackle(world, active);
     return;
   }
+  if (!hasBall) return;
 
   // Skill moves: flick a direction with the skill button (right stick on a pad).
   if (a.skill.pressed || (input.flick && Math.hypot(input.flick.x, input.flick.z) > 0.6)) {
     const dir =
       input.flick && Math.hypot(input.flick.x, input.flick.z) > 0.6
-        ? inputToWorld(input.flick, cameraYaw)
+        ? cameraRelative(input.flick, cameraYaw)
         : aimDir;
     if (performSkill(world, active, skillFromDirection(active, dir), dir)) return;
   }
@@ -657,79 +697,182 @@ function handleHumanActions(world: SimWorld, input: InputFrame, cameraYaw: numbe
     if (performSkill(world, active, 'fake-shot', aimDir)) return;
   }
 
-  if (a.shoot.released) {
-    const charge = chargeOf(a.shoot.heldTime);
-    const goal = goalCenter(world, active.side);
-    const d = dist(active.pos, goal);
-    if (l1) {
-      // Chip: little power, plenty of loft, aimed over the keeper.
-      const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
-      applyKick(world, active, dir, MIN_SHOT_POWER * (0.6 + charge * 0.35), 4.2);
-      world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
-      registerShot(world, active, goal);
-    } else if (d < 40) {
-      // Finesse trades power for placement, and bends the ball towards the corner.
-      const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
-      shoot(world, active, profile, 1, (r1 ? 0.45 : 0.55) + charge * (r1 ? 0.45 : 0.65));
-    } else {
-      applyKick(
-        world,
-        active,
-        aimDir,
-        MIN_SHOT_POWER + charge * (MAX_SHOT_POWER - MIN_SHOT_POWER),
-        r1 ? 0.6 : 1.8,
-        r1 ? 0 : curlToward(active.pos, aimDir, goal, 0.4),
-      );
-      world.events.push({ type: 'kick', side: active.side, intensity: charge });
-    }
+  // Each of the four kicks fires on `fired`, which covers both the release and the automatic
+  // release once the hold reaches maximum charge.
+  if (a.shoot.fired) return playShot(world, active, aimDir, a.shoot.charge, r1, l1);
+  if (a.through.fired) {
+    return playThroughBall(world, active, aimDir, a.through.charge, r1, l1 || a.through.doubleTap);
+  }
+  if (a.cross.fired) return playCross(world, active, a.cross.charge, r1, l1, a.cross.doubleTap);
+  if (a.pass.fired) {
+    return playGroundPass(world, active, aimDir, a.pass.charge, r1, l1 || a.pass.doubleTap);
+  }
+}
+
+/**
+ * Plays a buffered action as soon as the animation lock clears. The press is honoured in the
+ * context it was made in, so a pass buffered while in possession never emerges as a tackle.
+ */
+function releaseBuffered(
+  world: SimWorld,
+  input: InputFrame,
+  cameraYaw: number,
+  manager: InputManager,
+): void {
+  const pending = manager.buffer;
+  if (!pending) return;
+  const active = world.players.find((p) => p.id === world.activeId);
+  if (!active || active.sentOff) return;
+  // Still locked, or no longer able to play it: leave it queued until it goes stale.
+  if (active.kickCooldown > 0 || active.skillTimer > 0.15) return;
+  if (world.controllerId !== active.id || pending.context !== 'ATTACK') {
+    // Possession was lost while it waited: cancel cleanly rather than firing the wrong thing.
+    manager.takeBuffered();
+    return;
+  }
+  const taken = manager.takeBuffered();
+  if (!taken) return;
+  playBuffered(world, active, taken.action, taken.charge, aimOf(active, input, cameraYaw));
+}
+
+/** Replays a buffered kick once the player is free to strike the ball again. */
+function playBuffered(
+  world: SimWorld,
+  active: SimPlayer,
+  action: ActionName,
+  charge: number,
+  aimDir: Vec2,
+): void {
+  switch (action) {
+    case 'shoot':
+      playShot(world, active, aimDir, charge, false, false);
+      break;
+    case 'through':
+      playThroughBall(world, active, aimDir, charge, false, false);
+      break;
+    case 'cross':
+      playCross(world, active, charge, false, false, false);
+      break;
+    case 'pass':
+      playGroundPass(world, active, aimDir, charge, false, false);
+      break;
+    default:
+      break;
+  }
+}
+
+function playShot(
+  world: SimWorld,
+  active: SimPlayer,
+  aimDir: Vec2,
+  charge: number,
+  r1: boolean,
+  l1: boolean,
+): void {
+  const t = world.tuning.shot;
+  const goal = goalCenter(world, active.side);
+  const d = dist(active.pos, goal);
+  const speed = speedFor(charge, t);
+
+  if (l1) {
+    // Chip: little power, plenty of loft, aimed over the keeper.
+    const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
+    applyKick(world, active, dir, speed * 0.55, 4.2);
+    world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
+    registerShot(world, active, goal);
     return;
   }
 
-  if (a.through.released) {
-    const charge = chargeOf(a.through.heldTime);
-    const lofted = l1 || a.through.doubleTap;
-    const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir);
-    const spot = option
-      ? option.spot
-      : { x: active.pos.x + aimDir.x * 22, z: active.pos.z + aimDir.z * 22 };
-    kickPass(world, active, spot, HUMAN_PROFILE, (r1 ? 1.15 : 0.85) + charge * 0.5, {
-      lift: lofted ? 3.4 : 0,
-    });
+  // Leaning on the ball past the overcharge point sprays it: power at the cost of placement.
+  const over =
+    Math.max(0, charge - t.overchargeThreshold) / Math.max(1e-6, 1 - t.overchargeThreshold);
+  const spray = ((over * t.overchargeConeDegrees * Math.PI) / 180) * (world.rand() * 2 - 1);
+  const cos = Math.cos(spray);
+  const sin = Math.sin(spray);
+
+  if (d < 40) {
+    // Finesse trades power for placement, and bends the ball towards the corner.
+    const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
+    shoot(world, active, profile, 1, speed / t.maxSpeed);
     return;
   }
+  const dir = { x: aimDir.x * cos - aimDir.z * sin, z: aimDir.x * sin + aimDir.z * cos };
+  applyKick(
+    world,
+    active,
+    dir,
+    speed,
+    r1 ? 0.6 : 1.8,
+    r1 ? 0 : curlToward(active.pos, dir, goal, 0.4),
+  );
+  world.events.push({ type: 'kick', side: active.side, intensity: charge });
+}
 
-  if (a.cross.released) {
-    const charge = chargeOf(a.cross.heldTime);
-    const ground = a.cross.doubleTap;
-    const option = bestCross(world, active);
-    const spot = option
-      ? option.spot
-      : { x: goalCenter(world, active.side).x - world.attackDir[active.side] * 8, z: 0 };
-    kickPass(world, active, spot, HUMAN_PROFILE, (r1 ? 1.2 : 0.95) + charge * 0.4, {
-      lift: ground ? 0 : l1 ? 5.5 : 3.8,
-    });
+function playThroughBall(
+  world: SimWorld,
+  active: SimPlayer,
+  aimDir: Vec2,
+  charge: number,
+  r1: boolean,
+  lofted: boolean,
+): void {
+  const t = world.tuning.pass.through;
+  const speed = speedFor(charge, t);
+  const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir);
+  // No runner in the cone is not a dropped input: knock it into the space he is pointing at.
+  const spot = option
+    ? option.spot
+    : { x: active.pos.x + aimDir.x * 22, z: active.pos.z + aimDir.z * 22 };
+  kickPass(world, active, spot, HUMAN_PROFILE, 1, {
+    lift: lofted ? 3.4 : 0,
+    speed: speed * (r1 ? 1.1 : 1),
+  });
+}
+
+function playCross(
+  world: SimWorld,
+  active: SimPlayer,
+  charge: number,
+  r1: boolean,
+  l1: boolean,
+  ground: boolean,
+): void {
+  const t = world.tuning.pass.lob;
+  // A driven cross is whipped in harder and flatter; L1 floats it higher.
+  const speed = speedFor(charge, t) * (r1 ? 1.15 : 1);
+  const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees) * (r1 ? 0.7 : 1);
+  const option = bestCross(world, active);
+  const spot = option
+    ? option.spot
+    : { x: goalCenter(world, active.side).x - world.attackDir[active.side] * 8, z: 0 };
+  kickPass(world, active, spot, HUMAN_PROFILE, 1, {
+    lift: ground ? 0 : liftFor(speed, angle) * (l1 ? 1.25 : 1),
+    speed: ground ? speed : groundSpeedFor(speed, angle),
+  });
+}
+
+function playGroundPass(
+  world: SimWorld,
+  active: SimPlayer,
+  aimDir: Vec2,
+  charge: number,
+  r1: boolean,
+  lofted: boolean,
+): void {
+  const t = lofted ? world.tuning.pass.lob : world.tuning.pass.ground;
+  const speed = speedFor(charge, t) * (r1 ? 1.1 : 1);
+  const option = bestPass(world, active, aimDir);
+  if (!option) {
+    // Nobody in the cone: strike it into space rather than swallowing the press.
+    applyKick(world, active, aimDir, speed, lofted ? 3 : 0);
+    world.events.push({ type: 'kick', side: active.side, intensity: charge });
     return;
   }
-
-  if (a.pass.released) {
-    const charge = chargeOf(a.pass.heldTime);
-    const lofted = l1 || a.pass.doubleTap;
-    const option = bestPass(world, active, aimDir);
-    if (option) {
-      kickPass(world, active, option.spot, HUMAN_PROFILE, (r1 ? 1.35 : 0.7) + charge * 0.6, {
-        lift: lofted ? 3 : 0,
-      });
-    } else {
-      applyKick(
-        world,
-        active,
-        aimDir,
-        MIN_PASS_POWER + charge * (MAX_PASS_POWER - MIN_PASS_POWER),
-        lofted ? 3 : 0,
-      );
-      world.events.push({ type: 'kick', side: active.side, intensity: charge });
-    }
-  }
+  const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees);
+  kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
+    lift: lofted ? liftFor(speed, angle) : 0,
+    speed: lofted ? groundSpeedFor(speed, angle) : speed,
+  });
 }
 
 /** First-time strike at a ball that is still in the air: powerful, but hard to keep down. */
@@ -747,15 +890,6 @@ function volley(world: SimWorld, player: SimPlayer, aimDir: Vec2): void {
   applyKick(world, player, aimed, power, clamp(1.4 - world.ball.pos.y, 0.1, 1.2));
   registerShot(world, player, { x: goal.x, z: player.pos.z + aimed.z * 4 });
   world.events.push({ type: 'shot', side: player.side, intensity: 0.9 });
-}
-
-function switchPlayer(world: SimWorld): void {
-  const human = world.config.humanSide;
-  const ball = ballPos2(world);
-  const candidates = world.players
-    .filter((p) => p.side === human && p.role !== 'GK' && p.id !== world.activeId && !p.sentOff)
-    .sort((a, b) => dist(a.pos, ball) - dist(b.pos, ball));
-  if (candidates.length) world.activeId = candidates[0].id;
 }
 
 /**
