@@ -552,10 +552,15 @@ function updateControl(world: SimWorld, dt: number): void {
     x: holder.pos.x + Math.sin(holder.heading) * knock + touch.x,
     z: holder.pos.z + Math.cos(holder.heading) * knock + touch.z,
   };
+  // The ball travels *with* the carrier, plus a correction that closes the gap to the spot in
+  // front of him. Driving the ball at the correction alone made it chase a target that was
+  // running away at 7 m/s, so it settled into equilibrium half a metre *behind* his feet — the
+  // carrier appeared to drag the ball along between his heels instead of knocking it ahead.
   const toAhead = sub(ahead, ball);
-  const cap = Math.hypot(holder.vel.x, holder.vel.z) + 5;
-  const vx = clamp(toAhead.x / 0.16, -cap, cap);
-  const vz = clamp(toAhead.z / 0.16, -cap, cap);
+  const correction = 5;
+  const cap = 6;
+  const vx = holder.vel.x + clamp(toAhead.x * correction, -cap, cap);
+  const vz = holder.vel.z + clamp(toAhead.z * correction, -cap, cap);
   world.ball.vel = { x: vx, y: world.ball.vel.y, z: vz };
   world.commands.push({ type: 'velocity', vel: { x: vx, y: world.ball.vel.y, z: vz } });
 }
