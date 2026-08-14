@@ -518,7 +518,9 @@ function updateControl(world: SimWorld, dt: number): void {
 
   world.controllerId = holder ? holder.id : null;
   if (!holder) return;
-  // Somebody has it: the ball is no longer "on its way" to anyone.
+  // Somebody has it: the ball is no longer "on its way" to anyone. Remember who it was meant
+  // for first, so control can follow a completed pass.
+  const wasPlayedTo = world.passTarget?.playerId ?? null;
   world.passTarget = null;
 
   // The linesman's flag: a player played onside stays onside, one caught beyond the line does not.
@@ -536,7 +538,13 @@ function updateControl(world: SimWorld, dt: number): void {
         intensity: clamp(ballSpeed / 25, 0, 1),
       });
     }
-    if (world.possession !== holder.side) autoSwitch(world, holder);
+    // Control follows a completed pass. Switching only on a change of *possession* meant that
+    // playing the ball to your own team-mate left you steering the man who had just passed it
+    // while somebody else ran off with it. Deliberately narrow: only the man the ball was
+    // actually played to, never the keeper, and never on a scrappy re-take.
+    const receivedOurPass =
+      holder.side === world.config.humanSide && holder.role !== 'GK' && wasPlayedTo === holder.id;
+    if (receivedOurPass || world.possession !== holder.side) autoSwitch(world, holder);
     // First touch: a hard pass bounces off a poor technician.
     touch = firstTouchError(world, holder, ballSpeed);
   }
@@ -577,7 +585,9 @@ function autoSwitch(world: SimWorld, holder: SimPlayer): void {
     if (holder.role !== 'GK') world.activeId = holder.id;
     return;
   }
-  const best = rankSwitchCandidates(world)[0];
+  // Never hand the player his goalkeeper unasked. Pressing switch inside your own box still
+  // offers him (the laws of the switch, §3.1), but the game choosing him for you is jarring.
+  const best = rankSwitchCandidates(world, false)[0];
   if (best) world.activeId = best.id;
 }
 
@@ -807,9 +817,10 @@ function playShot(
   const sin = Math.sin(spray);
 
   if (d < 40) {
-    // Finesse trades power for placement, and bends the ball towards the corner.
+    // Finesse trades power for placement, and bends the ball towards the corner. The charge
+    // sets the pace outright; `shoot` only picks where it goes.
     const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
-    shoot(world, active, profile, 1, speed / t.maxSpeed);
+    shoot(world, active, profile, 1, 1, speed * (r1 ? 0.85 : 1));
     return;
   }
   const dir = { x: aimDir.x * cos - aimDir.z * sin, z: aimDir.x * sin + aimDir.z * cos };

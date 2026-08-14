@@ -482,6 +482,70 @@ function checkPassCompletion(): void {
 }
 
 /**
+ * Control has to follow the ball. Auto-switching used to fire only when possession changed
+ * *teams*, so playing the ball to your own team-mate left you steering the man who had just
+ * passed it while somebody else ran off with it.
+ */
+function checkSwitchOnPass(): void {
+  let followed = 0;
+  let received = 0;
+  for (let s = 0; s < 12; s++) {
+    const world = newWorld(s * 17 + 3);
+    world.phase = 'in-play';
+    const dir = world.attackDir.home;
+    const me = world.players.find((p) => p.id === world.activeId);
+    if (!me) throw new Error('no active player');
+    const mate = world.players.find((p) => p.side === 'home' && p.id !== me.id && p.role !== 'GK');
+    if (!mate) throw new Error('no team-mate');
+    for (const p of world.players) {
+      if (p === me || p === mate) continue;
+      p.pos = { x: -50 * dir, z: p.pos.z };
+      p.vel = { x: 0, z: 0 };
+    }
+    me.pos = { x: 0, z: 0 };
+    me.vel = { x: 0, z: 0 };
+    me.kickCooldown = 0;
+    mate.pos = { x: 15 * dir, z: 2 };
+    mate.vel = { x: 0, z: 0 };
+    world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = me.id;
+    world.possession = 'home';
+    world.switching.sinceManual = 99;
+    world.commands.length = 0;
+
+    const mgr = manager();
+    const actions = idleActions();
+    actions.pass = { ...actions.pass, released: true, fired: true, charge: 0.6, heldTime: 0.6 };
+    let before = { ...world.ball.vel };
+    tick(world, { move: { x: -dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+    stepBall(world, TICK_DT, before);
+    world.events.length = 0;
+
+    for (let i = 0; i < 60 * 5; i++) {
+      before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      const holder = world.players.find((p) => p.id === world.controllerId);
+      if (holder && holder.id !== me.id && holder.side === 'home') {
+        received++;
+        if (world.activeId === holder.id) followed++;
+        break;
+      }
+      if (world.phase !== 'in-play') break;
+    }
+  }
+  if (received === 0) throw new Error('no pass was ever received, cannot judge switching');
+  if (followed < received) {
+    throw new Error(`control followed the ball on only ${followed}/${received} completed passes`);
+  }
+  console.log(
+    `switch-on-pass check passed (${followed}/${received} passes handed you the receiver)`,
+  );
+}
+
+/**
  * Bug #2: switching must pick a defender near where the ball is *going*, must never hand over
  * the keeper in open play, and repeated presses must cycle rather than stick.
  */
@@ -696,6 +760,7 @@ console.log('kick + reset checks passed');
 checkHumanControls();
 checkPassPower();
 checkPassCompletion();
+checkSwitchOnPass();
 checkSwitching();
 checkRestarts();
 checkPenalty();

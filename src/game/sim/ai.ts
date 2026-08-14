@@ -266,22 +266,31 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   return false;
 }
 
+/**
+ * `speed` overrides the strike entirely: the human's hold-to-power model decides the pace, and
+ * this function only does the aiming. Without it the shot speed came out of the distance to
+ * goal and the charge merely scaled it, so hold time barely related to how hard the ball was
+ * hit and a full charge never got near the configured maximum.
+ */
 export function shoot(
   world: SimWorld,
   p: SimPlayer,
   profile: DifficultyProfile,
   quality: number,
   powerScale = 1,
+  speed?: number,
 ): void {
   const goal = goalCenter(world, p.side);
   const d = dist(p.pos, goal);
   // Aim for the corner the keeper has left open.
   const keeper = world.players.find((o) => o.side !== p.side && o.role === 'GK');
   const away = keeper && Math.abs(keeper.pos.z) > 0.15 ? -Math.sign(keeper.pos.z) : 0;
+  // Aim near the post. Placing it only halfway to the corner put the ball inside a keeper's
+  // standing reach, so well-struck shots were being saved without him having to move.
   const placement =
     (away || (world.rand() < 0.5 ? -1 : 1)) *
-    (HALF_GOAL_WIDTH - 0.5) *
-    (0.55 + world.rand() * 0.45);
+    (HALF_GOAL_WIDTH - 0.4) *
+    (0.75 + world.rand() * 0.25);
   // Finishing ability shrinks the spread as much as the difficulty profile does.
   const errorScale =
     (1 - profile.shotAccuracy) * (1 - quality * 0.5) * (2 + d * 0.12) * (1.5 - p.shooting / 130);
@@ -291,9 +300,10 @@ export function shoot(
   };
   const dir = normalize(sub(aim, p.pos));
   const power =
+    speed ??
     clamp(MIN_SHOT_POWER + d * 0.62, MIN_SHOT_POWER, MAX_SHOT_POWER) *
-    (0.74 + p.shooting / 260) *
-    powerScale;
+      (0.74 + p.shooting / 260) *
+      powerScale;
   // Good finishers wrap their foot around it, bending the shot back towards the corner.
   const curl = curlToward(p.pos, dir, aim, (p.shooting / 100) * 0.5);
   applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6), curl);
