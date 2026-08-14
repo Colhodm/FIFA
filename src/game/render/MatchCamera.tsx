@@ -13,7 +13,14 @@ const TARGET_HFOV_DEG = 78;
  * Side-on rigs, like FIFA's Tele and Broadcast presets: the camera stays on one touchline and
  * dollies along it, so the pitch always reads left-to-right and the attacking direction is
  * stable. `height`/`back` set the angle, `track` how much of the ball's width it follows.
+ *
+ * The rigs sit on the **+z** touchline looking back towards -z. That is what puts world +x on
+ * the right of the screen, so the home side (which attacks +x in the first half) attacks
+ * left-to-right as broadcast convention demands. On the -z touchline every axis reads mirrored:
+ * you press right, your man correctly goes right on screen, and right on screen is backwards
+ * towards your own goal.
  */
+const TOUCHLINE = 1;
 const RIGS: Record<'broadcast' | 'tele', { height: number; back: number; track: number }> = {
   // Both rigs sit inside the bowl: broadcast on the gantry at the front of the second tier,
   // tele higher and further back, clear of the seats and under the roof.
@@ -29,7 +36,7 @@ const LOOK_AHEAD = 6;
 export function MatchCamera({ mode }: { mode: CameraMode }) {
   const { camera, size } = useThree();
   const focus = useRef(new Vector3(0, 0, 0));
-  const position = useRef(new Vector3(0, 24, -34));
+  const position = useRef(new Vector3(0, 24, TOUCHLINE * 34));
   const desiredFocus = useRef(new Vector3());
   const desiredPos = useRef(new Vector3());
   const roll = useRef(0);
@@ -113,7 +120,7 @@ export function MatchCamera({ mode }: { mode: CameraMode }) {
       // The rig only dollies along the touchline; the width of play is handled by the look-at,
       // so the camera can never end up inside the stands or over the pitch.
       desiredFocus.current.set(panX, 1.6, cz * rig.track);
-      desiredPos.current.set(panX * 0.92, rig.height, -HALF_WIDTH - rig.back);
+      desiredPos.current.set(panX * 0.92, rig.height, TOUCHLINE * (HALF_WIDTH + rig.back));
     }
 
     // The wide rigs glide; the player cam has to keep up with a sprinting winger.
