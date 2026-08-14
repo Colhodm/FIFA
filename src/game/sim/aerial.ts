@@ -158,9 +158,17 @@ export function updateKeepers(world: SimWorld, dt: number): void {
       const crossY = world.ball.pos.y + world.ball.vel.y * eta - 0.5 * GRAVITY * eta * eta;
       const lateral = crossZ - keeper.pos.z;
       const reachable = Math.abs(lateral) < DIVE_REACH + keeper.defending / 60;
+      // A keeper reads the shot, he does not know where it is going. Diving to the exact
+      // crossing point made him unbeatable: with a 7.3 m goal and a full-stretch reach he
+      // covered every corner, and 40 clear shots produced no goals at all. The error grows with
+      // the pace on the ball and shrinks with his rating.
+      const misread =
+        (world.rand() * 2 - 1) * clamp((speed / 9) * (1.6 - keeper.defending / 100), 0.3, 3.2);
+      // Nobody reacts to a shot struck from six yards; he has to have started already.
+      if (eta < 0.18) continue;
       if (eta < 0.55 && reachable && crossY < 2.6 && Math.abs(crossZ) < HALF_GOAL_WIDTH + 1.2) {
         keeper.diveDir = Math.sign(lateral) || (world.rand() < 0.5 ? -1 : 1);
-        keeper.diveTargetZ = crossZ;
+        keeper.diveTargetZ = crossZ + misread;
         keeper.anim = 'dive';
         keeper.animTimer = 0.9;
         keeper.verticalVel = JUMP_VELOCITY * (crossY > 1.2 ? 0.9 : 0.45);
@@ -176,7 +184,8 @@ export function updateKeepers(world: SimWorld, dt: number): void {
       keeper.pos.z += move;
     }
 
-    const reach = CONTROL_RADIUS + 0.55 + (keeper.anim === 'dive' ? 1.7 : 0);
+    // Full stretch is an arm's length beyond where he actually got to, not a third of the goal.
+    const reach = CONTROL_RADIUS + 0.55 + (keeper.anim === 'dive' ? 0.4 : 0);
     // A struck ball can cross the whole reach inside one tick, so test the path it swept.
     const swept = { x: ball.x + world.ball.vel.x * dt, z: ball.z + world.ball.vel.z * dt };
     const d = Math.min(dist(keeper.pos, ball), distToSegment(keeper.pos, ball, swept));
