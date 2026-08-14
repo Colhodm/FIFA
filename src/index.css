@@ -305,6 +305,27 @@ select {
   vertical-align: -1px;
 }
 
+/* F1 diagnostics readout. Dev builds only, deliberately plain and monospaced. */
+.debug-panel {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  z-index: 5;
+  margin: 0;
+  padding: 10px 12px;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre;
+  color: #d7f5e3;
+  background: rgba(4, 12, 8, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
 .perf {
   position: absolute;
   top: 16px;

@@ -6,6 +6,7 @@ import { TICK_DT } from '../constants';
 import type { SimWorld } from '../sim/state';
 import { useGameStore } from '../store';
 import { Ball } from './Ball';
+import { DebugGizmos } from './DebugGizmos';
 import { MatchCamera } from './MatchCamera';
 import { Goals } from './Goals';
 import { Pitch } from './Pitch';
@@ -18,6 +19,7 @@ export function Scene({ world }: { world: SimWorld }) {
   const tier = useGameStore((s) => s.tier);
   const paused = useGameStore((s) => s.paused);
   const camera = useGameStore((s) => s.camera);
+  const debug = useGameStore((s) => s.debug);
 
   return (
     <Canvas
@@ -88,6 +90,7 @@ export function Scene({ world }: { world: SimWorld }) {
         <Ball shadows={tier.shadows} />
         <Players world={world} shadows={tier.shadows} />
         <Simulation world={world} />
+        {import.meta.env.DEV && debug && <DebugGizmos world={world} />}
       </Physics>
 
       <Stadium crowdDensity={tier.crowdDensity} />
