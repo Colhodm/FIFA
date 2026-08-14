@@ -472,8 +472,12 @@ function updateControl(world: SimWorld, dt: number): void {
     const d = dist(p.pos, ball);
     if (d >= reach) continue;
     // A struck ball cannot simply be plucked out of the air: keepers claim all but the
-    // hardest strikes, outfield players only deflect one at point-blank range.
-    const limit = keeper ? 18 : (expecting ? 19 : 12) + (p.defending + p.dribbling) / 40;
+    // hardest strikes, opponents can only nick a firm one at point-blank range.
+    //
+    // A team-mate expecting the ball must be able to take *any* pass his own side can strike,
+    // or a full-power pass sails straight through him as though he were not there. The cost of
+    // pace is a heavier first touch (`firstTouchError` below), not an uncontrollable ball.
+    const limit = keeper ? 18 : (expecting ? 28 : 12) + (p.defending + p.dribbling) / 40;
     if (ballSpeed > limit) {
       const incoming =
         world.ball.vel.x * (p.pos.x - ball.x) + world.ball.vel.z * (p.pos.z - ball.z) > 0;
@@ -514,6 +518,8 @@ function updateControl(world: SimWorld, dt: number): void {
 
   world.controllerId = holder ? holder.id : null;
   if (!holder) return;
+  // Somebody has it: the ball is no longer "on its way" to anyone.
+  world.passTarget = null;
 
   // The linesman's flag: a player played onside stays onside, one caught beyond the line does not.
   if (holder.offside && world.offsideActive) {
@@ -823,7 +829,7 @@ function playThroughBall(
 ): void {
   const t = world.tuning.pass.through;
   const speed = speedFor(charge, t);
-  const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir);
+  const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir, speed);
   // No runner in the cone is not a dropped input: knock it into the space he is pointing at.
   const spot = option
     ? option.spot
@@ -831,6 +837,7 @@ function playThroughBall(
   kickPass(world, active, spot, HUMAN_PROFILE, 1, {
     lift: lofted ? 3.4 : 0,
     speed: speed * (r1 ? 1.1 : 1),
+    receiverId: option?.target.id,
   });
 }
 
@@ -853,6 +860,7 @@ function playCross(
   kickPass(world, active, spot, HUMAN_PROFILE, 1, {
     lift: ground ? 0 : liftFor(speed, angle) * (l1 ? 1.25 : 1),
     speed: ground ? speed : groundSpeedFor(speed, angle),
+    receiverId: option?.target.id,
   });
 }
 
@@ -866,7 +874,7 @@ function playGroundPass(
 ): void {
   const t = lofted ? world.tuning.pass.lob : world.tuning.pass.ground;
   const speed = speedFor(charge, t) * (r1 ? 1.1 : 1);
-  const option = bestPass(world, active, aimDir);
+  const option = bestPass(world, active, aimDir, speed);
   if (!option) {
     // Nobody in the cone: strike it into space rather than swallowing the press.
     applyKick(world, active, aimDir, speed, lofted ? 3 : 0);
@@ -877,6 +885,7 @@ function playGroundPass(
   kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
     lift: lofted ? liftFor(speed, angle) : 0,
     speed: lofted ? groundSpeedFor(speed, angle) : speed,
+    receiverId: option.target.id,
   });
 }
 
