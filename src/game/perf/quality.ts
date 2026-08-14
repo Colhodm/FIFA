@@ -95,7 +95,13 @@ export class FrameSampler {
     this.targetFps = targetFps;
   }
 
-  /** Returns a tier delta (-1, 0 or +1) at most once per second. */
+  /**
+   * Returns a tier delta (-1, 0 or +1) at most once per second.
+   *
+   * `dt` must be the *unclamped* frame time. Feeding it the clamped value used to advance the
+   * simulation under-counts elapsed time on exactly the slow frames that matter, which reports
+   * a healthy frame rate on a struggling machine and stops the quality ladder stepping down.
+   */
   sample(dt: number): number {
     this.frames += 1;
     this.elapsed += dt;
