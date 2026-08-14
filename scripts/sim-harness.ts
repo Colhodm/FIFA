@@ -410,6 +410,78 @@ function checkPassPower(): void {
 }
 
 /**
+ * A pass has to find its man. This is the check that would have caught passes being aimed at
+ * where the receiver was standing and then left for a defender to run onto: completion sat at
+ * 53% across this grid, and a 22 m ball reached a team-mate 37% of the time.
+ *
+ * `scripts/passlab.ts` prints the full breakdown; this asserts the floor.
+ */
+function checkPassCompletion(): void {
+  let completed = 0;
+  let total = 0;
+  for (const gap of [8, 15, 22, 30]) {
+    for (const charge of [0.4, 0.7, 1]) {
+      for (let s = 0; s < 8; s++) {
+        total++;
+        const world = newWorld(s * 13 + 7);
+        world.phase = 'in-play';
+        const dir = world.attackDir.home;
+        const me = world.players.find((p) => p.id === world.activeId);
+        if (!me) throw new Error('no active player');
+        const mate = world.players.find(
+          (p) => p.side === 'home' && p.id !== me.id && p.role !== 'GK',
+        );
+        const marker = world.players.find((p) => p.side === 'away' && p.role !== 'GK');
+        if (!mate || !marker) throw new Error('missing players');
+        for (const p of world.players) {
+          if (p === me || p === mate || p === marker) continue;
+          p.pos = { x: -50 * dir, z: p.pos.z };
+          p.vel = { x: 0, z: 0 };
+        }
+        me.pos = { x: 0, z: 0 };
+        me.vel = { x: 0, z: 0 };
+        me.kickCooldown = 0;
+        mate.pos = { x: gap * dir, z: 0 };
+        mate.vel = { x: 0, z: 0 };
+        marker.pos = { x: gap * dir, z: 4 };
+        marker.vel = { x: 0, z: 0 };
+        world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+        world.ball.vel = { x: 0, y: 0, z: 0 };
+        world.controllerId = me.id;
+        world.possession = 'home';
+        world.commands.length = 0;
+
+        const mgr = manager();
+        const actions = idleActions();
+        actions.pass = { ...actions.pass, released: true, fired: true, charge, heldTime: charge };
+        let before = { ...world.ball.vel };
+        tick(world, { move: { x: -dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+
+        for (let i = 0; i < 60 * 5; i++) {
+          before = { ...world.ball.vel };
+          tick(world, idleInput, 0, TICK_DT, mgr);
+          stepBall(world, TICK_DT, before);
+          world.events.length = 0;
+          const holder = world.players.find((p) => p.id === world.controllerId);
+          if (holder && holder.id !== me.id) {
+            if (holder.side === 'home') completed++;
+            break;
+          }
+          if (world.phase !== 'in-play') break;
+        }
+      }
+    }
+  }
+  const pct = Math.round((completed / total) * 100);
+  if (pct < 80) {
+    throw new Error(`pass completion is only ${pct}% across ${total} passes, expected >= 80%`);
+  }
+  console.log(`pass completion check passed (${pct}% of ${total} passes found a team-mate)`);
+}
+
+/**
  * Bug #2: switching must pick a defender near where the ball is *going*, must never hand over
  * the keeper in open play, and repeated presses must cycle rather than stick.
  */
@@ -623,6 +695,7 @@ checkKickAndReset();
 console.log('kick + reset checks passed');
 checkHumanControls();
 checkPassPower();
+checkPassCompletion();
 checkSwitching();
 checkRestarts();
 checkPenalty();

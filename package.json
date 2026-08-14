@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "teams": "tsx scripts/generate-teams.ts",
     "sim": "tsx scripts/sim-harness.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "passlab": "tsx scripts/passlab.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

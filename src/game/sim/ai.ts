@@ -148,6 +148,12 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
 
   // In possession without the ball: support the carrier and stretch the defence.
   const carrier = world.players.find((c) => c.id === world.controllerId);
+  // The ball has been played to this man: go and get it, do not stand in your shape and watch
+  // the defender run onto it.
+  if (!carrier && world.passTarget?.playerId === p.id) {
+    setIntent(p, clampToPitch(interceptPoint(world, 0.4)), p.stamina > 0.12);
+    return;
+  }
   // A pass is in flight: the closest man goes and meets it instead of holding his shape.
   if (!carrier && chaser?.id === p.id) {
     setIntent(p, clampToPitch(interceptPoint(world, 0.5)), p.stamina > 0.15);
@@ -213,7 +219,7 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
     const pass = bestPass(world, p, sub(goal, p.pos));
     const upfield = normalize(sub(goal, p.pos));
     if (pass && pass.score > 0.7) {
-      kickPass(world, p, pass.spot, profile);
+      kickPass(world, p, pass.spot, profile, 1, { receiverId: pass.target.id });
     } else {
       applyKick(world, p, upfield, 22, 5);
       world.events.push({ type: 'kick', side: p.side, intensity: 0.9 });
@@ -235,13 +241,13 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   // Look for the pass that breaks the line first, then the safe one.
   const through = bestThroughBall(world, p);
   if (through && through.score > 1.9 && p.passing > 62) {
-    kickPass(world, p, through.spot, profile, 0.95);
+    kickPass(world, p, through.spot, profile, 0.95, { receiverId: through.target.id });
     return true;
   }
 
   const pass = bestPass(world, p);
   if (pass && (pressure < 3.4 || pass.score > 1.5) && pass.score > 0.55) {
-    kickPass(world, p, pass.spot, profile);
+    kickPass(world, p, pass.spot, profile, 1, { receiverId: pass.target.id });
     return true;
   }
 
@@ -305,6 +311,8 @@ export interface PassOptions {
    * charge decides the pace; leave it unset and the AI's distance-based strength is used.
    */
   speed?: number;
+  /** The team-mate the pass is meant for, so he goes and meets it. */
+  receiverId?: number;
 }
 
 export function kickPass(
@@ -328,6 +336,14 @@ export function kickPass(
   // A whipped cross bends away from the keeper; a ground pass is struck flat.
   const curl = options.curl ?? (lift > 2.5 ? curlToward(p.pos, dir, aim, 0.35) : 0);
   applyKick(world, p, dir, power, lift, curl);
+  // Tell the intended receiver the ball is for him; cleared as soon as anyone controls it.
+  if (options.receiverId !== undefined) {
+    world.passTarget = { playerId: options.receiverId, spot };
+    // He reacts to the pass now rather than on his next scheduled think, which can be most of
+    // a second away — long enough for a defender to get there first.
+    const receiver = world.players.find((r) => r.id === options.receiverId);
+    if (receiver) receiver.thinkTimer = 0;
+  }
   world.stats[p.side].passes += 1;
   p.tally.passes += 1;
   world.events.push({ type: 'pass', side: p.side, intensity: clamp(power / MAX_PASS_POWER, 0, 1) });
