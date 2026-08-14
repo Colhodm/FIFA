@@ -37,6 +37,7 @@ import {
   awardFoul,
   checkBallOut,
   flagOffsides,
+  halfEndsAt,
   startSecondHalf,
   whistleOffside,
 } from './rules';
@@ -107,7 +108,11 @@ export function tick(
       freezeBall(world);
       if (world.phaseTimer <= 0) {
         const conceded = other(world.lastScorer ?? 'away');
-        if (world.clock >= world.config.halfLength) advanceClock(world, 0);
+        // Compare against the same end-of-half the clock uses. Testing regulation time here
+        // while `advanceClock` tested regulation *plus stoppage* meant a goal scored in added
+        // time hit a state where neither branch could make progress, and the match hung in the
+        // celebration forever.
+        if (world.clock >= halfEndsAt(world)) advanceClock(world, 0);
         else resetToKickoff(world, conceded);
       }
       break;

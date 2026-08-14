@@ -347,10 +347,15 @@ export function sendOff(world: SimWorld, player: SimPlayer, reason: string): voi
   }
 }
 
+/** When the current half ends: regulation time plus however much stoppage has accrued. */
+export function halfEndsAt(world: SimWorld): number {
+  return world.config.halfLength + Math.min(world.stoppage, world.config.halfLength * 0.15);
+}
+
 /** Advances the half clock and drives half-time / full-time transitions. */
 export function advanceClock(world: SimWorld, dt: number): void {
   world.clock += dt;
-  const full = world.config.halfLength + Math.min(world.stoppage, world.config.halfLength * 0.15);
+  const full = halfEndsAt(world);
   if (world.clock < full) return;
   world.clock = full;
   if (world.half === 1) {
