@@ -1,6 +1,7 @@
 # Working on this repo
 
 ## Landing changes
+
 - **Always cut the landing branch fresh from `origin/main`.** This repo squash-merges PRs, so
   any branch that has been merged once will conflict with main forever after. This has burned
   four PRs (#10, #12, #16 refused; #12's failure was silently mistaken for a merge). Recipe:
@@ -11,6 +12,7 @@
   https://colhodm.github.io/FIFA/ afterwards.
 
 ## Verification
+
 - `npm run sim` — the deterministic harness (scripts/sim-harness.ts) is the authoritative
   check suite. All measurements live here; add one for any behavioural claim.
 - The browser regression (/tmp/pwtest/regression.mjs in past sessions) runs twenty checks
@@ -21,6 +23,7 @@
 - Node >= 20.19 required (use the nvm v22 in ~/.nvm); dev server on :5173.
 
 ## Traps that have bitten measurement before (eight+ times)
+
 - `activeId` defaults to roster index 0, and the Premier League rosters list the GOALKEEPER
   first. Any scenario must pin its subject explicitly (`world.activeId = me.id` every tick if
   the auto-switcher might move it).
@@ -32,5 +35,6 @@
   latency when probing key combinations.
 
 ## Tuning
+
 - Gameplay tunables hot-load from public/config/tuning.json (charge times, spreads, speeds).
 - Attribute response curves are deliberately superlinear at the top; see dribbling `skill`.
