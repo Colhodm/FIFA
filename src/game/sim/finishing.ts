@@ -192,8 +192,16 @@ export function strike(
     ctx.style === 'chip',
   );
 
+  /*
+   * The strike animation follows what is actually being hit: a laces drive, a side-foot wrap,
+   * a stab under the ball, or a leg swung at a ball in the air. One shared clip for all of them
+   * is why every finish looked identical however it was struck.
+   */
+  const clip =
+    (ctx.take?.kind === 'volley' ? 'shot-volley' : null) ??
+    (ctx.style === 'chip' ? 'shot-chip' : ctx.style === 'finesse' ? 'shot-finesse' : 'shot');
   if (solution) {
-    applyKickVelocity(world, p, solution.vel, spin, 'shot');
+    applyKickVelocity(world, p, solution.vel, spin, clip);
     return { targetZ: target.z, targetY: target.y, speed, solved: true };
   }
 
@@ -216,7 +224,7 @@ export function strike(
     p,
     { x: (dx / flat) * horizontal, y: Math.sin(el) * speed, z: (dz / flat) * horizontal },
     spin,
-    'shot',
+    clip,
   );
   return { targetZ: target.z, targetY: target.y, speed, solved: false };
 }

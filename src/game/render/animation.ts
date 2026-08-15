@@ -7,6 +7,9 @@ const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const CLIP_LENGTH: Record<string, number> = {
   kick: 0.3,
   shot: 0.45,
+  'shot-finesse': 0.4,
+  'shot-chip': 0.34,
+  'shot-volley': 0.5,
   pass: 0.28,
   tackle: 0.3,
   slide: 0.8,
@@ -46,6 +49,8 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
    */
   let shinL = stride * (0.18 + 1.05 * Math.max(0, -Math.sin(phase - 0.55)));
   let shinR = stride * (0.18 + 1.05 * Math.max(0, Math.sin(phase - 0.55)));
+  // Sideways swing of the kicking leg: the finesse wrap and the volley need it; zero elsewhere.
+  let legRz = 0;
 
   const length = CLIP_LENGTH[player.anim] ?? 0;
   // 0 at the start of the clip, 1 at the end.
@@ -60,6 +65,59 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
      *
      * `contact` decays from the moment of impact; `lift` peaks mid-clip as the leg rises.
      */
+    /*
+     * Four strikes, four bodies. The laces drive throws everything through the ball; the
+     * finesse opens the hips and wraps the instep around it; the chip stabs down under it and
+     * stops; the volley swings the whole leg up at a ball off the floor. All are
+     * follow-throughs — contact happens on the first frame.
+     */
+    case 'shot-finesse': {
+      const contact = (1 - t) ** 0.75;
+      const lift = Math.sin(t * Math.PI);
+      // Side-foot wrap: hips open wide, the leg swings across the body, modest height.
+      legR = -(0.85 * contact + 0.4 * lift);
+      legRz = 0.55 * contact;
+      shinR = 0.35 * contact;
+      shinL = 0.2;
+      legL = 0.35 * contact;
+      armL = 0.9 * contact;
+      armR = -0.75 * contact;
+      twist = -0.62 * contact;
+      lean = 0.14 * contact;
+      break;
+    }
+    case 'shot-chip': {
+      const contact = (1 - t) ** 0.9;
+      // A stab under the ball: sharp, short, toe down and under, almost no follow-through —
+      // the body stays tall and rocks back as the ball climbs away.
+      legR = -0.55 * contact;
+      shinR = 0.15 * contact;
+      shinL = 0.2;
+      legL = 0.2 * contact;
+      armL = 0.5 * contact;
+      armR = -0.4 * contact;
+      lean = -0.18 * contact;
+      bob = 0.03 * contact;
+      break;
+    }
+    case 'shot-volley': {
+      const contact = (1 - t) ** 0.65;
+      const lift = Math.sin(t * Math.PI);
+      // The leg swings up at a ball off the floor: near-horizontal thigh, body tipped away and
+      // pivoting, arms flung out for balance, up on the standing toe.
+      legR = -(1.6 * contact + 0.5 * lift);
+      legRz = 0.3 * contact;
+      shinR = 0.5 * contact;
+      shinL = 0.25;
+      legL = 0.4 * contact;
+      armL = 1.4 * contact;
+      armR = -1.1 * contact;
+      roll = -0.22 * contact;
+      lean = -0.12 * contact;
+      twist = -0.3 * contact;
+      bob = 0.09 * contact;
+      break;
+    }
     case 'shot': {
       const contact = (1 - t) ** 0.7;
       shinR = 0.9 * contact;
@@ -198,6 +256,8 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   rig.shinL.rotation.x = shinL;
   rig.shinR.rotation.x = shinR;
   rig.legR.rotation.x = legR;
+  // Written every frame: a clip that borrowed the z axis must not leave it behind.
+  rig.legR.rotation.z = legRz;
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
   rig.torso.rotation.x = lean * 0.6;
