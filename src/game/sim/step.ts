@@ -401,6 +401,33 @@ function resolveOverlaps(world: SimWorld): void {
 const PASS_ARRIVAL_SPEED = 4.5;
 /** How much pace a rolling ball sheds per metre travelled. */
 const PASS_DECAY_PER_METRE = 0.62;
+/** A runner meets a through ball at pace, so it needs less left on it than a ball to feet. */
+const THROUGH_ARRIVAL_SPEED = 3.2;
+
+/**
+ * Speed to play a ball `range` metres and have it arrive with something still on it. A rolling
+ * ball sheds pace close to linearly with distance, so this is a good closed form.
+ *
+ * `charge` says how he strikes it, not whether it gets there: a tap is a properly weighted ball,
+ * leaning on it drives the same pass. `sloppiness` mis-weights it for a poor or rushed passer.
+ */
+function weightedPassSpeed(
+  range: number,
+  charge: number,
+  arrival: number,
+  sloppiness: number,
+  rand: () => number,
+): number {
+  const weighted = arrival + range * PASS_DECAY_PER_METRE;
+  const misweight = 1 + (rand() + rand() - 1) * sloppiness * 0.42;
+  return weighted * (0.95 + charge * 0.5) * misweight;
+}
+
+/** How badly a passer is likely to mis-hit it, from his passing and how closely he is pressed. */
+function passSloppiness(world: SimWorld, p: SimPlayer): number {
+  const rushed = clamp(1 - nearestOpponentDistance(world, p) / 5, 0, 1);
+  return (1 - p.passing / 100) * (0.5 + rushed * 0.9);
+}
 
 const CHALLENGE_RADIUS = 1.4;
 
@@ -1031,15 +1058,30 @@ function playThroughBall(
   lofted: boolean,
 ): void {
   const t = world.tuning.pass.through;
-  const speed = speedFor(charge, t);
-  const option = bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir, speed);
+  /*
+   * Weighted to reach the space, exactly like a ground pass. This used to take its speed straight
+   * from the hold, and a through ball is played twenty-odd metres into space — so a light tap
+   * stopped almost immediately and the only usable through ball was a full-power one. Charge now
+   * says how he strikes it; the distance decides whether it gets there.
+   */
+  const option =
+    bestThroughBall(world, active, aimDir) ?? bestPass(world, active, aimDir, speedFor(1, t));
   // No runner in the cone is not a dropped input: knock it into the space he is pointing at.
   const spot = option
     ? option.spot
     : { x: active.pos.x + aimDir.x * 22, z: active.pos.z + aimDir.z * 22 };
+  // A runner arrives onto it at pace, so it wants less on it at the end than a ball to feet.
+  const raw = weightedPassSpeed(
+    dist(active.pos, spot),
+    charge,
+    THROUGH_ARRIVAL_SPEED,
+    passSloppiness(world, active),
+    world.rand,
+  );
+  const speed = clamp(raw, speedFor(0, t), speedFor(1, t)) * (r1 ? 1.1 : 1);
   kickPass(world, active, spot, HUMAN_PROFILE, 1, {
     lift: lofted ? 3.4 : 0,
-    speed: speed * (r1 ? 1.1 : 1),
+    speed,
     receiverId: option?.target.id,
   });
 }
@@ -1097,7 +1139,6 @@ function playGroundPass(
   // A rolling ball sheds pace roughly linearly with distance, so the speed needed to arrive with
   // something on it is close to `arrival + k * distance`.
   const range = dist(active.pos, option.spot);
-  const weighted = PASS_ARRIVAL_SPEED + range * PASS_DECAY_PER_METRE;
   // A tap is a properly weighted ball to feet; leaning on it drives the same pass through him,
   // which is what you want when you are trying to beat a man to it.
   /*
@@ -1106,13 +1147,14 @@ function playGroundPass(
    * pressure, or simply not a good one, mis-weights it: short into a defender's path, or heavy
    * through his man. Scaled by the passing attribute and by how tight he is being closed down.
    */
-  const pressure = nearestOpponentDistance(world, active);
-  const rushed = clamp(1 - pressure / 5, 0, 1);
-  const sloppiness = (1 - active.passing / 100) * (0.5 + rushed * 0.9);
-  const misweight = 1 + (world.rand() + world.rand() - 1) * sloppiness * 0.42;
-  const speed =
-    clamp(weighted * (0.95 + charge * 0.5) * misweight, speedFor(0, t), speedFor(1, t)) *
-    (r1 ? 1.1 : 1);
+  const raw = weightedPassSpeed(
+    range,
+    charge,
+    PASS_ARRIVAL_SPEED,
+    passSloppiness(world, active),
+    world.rand,
+  );
+  const speed = clamp(raw, speedFor(0, t), speedFor(1, t)) * (r1 ? 1.1 : 1);
   const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees);
   kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
     lift: lofted ? liftFor(speed, angle) : 0,
@@ -1153,6 +1195,14 @@ function tackle(
   tackler.kickCooldown = Math.max(tackler.kickCooldown, 0.25 * commitment);
   tackler.anim = sliding ? 'slide' : 'tackle';
   tackler.animTimer = sliding ? 0.8 : 0.3;
+  if (sliding) {
+    /*
+     * A slide is a commitment: you end up on the grass and you have to get up. Previously it cost
+     * a brief animation and nothing else, so sliding was close to free and could be spammed.
+     */
+    tackler.kickCooldown = Math.max(tackler.kickCooldown, 1.05);
+    tackler.skillTimer = Math.max(tackler.skillTimer, 0.85);
+  }
   if (!target || target.side === tackler.side) return;
   const d = dist(tackler.pos, target.pos);
   if (d > reach) return;

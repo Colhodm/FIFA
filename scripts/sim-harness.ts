@@ -685,6 +685,78 @@ function checkBlockRate(): void {
 }
 
 /**
+ * A light tap must still play a usable through ball. Speed used to come straight from hold time,
+ * and a through ball is played twenty-odd metres into space, so anything short of a full charge
+ * died on the spot and the mechanic was unusable.
+ */
+function checkThroughBallWeight(): void {
+  const rows: string[] = [];
+  for (const charge of [0.15, 0.5, 1]) {
+    let reached = 0;
+    let trials = 0;
+    for (let s = 0; s < 10; s++) {
+      const world = newWorld(s * 31 + 5);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no passer');
+      const runner = world.players.find(
+        (p) => p.side === 'home' && p.id !== me.id && p.role === 'FW',
+      );
+      if (!runner) throw new Error('no runner');
+      for (const p of world.players) {
+        if (p === me || p === runner) continue;
+        p.pos = { x: -55 * dir, z: p.pos.z };
+        p.vel = { x: 0, z: 0 };
+      }
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      // Runner breaking into space eighteen metres ahead.
+      runner.pos = { x: 18 * dir, z: 3 };
+      runner.vel = { x: 5 * dir, z: 0 };
+      world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.through = {
+        ...actions.through,
+        released: true,
+        fired: true,
+        charge,
+        heldTime: charge,
+      };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      trials++;
+
+      for (let i = 0; i < 60 * 4; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        if (world.controllerId === runner.id) {
+          reached++;
+          break;
+        }
+        if (world.phase !== 'in-play') break;
+      }
+    }
+    rows.push(`${Math.round(charge * 100)}% charge -> ${Math.round((reached / trials) * 100)}%`);
+    if (charge <= 0.15 && reached / trials < 0.5) {
+      throw new Error(`a light through ball reached its runner only ${reached}/${trials} times`);
+    }
+  }
+  console.log(`through balls reaching the runner: ${rows.join(' | ')}`);
+}
+
+/**
  * A 90 dribbler has to be *obviously* better than a 70, not marginally. Everything used to be
  * driven off `dribbling / 100`, which made the difference about 11%; you could not feel it.
  * This runs the same scripted slalom at each rating and reports the gap.
@@ -1017,6 +1089,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkThroughBallWeight();
 checkDribbleSkillGap();
 checkBlockRate();
 checkSwitching();

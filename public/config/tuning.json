@@ -3,7 +3,7 @@
   "pass": {
     "ground": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 28 },
     "lob": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 18 },
-    "through": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 20 },
+    "through": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 26 },
     "lobAngleDegrees": [30, 45],
     "groundLeadSeconds": 0.25,
     "coneDegrees": 35

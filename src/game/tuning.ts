@@ -71,7 +71,8 @@ export const DEFAULT_TUNING: Tuning = {
     // man sixteen metres away saturate, so leaning on the button bought nothing.
     ground: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 28 },
     lob: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 18 },
-    through: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 20 },
+    // Weighted through balls travel 25-30 m into space; the old 20 cap could not reach.
+    through: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 26 },
     lobAngleDegrees: [30, 45],
     groundLeadSeconds: 0.25,
     coneDegrees: 35,
