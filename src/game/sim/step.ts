@@ -372,7 +372,13 @@ function integrate(
 
   const speed = Math.hypot(p.vel.x, p.vel.z);
   // Phase advances with distance covered, so strides never skate over the grass.
-  p.gait = (p.gait + (speed * dt) / 0.85) % (Math.PI * 2);
+  /*
+   * Stride cadence grows with the square root of speed, not linearly: runners lengthen their
+   * stride at pace far more than they quicken it. The old linear advance was calibrated at a
+   * jog, so a sprinter's legs pumped about 7.5 steps a second — half again the real ~5 — which
+   * is most of what made sprinting look sped-up. Calibrated to leave the jog unchanged.
+   */
+  p.gait = (p.gait + (Math.sqrt(Math.max(speed, 0.05)) * dt) / 0.385) % (Math.PI * 2);
   const facing = face && Math.hypot(face.x, face.z) > 0.01 ? face : speed > 0.35 ? p.vel : null;
   if (facing) {
     const want = Math.atan2(facing.x, facing.z);

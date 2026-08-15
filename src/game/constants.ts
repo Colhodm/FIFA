@@ -56,7 +56,11 @@ export const CONTROL_RADIUS = 1.25;
 export const KICK_COOLDOWN = 0.35;
 
 export const BASE_SPEED = 6.2;
-export const SPRINT_MULTIPLIER = 1.42;
+/**
+ * A 90-pace player at 1.42 sustained 10.35 m/s — the fastest recorded human *peak*, held for as
+ * long as the stamina bar allowed. 1.32 puts the elite around 9.6 and the ordinary near 8.9.
+ */
+export const SPRINT_MULTIPLIER = 1.32;
 export const ACCELERATION = 22;
 export const TURN_RATE = 7.5;
 
