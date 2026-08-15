@@ -566,6 +566,7 @@ function checkBlockRate(): void {
   let shots = 0;
   let blocked = 0;
   let reboundRatio = 0;
+  let intercepted = 0;
   const fell: Record<string, number> = { attacker: 0, defender: 0, outOfPlay: 0, nobody: 0 };
 
   for (let s = 0; s < 40; s++) {
@@ -603,12 +604,22 @@ function checkBlockRate(): void {
       stepBall(world, TICK_DT, before);
       world.events.length = 0;
       const t = world.lastTouch;
-      if (!wasBlocked && t && t.side === 'away') {
+      // Only contacts while the ball is still travelling at shot pace count. Without this the
+      // metric drifts into "a defender eventually picked the ball up", which is neither a block
+      // nor an interception of the shot.
+      const live = world.shotAge < 1.2 && Math.hypot(world.ball.vel.x, world.ball.vel.z) > 12;
+      if (!wasBlocked && live && t && t.side === 'away') {
         const man = world.players.find((p) => p.id === t.playerId);
-        if (man && man.role !== 'GK') {
+        // A defender who *controls* the ball has intercepted it, not blocked it. Counting those
+        // as blocks inflated the rate and dragged the measured rebound pace towards zero, because
+        // a controlled ball is by definition stopped.
+        if (man && man.role !== 'GK' && world.controllerId !== man.id) {
           wasBlocked = true;
           blocked++;
           reboundSpeed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+        } else if (man && man.role !== 'GK') {
+          intercepted++;
+          break;
         }
       }
       if (wasBlocked) {
@@ -636,7 +647,7 @@ function checkBlockRate(): void {
   const pace = blocked ? Math.round((reboundRatio / blocked) * 100) : 0;
   console.log(
     `block rate: ${pct}% of ${shots} shots from the edge of the box (real: 25-30%)\n` +
-      `  rebound keeps ${pace}% of the shot's pace | falls to ` +
+      `  ${intercepted} intercepted cleanly | rebound keeps ${pace}% of the shot's pace | falls to ` +
       Object.entries(fell)
         .map(([k, v]) => `${k} ${v}`)
         .join(', '),

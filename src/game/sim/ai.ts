@@ -120,7 +120,15 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
   const teamHasBall = world.possession === p.side;
   const chaser = nearestOf(world, ball, p.side);
   const secondChaser = nearestOf(world, ball, p.side, true, chaser?.id ?? -1);
-  const wantsSprint = p.stamina > 0.25 && world.rand() < profile.sprintBias;
+  /*
+   * Recovery runs. Sprinting off the ball used to be a coin flip against `sprintBias`, so a
+   * midfielder caught upfield when possession turned over would amble back at a jog while the
+   * break went past him. If he is the wrong side of the ball with his own goal behind him, he
+   * runs — that is not a decision a footballer agonises over.
+   */
+  const recovering = !teamHasBall && (p.pos.x - world.ball.pos.x) * world.attackDir[p.side] > 2;
+  const wantsSprint =
+    (recovering && p.stamina > 0.12) || (p.stamina > 0.25 && world.rand() < profile.sprintBias);
 
   if (!teamHasBall) {
     /*

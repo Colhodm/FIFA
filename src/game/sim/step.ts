@@ -657,14 +657,47 @@ function dribbleTouch(
 ): void {
   holder.touchTimer -= dt;
   const speed = Math.hypot(holder.vel.x, holder.vel.z);
-  const sprinting = speed > BASE_SPEED * 1.05;
 
   // Where he intends to go, not where he currently is: this is what makes control responsive.
   const heading = { x: Math.sin(holder.heading), z: Math.cos(holder.heading) };
-  const control = 0.42 + (1 - holder.dribbling / 100) * 0.28;
-  // Close control at a walk, a bigger knock at a sprint. That gap is the risk/reward — but it
-  // has to stay inside the distance at which he can still claim the ball, or he simply loses it.
-  const knock = Math.min(sprinting ? 1.5 : 1.05, control + speed * (sprinting ? 0.14 : 0.07));
+  /*
+   * How far in front the ball sits. This is the single most important number in dribbling and it
+   * has to have real dynamic range: tucked under you at a walk, pushed properly into space at a
+   * sprint. It was previously ~0.6 m walking and only ~1.05 m running, which felt simultaneously
+   * too far at a jog and not committed enough at a sprint.
+   *
+   * A better dribbler keeps it tighter at any given pace, which is what the attribute should buy.
+   */
+  const tightness = 1.25 - (holder.dribbling / 100) * 0.5;
+  const control = (0.3 + (1 - holder.dribbling / 100) * 0.16) * tightness;
+  /*
+   * Superlinear in pace, and deliberately *not* keyed off a sprint flag. A boolean threshold sat
+   * right on top of normal running speed, so the knock flickered between its walking and
+   * sprinting values several times a second and the ball juddered. Growing with speed^2.4 gives
+   * the same "tucked under you at a walk, pushed into space at a sprint" separation with no
+   * discontinuity to fall over.
+   */
+  const knock = Math.min(2.2, control + Math.pow(speed, 2.4) * 0.0045 * tightness);
+
+  /*
+   * A good dribbler is agile on the turn. When the carrier cuts hard away from the way the ball
+   * is rolling, he can take it with the outside of the boot and keep it under him instead of
+   * letting it run — a bigger impulse budget, a tighter target, and a flourish on the animation.
+   * Poor dribblers simply do not get this, so the ball runs away from them on the same cut.
+   */
+  const ballDir = Math.hypot(world.ball.vel.x, world.ball.vel.z) > 1.5 ? world.ball.vel : null;
+  let cutting = false;
+  if (ballDir) {
+    const bl = Math.hypot(ballDir.x, ballDir.z);
+    const turn = Math.acos(
+      clamp(
+        (Math.sin(holder.heading) * ballDir.x + Math.cos(holder.heading) * ballDir.z) / bl,
+        -1,
+        1,
+      ),
+    );
+    cutting = turn > 1.05 && holder.dribbling > 62 && holder.skillTimer <= 0;
+  }
   // How long until the next contact. Sprinting strides are longer, so touches are rarer.
   const interval = clamp(knock / Math.max(2.5, speed), 0.18, 0.55);
 
@@ -676,9 +709,10 @@ function dribbleTouch(
   if (holder.touchTimer > 0 && !strayed) return;
 
   // Where the next touch expects to meet it, and the speed that gets it there under friction.
+  const reach = cutting ? Math.min(knock, 0.5) : knock;
   const next = {
-    x: holder.pos.x + holder.vel.x * interval + heading.x * knock + touch.x,
-    z: holder.pos.z + holder.vel.z * interval + heading.z * knock + touch.z,
+    x: holder.pos.x + holder.vel.x * interval + heading.x * reach + touch.x,
+    z: holder.pos.z + holder.vel.z * interval + heading.z * reach + touch.z,
   };
   const to = sub(next, ball);
   // Rapier's damping bleeds a little pace off over the interval; ask for enough to arrive.
@@ -691,7 +725,7 @@ function dribbleTouch(
   const dvx = want.x - world.ball.vel.x;
   const dvz = want.z - world.ball.vel.z;
   const dv = Math.hypot(dvx, dvz);
-  const maxTouch = 6 + (holder.dribbling / 100) * 7;
+  const maxTouch = (6 + (holder.dribbling / 100) * 7) * (cutting ? 1.9 : 1);
   const scale = dv > maxTouch ? maxTouch / dv : 1;
 
   const vel = {
@@ -701,7 +735,12 @@ function dribbleTouch(
   };
   world.ball.vel = vel;
   world.commands.push({ type: 'velocity', vel });
-  holder.touchTimer = interval;
+  holder.touchTimer = cutting ? interval * 0.7 : interval;
+  if (cutting) {
+    // A quick touch to take it away from the defender: show it.
+    holder.anim = 'skill';
+    holder.animTimer = 0.22;
+  }
 }
 
 /**
