@@ -141,7 +141,8 @@ export function ballTexture(): CanvasTexture {
  * squad number across the back. Cylindrical UVs put u=0 on the player's chest.
  */
 export function shirtTexture(kit: Kit, shirt: number, keeper: boolean): CanvasTexture {
-  return cached(`shirt-${kit.primary}-${kit.secondary}-${keeper}-${shirt}`, () => {
+  const pattern = kit.pattern ?? 'plain';
+  return cached(`shirt-${kit.primary}-${kit.secondary}-${pattern}-${keeper}-${shirt}`, () => {
     const width = 512;
     const height = 256;
     const ctx = canvas2d(width, height);
@@ -150,21 +151,39 @@ export function shirtTexture(kit: Kit, shirt: number, keeper: boolean): CanvasTe
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
 
+    /*
+     * Kits are not all striped. Drawing vertical bars on every shirt made Liverpool, Arsenal and
+     * City all look like Newcastle, which is most of why the teams did not read as themselves.
+     */
     if (!keeper) {
-      // Vertical stripes on the front and back panels only, so the sides stay clean.
       ctx.fillStyle = accent;
-      ctx.globalAlpha = 0.85;
-      for (let i = 0; i < 8; i++) {
-        if (i % 2 === 1) continue;
-        ctx.fillRect((i / 8) * width + width / 32, 0, width / 16, height);
+      if (pattern === 'stripes') {
+        for (let i = 0; i < 10; i++) {
+          if (i % 2 === 1) continue;
+          ctx.fillRect((i / 10) * width, 0, width / 20, height);
+        }
+      } else if (pattern === 'halves') {
+        ctx.fillRect(width * 0.5, 0, width * 0.25, height);
+        ctx.fillRect(0, 0, width * 0.25, height);
+      } else if (pattern === 'sash') {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(width * 0.18, height);
+        ctx.lineTo(width * 0.36, height);
+        ctx.lineTo(width * 0.62, 0);
+        ctx.lineTo(width * 0.44, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
     }
 
-    // Sleeves: the quarter turns either side of the body read as the arms' shoulder line.
-    ctx.fillStyle = accent;
-    ctx.fillRect(width * 0.2, 0, width * 0.1, height * 0.34);
-    ctx.fillRect(width * 0.7, 0, width * 0.1, height * 0.34);
+    // Sleeves: the quarter turns either side of the body read as the arms' shoulder line. A
+    // contrasting sleeve is a kit feature in its own right (Arsenal, Villa), not just trim.
+    ctx.fillStyle = pattern === 'sleeves' || keeper ? accent : accent;
+    const sleeveDepth = pattern === 'sleeves' ? 1 : 0.34;
+    ctx.fillRect(width * 0.2, 0, width * 0.1, height * sleeveDepth);
+    ctx.fillRect(width * 0.7, 0, width * 0.1, height * sleeveDepth);
 
     // Collar.
     ctx.fillStyle = accent;

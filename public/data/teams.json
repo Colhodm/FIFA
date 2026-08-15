@@ -10,7 +10,8 @@
     "primary": "#EF0107",
     "secondary": "#FFFFFF",
     "shorts": "#FFFFFF",
-    "keeper": "#7ee081"
+    "keeper": "#7ee081",
+    "pattern": "sleeves"
    },
    "players": [
     {
@@ -179,7 +180,8 @@
     "primary": "#C8102E",
     "secondary": "#F6EB61",
     "shorts": "#C8102E",
-    "keeper": "#3ddc97"
+    "keeper": "#3ddc97",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -348,7 +350,8 @@
     "primary": "#6CABDD",
     "secondary": "#FFFFFF",
     "shorts": "#FFFFFF",
-    "keeper": "#1c2c5b"
+    "keeper": "#1c2c5b",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -514,10 +517,11 @@
    "formation": "4-3-3",
    "rating": 82,
    "kit": {
-    "primary": "#95BFE5",
-    "secondary": "#670E36",
+    "primary": "#670E36",
+    "secondary": "#95BFE5",
     "shorts": "#FFFFFF",
-    "keeper": "#f2c14e"
+    "keeper": "#f2c14e",
+    "pattern": "sleeves"
    },
    "players": [
     {
@@ -686,7 +690,8 @@
     "primary": "#034694",
     "secondary": "#FFFFFF",
     "shorts": "#034694",
-    "keeper": "#c6f24e"
+    "keeper": "#c6f24e",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -855,7 +860,8 @@
     "primary": "#241F20",
     "secondary": "#FFFFFF",
     "shorts": "#241F20",
-    "keeper": "#61d4c2"
+    "keeper": "#61d4c2",
+    "pattern": "stripes"
    },
    "players": [
     {
@@ -1024,7 +1030,8 @@
     "primary": "#DA291C",
     "secondary": "#FBE122",
     "shorts": "#FFFFFF",
-    "keeper": "#2fbf71"
+    "keeper": "#2fbf71",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -1193,7 +1200,8 @@
     "primary": "#FFFFFF",
     "secondary": "#132257",
     "shorts": "#132257",
-    "keeper": "#f2b544"
+    "keeper": "#f2b544",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -1362,7 +1370,8 @@
     "primary": "#DD0000",
     "secondary": "#FFFFFF",
     "shorts": "#FFFFFF",
-    "keeper": "#4ecdc4"
+    "keeper": "#4ecdc4",
+    "pattern": "plain"
    },
    "players": [
     {
@@ -1531,7 +1540,8 @@
     "primary": "#1B458F",
     "secondary": "#C4122E",
     "shorts": "#1B458F",
-    "keeper": "#f7e733"
+    "keeper": "#f7e733",
+    "pattern": "stripes"
    },
    "players": [
     {

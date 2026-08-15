@@ -165,6 +165,7 @@ export function tick(
      * him off his line for a through ball.
      */
     world.keeperRush = input.actions.jockey.down && world.possession !== world.config.humanSide;
+    resolvePendingSwitch(world);
     if (input.actions.switch.pressed) requestSwitch(world);
     else reviewDefensiveSwitch(world);
     handleHumanActions(world, input, cameraYaw, manager);
@@ -1239,10 +1240,40 @@ function switchToBox(world: SimWorld, crosser: SimPlayer, spot: Vec2): void {
       best = p;
     }
   }
-  if (best && bestScore < 26) {
-    world.activeId = best.id;
-    // Treat it as the player's own choice so the auto-switcher does not immediately undo it.
+  /*
+   * Queue it rather than switching now. Handing control over the instant the ball leaves the boot
+   * gives the player no sight of the flight — he is teleported into the box and the cross is
+   * already on him. The switch fires as it drops (see `resolvePendingSwitch`), which is when a
+   * real player picks out the man attacking it and times his header.
+   */
+  if (best && bestScore < 26) world.pendingSwitch = best.id;
+}
+
+/** How close the ball must be to the queued receiver before control is handed over. */
+const CROSS_HANDOVER_METRES = 16;
+
+/**
+ * Hands over control for a queued cross once the ball is nearly on the receiver, so the player
+ * sees the ball travel and still has a beat to attack it.
+ */
+function resolvePendingSwitch(world: SimWorld): void {
+  const id = world.pendingSwitch;
+  if (id === null) return;
+  const man = world.players.find((p) => p.id === id);
+  // The move is over: somebody has it, it is dead, or the man is gone.
+  if (!man || man.sentOff || world.phase !== 'in-play' || world.controllerId !== null) {
+    world.pendingSwitch = null;
+    return;
+  }
+  const gap = dist(man.pos, ballPos2(world));
+  // Past the steep part of the climb: waiting for it to actually fall handed over with only a
+  // few tenths left, which is not enough time for a human to attack the ball.
+  const dropping = world.ball.vel.y < 3.5;
+  if (gap < CROSS_HANDOVER_METRES && dropping) {
+    world.activeId = man.id;
+    // Count it as the player's own choice so the auto-switcher does not immediately undo it.
     world.switching.sinceManual = 0;
+    world.pendingSwitch = null;
   }
 }
 

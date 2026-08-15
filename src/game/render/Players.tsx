@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { CapsuleCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
 import type { Group } from 'three';
 import { PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
@@ -191,8 +192,40 @@ function PlayerBody({ player, kit, shadows }: { player: SimPlayer; kit: Kit; sha
   );
 }
 
+/** Perceptual-ish distance between two hex colours, 0-1. */
+function colourGap(a: string, b: string): number {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const [ar, ag, ab] = rgb(a);
+  const [br, bg, bb] = rgb(b);
+  // Green is weighted hardest because that is what the eye resolves best at distance.
+  return Math.sqrt(0.3 * (ar - br) ** 2 + 0.59 * (ag - bg) ** 2 + 0.11 * (ab - bb) ** 2);
+}
+
+/**
+ * Real football plays a change strip when the colours clash. Arsenal against Liverpool put
+ * twenty-two men in red on the pitch and the match was unreadable, so the away side switches to
+ * its secondary colour when the two primaries are too close together.
+ */
+function changeIfClashing(home: Kit, away: Kit): Kit {
+  if (colourGap(home.primary, away.primary) > 0.22) return away;
+  const swapped: Kit = {
+    ...away,
+    primary: away.secondary,
+    secondary: away.primary,
+    shorts: away.secondary,
+    pattern: away.pattern === 'stripes' ? 'stripes' : 'plain',
+  };
+  // If the change strip clashes too, fall back to something that never does.
+  if (colourGap(home.primary, swapped.primary) > 0.22) return swapped;
+  return { ...swapped, primary: '#f1f5f9', secondary: '#0f172a', shorts: '#0f172a' };
+}
+
 export function Players({ world, shadows }: { world: SimWorld; shadows: boolean }) {
-  const kits = { home: world.config.homeTeam.kit, away: world.config.awayTeam.kit };
+  const kits = useMemo(() => {
+    const home = world.config.homeTeam.kit;
+    const away = world.config.awayTeam.kit;
+    return { home, away: changeIfClashing(home, away) };
+  }, [world.config.homeTeam.kit, world.config.awayTeam.kit]);
   return (
     <>
       {world.players.map((player) => (

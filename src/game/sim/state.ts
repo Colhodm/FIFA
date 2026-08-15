@@ -299,6 +299,11 @@ export interface SimWorld {
   kickoffProtected: boolean;
   /** The human is holding the rush command: his keeper comes off his line to close the ball. */
   keeperRush: boolean;
+  /**
+   * A cross is in the air and control is queued to pass to this man — but not until the ball is
+   * nearly on him, so the player watches the flight and times the header himself.
+   */
+  pendingSwitch: number | null;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -423,6 +428,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     kickoffSide: config.humanSide,
     kickoffProtected: false,
     keeperRush: false,
+    pendingSwitch: null,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },

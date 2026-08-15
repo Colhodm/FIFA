@@ -888,6 +888,7 @@ function checkCrossing(): void {
   const rows: string[] = [];
   let switched = 0;
   let crosses = 0;
+  let gapSum = 0;
   for (const charge of [0.2, 0.6, 1]) {
     let inBox = 0;
     let peakSum = 0;
@@ -926,10 +927,10 @@ function checkCrossing(): void {
       world.events.length = 0;
       trials++;
       crosses++;
-      if (world.activeId !== me.id) switched++;
 
       let peak = 0;
       let reached = false;
+      let handoverGap = -1;
       for (let i = 0; i < 60 * 4; i++) {
         before = { ...world.ball.vel };
         tick(world, idleInput, 0, TICK_DT, mgr);
@@ -940,7 +941,17 @@ function checkCrossing(): void {
         const intoBox =
           Math.abs(world.ball.pos.x) > 52.5 - PENALTY_BOX_DEPTH && Math.abs(world.ball.pos.z) < 20;
         if (intoBox) reached = true;
+        if (handoverGap < 0 && world.activeId !== me.id) {
+          const man = world.players.find((q) => q.id === world.activeId);
+          handoverGap = man
+            ? Math.hypot(man.pos.x - world.ball.pos.x, man.pos.z - world.ball.pos.z)
+            : -1;
+        }
         if (world.phase !== 'in-play') break;
+      }
+      if (handoverGap >= 0) {
+        switched++;
+        gapSum += handoverGap;
       }
       peakSum += peak;
       if (reached) inBox++;
@@ -956,7 +967,16 @@ function checkCrossing(): void {
     if (peak < 1.5) throw new Error(`crosses are not aerial: peak height ${peak}m`);
   }
   console.log(`crossing: ${rows.join(' | ')}`);
-  console.log(`  control handed to a man in the box on ${switched}/${crosses} crosses`);
+  const meanGap = switched ? +(gapSum / switched).toFixed(1) : 0;
+  console.log(
+    `  control handed over on ${switched}/${crosses} crosses, ball ${meanGap}m away at handover`,
+  );
+  // Handing over at the moment of the strike teleports the player into the box with the cross
+  // already on him. It has to arrive with the ball in flight and still a beat to attack it.
+  if (switched && meanGap > 14) {
+    throw new Error(`handover happened ${meanGap}m out — too early to read the flight`);
+  }
+  if (switched && meanGap < 2) throw new Error(`handover at ${meanGap}m leaves no time to react`);
   // Standing on the wing watching it drop is not playing football.
   if (switched < crosses * 0.8) {
     throw new Error(`control stayed with the crosser on ${crosses - switched}/${crosses} crosses`);
