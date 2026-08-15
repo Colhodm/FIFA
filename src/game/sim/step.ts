@@ -668,8 +668,18 @@ function dribbleTouch(
    *
    * A better dribbler keeps it tighter at any given pace, which is what the attribute should buy.
    */
-  const tightness = 1.25 - (holder.dribbling / 100) * 0.5;
-  const control = (0.3 + (1 - holder.dribbling / 100) * 0.16) * tightness;
+  /*
+   * Attribute response, deliberately superlinear at the top. Driving everything off
+   * `dribbling / 100` made a 90 barely distinguishable from a 70 — 11% tighter control and a 13%
+   * bigger touch budget. Elite close control is a different category, not a bit more of the same
+   * thing, so the curve is weighted so the last twenty points of the attribute buy roughly as
+   * much as the forty below them.
+   *
+   *   dribbling 50 -> 0.14    70 -> 0.41    90 -> 0.78
+   */
+  const skill = Math.pow(clamp((holder.dribbling - 30) / 70, 0, 1), 1.6);
+  const tightness = 1.4 - skill * 0.75;
+  const control = (0.28 + (1 - skill) * 0.2) * tightness;
   /*
    * Superlinear in pace, and deliberately *not* keyed off a sprint flag. A boolean threshold sat
    * right on top of normal running speed, so the knock flickered between its walking and
@@ -687,6 +697,7 @@ function dribbleTouch(
    */
   const ballDir = Math.hypot(world.ball.vel.x, world.ball.vel.z) > 1.5 ? world.ball.vel : null;
   let cutting = false;
+  let cutTurn = 0;
   if (ballDir) {
     const bl = Math.hypot(ballDir.x, ballDir.z);
     const turn = Math.acos(
@@ -696,7 +707,10 @@ function dribbleTouch(
         1,
       ),
     );
-    cutting = turn > 1.05 && holder.dribbling > 62 && holder.skillTimer <= 0;
+    // No cliff: a sharper player can take it away on a shallower angle, and gets more out of it.
+    // This used to be a hard gate at `dribbling > 62`, so 61 got nothing and 63 got everything.
+    cutting = turn > 1.45 - skill * 0.72 && skill > 0.18 && holder.skillTimer <= 0;
+    cutTurn = turn;
   }
   // How long until the next contact. Sprinting strides are longer, so touches are rarer.
   const interval = clamp(knock / Math.max(2.5, speed), 0.18, 0.55);
@@ -709,7 +723,7 @@ function dribbleTouch(
   if (holder.touchTimer > 0 && !strayed) return;
 
   // Where the next touch expects to meet it, and the speed that gets it there under friction.
-  const reach = cutting ? Math.min(knock, 0.5) : knock;
+  const reach = cutting ? Math.min(knock, 0.62 - skill * 0.22) : knock;
   const next = {
     x: holder.pos.x + holder.vel.x * interval + heading.x * reach + touch.x,
     z: holder.pos.z + holder.vel.z * interval + heading.z * reach + touch.z,
@@ -725,13 +739,26 @@ function dribbleTouch(
   const dvx = want.x - world.ball.vel.x;
   const dvz = want.z - world.ball.vel.z;
   const dv = Math.hypot(dvx, dvz);
-  const maxTouch = (6 + (holder.dribbling / 100) * 7) * (cutting ? 1.9 : 1);
+  const maxTouch = (5 + skill * 11) * (cutting ? 1 + skill * 1.5 : 1);
   const scale = dv > maxTouch ? maxTouch / dv : 1;
 
+  /*
+   * Touch error, applied to the *desired* velocity so it always stays within what a foot could
+   * lawfully do. Without it every touch was perfect and the only way to lose the ball was the
+   * impulse clamp — which is why a poor dribbler did not feel poor. It grows with pace and with
+   * how sharply he is trying to turn the ball, and all but vanishes for an elite carrier.
+   */
+  const sharpness = clamp(cutTurn / Math.PI, 0, 1);
+  const spread = (1 - skill) * 0.3 * (0.35 + speed / 11) * (1 + sharpness * 1.1);
+  const wobble = (world.rand() + world.rand() - 1) * spread;
+  const cw = Math.cos(wobble);
+  const sw = Math.sin(wobble);
+  const ex = dvx * cw - dvz * sw;
+  const ez = dvx * sw + dvz * cw;
   const vel = {
-    x: world.ball.vel.x + dvx * scale,
+    x: world.ball.vel.x + ex * scale,
     y: world.ball.vel.y,
-    z: world.ball.vel.z + dvz * scale,
+    z: world.ball.vel.z + ez * scale,
   };
   world.ball.vel = vel;
   world.commands.push({ type: 'velocity', vel });

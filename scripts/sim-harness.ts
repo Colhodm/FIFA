@@ -660,6 +660,85 @@ function checkBlockRate(): void {
 }
 
 /**
+ * A 90 dribbler has to be *obviously* better than a 70, not marginally. Everything used to be
+ * driven off `dribbling / 100`, which made the difference about 11%; you could not feel it.
+ * This runs the same scripted slalom at each rating and reports the gap.
+ */
+function checkDribbleSkillGap(): void {
+  const run = (rating: number) => {
+    let strays = 0;
+    let lost = 0;
+    let gapSum = 0;
+    let samples = 0;
+    for (let seed = 0; seed < 8; seed++) {
+      const world = newWorld(seed * 13 + 7);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no carrier');
+      me.dribbling = rating;
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      // Alone with the ball: this measures control, not whether he beats anyone.
+      for (const p of world.players) {
+        if (p.id === me.id) continue;
+        p.pos = { x: -60, z: p.pos.z > 0 ? 34 : -34 };
+        p.vel = { x: 0, z: 0 };
+      }
+      world.ball.pos = { x: 0.4, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      // Slalom: swing the stick through a wide arc so he has to keep turning the ball.
+      for (let i = 0; i < 60 * 6; i++) {
+        const t = i / 60;
+        const ang = Math.sin(t * 2.1) * 1.15;
+        const actions = idleActions();
+        actions.sprint = { ...actions.sprint, down: t > 2 };
+        const before = { ...world.ball.vel };
+        tick(
+          world,
+          { move: { x: Math.sin(ang), z: Math.cos(ang) }, flick: { x: 0, z: 0 }, actions },
+          0,
+          TICK_DT,
+          mgr,
+        );
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        const gap = Math.hypot(me.pos.x - world.ball.pos.x, me.pos.z - world.ball.pos.z);
+        gapSum += gap;
+        samples++;
+        if (gap > 2.6) strays++;
+        if (world.controllerId !== me.id) lost++;
+      }
+    }
+    return {
+      meanGap: +(gapSum / samples).toFixed(2),
+      strayedPct: Math.round((strays / samples) * 100),
+      lostPct: Math.round((lost / samples) * 100),
+    };
+  };
+
+  const poor = run(55);
+  const good = run(70);
+  const elite = run(90);
+  console.log(
+    `dribble skill: 55 -> gap ${poor.meanGap}m lost ${poor.lostPct}% | ` +
+      `70 -> gap ${good.meanGap}m lost ${good.lostPct}% | ` +
+      `90 -> gap ${elite.meanGap}m lost ${elite.lostPct}%`,
+  );
+  // An elite carrier must keep the ball meaningfully tighter than a good one.
+  if (elite.meanGap >= good.meanGap * 0.9) {
+    throw new Error(
+      `a 90 dribbler holds the ball at ${elite.meanGap}m vs a 70 at ${good.meanGap}m — not a real gap`,
+    );
+  }
+}
+
+/**
  * Losing the ball has to hand you somebody who can defend. The switch is made before
  * `world.possession` catches up, so ranking used to think the team was still attacking and
  * ignored the goal-side term — handing over whichever forward happened to be nearest the ball
@@ -913,6 +992,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkDribbleSkillGap();
 checkBlockRate();
 checkSwitching();
 checkRestarts();
