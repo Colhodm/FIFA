@@ -32,7 +32,16 @@ function PlayerBody({ player, kit, shadows }: { player: SimPlayer; kit: Kit; sha
 
   const rig: Partial<PlayerRig> = {};
   const commit = () => {
-    if (rig.root && rig.legL && rig.legR && rig.armL && rig.armR && rig.torso) {
+    if (
+      rig.root &&
+      rig.legL &&
+      rig.legR &&
+      rig.shinL &&
+      rig.shinR &&
+      rig.armL &&
+      rig.armR &&
+      rig.torso
+    ) {
       runtime.visuals.set(player.id, rig as PlayerRig);
     }
   };
@@ -149,14 +158,25 @@ function PlayerBody({ player, kit, shadows }: { player: SimPlayer; kit: Kit; sha
               <sphereGeometry args={[0.058, 10, 8]} />
               <meshStandardMaterial color={skin} roughness={0.88} />
             </mesh>
-            <mesh position={[0, -0.66, 0]} castShadow={shadows}>
-              <capsuleGeometry args={[0.054, 0.18, 4, 10]} />
-              <meshStandardMaterial color={socks} roughness={0.92} />
-            </mesh>
-            <mesh position={[0, -0.83, 0.05]} rotation={[0.08, 0, 0]} castShadow={shadows}>
-              <boxGeometry args={[0.095, 0.07, 0.26]} />
-              <meshStandardMaterial color={boot} roughness={0.35} metalness={0.12} />
-            </mesh>
+            {/* Everything below the knee folds through the stride on its own pivot. */}
+            <group
+              position={[0, -0.5, 0]}
+              ref={(group: Group | null) => {
+                if (group) {
+                  rig[key === 'legL' ? 'shinL' : 'shinR'] = group;
+                  commit();
+                }
+              }}
+            >
+              <mesh position={[0, -0.16, 0]} castShadow={shadows}>
+                <capsuleGeometry args={[0.054, 0.18, 4, 10]} />
+                <meshStandardMaterial color={socks} roughness={0.92} />
+              </mesh>
+              <mesh position={[0, -0.33, 0.05]} rotation={[0.08, 0, 0]} castShadow={shadows}>
+                <boxGeometry args={[0.095, 0.07, 0.26]} />
+                <meshStandardMaterial color={boot} roughness={0.35} metalness={0.12} />
+              </mesh>
+            </group>
           </group>
         ))}
 
@@ -180,15 +200,18 @@ function PlayerBody({ player, kit, shadows }: { player: SimPlayer; kit: Kit; sha
               <capsuleGeometry args={[0.052, 0.16, 4, 10]} />
               <meshStandardMaterial color={accent} roughness={0.82} />
             </mesh>
-            <mesh position={[0, -0.34, 0]} castShadow={shadows}>
-              <capsuleGeometry args={[0.042, 0.17, 4, 10]} />
-              <meshStandardMaterial color={isKeeper ? accent : skin} roughness={0.88} />
-            </mesh>
-            {/* Keepers get gloves; everyone else gets a hand. */}
-            <mesh position={[0, -0.48, 0]} scale={isKeeper ? [1.5, 1.3, 1] : [1, 1, 1]}>
-              <sphereGeometry args={[0.045, 10, 8]} />
-              <meshStandardMaterial color={isKeeper ? '#f8fafc' : skin} roughness={0.75} />
-            </mesh>
+            {/* Forearm carried bent at the elbow, the way anyone who has ever run carries it. */}
+            <group position={[0, -0.24, 0]} rotation={[-1.05, 0, 0]}>
+              <mesh position={[0, -0.1, 0]} castShadow={shadows}>
+                <capsuleGeometry args={[0.042, 0.15, 4, 10]} />
+                <meshStandardMaterial color={isKeeper ? accent : skin} roughness={0.88} />
+              </mesh>
+              {/* Keepers get gloves; everyone else gets a hand. */}
+              <mesh position={[0, -0.22, 0]} scale={isKeeper ? [1.5, 1.3, 1] : [1, 1, 1]}>
+                <sphereGeometry args={[0.045, 10, 8]} />
+                <meshStandardMaterial color={isKeeper ? '#f8fafc' : skin} roughness={0.75} />
+              </mesh>
+            </group>
           </group>
         ))}
       </group>

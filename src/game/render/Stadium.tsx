@@ -34,6 +34,9 @@ const LOWER: TierSpec = { inset: 0, base: 1.6, depth: 15, rise: 10, rows: 22 };
 /** The second deck is set back over the rear of the first, the way a real two-tier bowl stacks. */
 const UPPER: TierSpec = { inset: 9, base: 17, depth: 15, rise: 12.5, rows: 24 };
 /** Where the upper deck's fascia meets the lower terrace, so the wall is not a black slab. */
+/** The Kop's upper bank starts lower and rakes further, so it reads as one continuous wall. */
+const KOP_UPPER: TierSpec = { inset: 6, base: 13, depth: 19, rise: 17, rows: 34 };
+
 const FASCIA_BOTTOM = LOWER.base + LOWER.rise * (UPPER.inset / LOWER.depth);
 const ROOF_Y = UPPER.base + UPPER.rise + 5.5;
 /** The near touchline is the TV side: its lower tier is the camera gantry, so it stays empty. */
@@ -112,7 +115,7 @@ function Deck({ side, tier, primary, accent }: { side: Side; tier: TierSpec } & 
           </mesh>
           <mesh position={[0, tier.base - 0.35, -inner + 0.45]}>
             <boxGeometry args={[length - 1, 0.5, 0.35]} />
-            <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.7} />
+            <meshStandardMaterial color="#dc2626" emissive="#dc2626" emissiveIntensity={0.6} />
           </mesh>
         </>
       )}
@@ -154,23 +157,27 @@ function Crowd({ density }: { density: number }) {
      * A televised crowd reads as a dark, desaturated mass with occasional light flecks — not the
      * neon confetti this used to be. Mostly darks and greys, a few muted club colours.
      */
+    /*
+     * A home crowd: predominantly the home red in its many washed-out television shades, cut
+     * with darks, greys and the odd away shirt. Still muted — a crowd is a mass, not confetti.
+     */
     const palette = [
-      '#1e2532',
+      '#7a1f28',
+      '#8c2a32',
+      '#5f181f',
+      '#9c3a40',
+      '#6e2229',
+      '#4a151a',
+      '#8d97a8',
       '#2b3444',
       '#141a24',
+      '#a8494f',
       '#3a4354',
-      '#8d97a8',
-      '#5b6577',
-      '#232c3a',
-      '#6b7385',
-      '#454f61',
-      '#0f141c',
       '#7d8798',
-      '#2f3a4a',
-      '#9aa4b4',
+      '#712028',
       '#1a222e',
+      '#87333a',
       '#54408f',
-      '#7a3340',
     ];
     const list: { pos: [number, number, number]; rot: number; scale: number; rgb: Color }[] = [];
     for (let i = 0; i < count; i++) {
@@ -406,16 +413,22 @@ function BigScreens() {
 
 export function Stadium({ crowdDensity }: { crowdDensity: number }) {
   // Fictional club colours for the seat mosaic.
-  const palette: Palette = { primary: '#1e293b', accent: '#0ea5e9' };
+  // Red seats with a pale band, in the manner of Anfield, rather than anonymous navy.
+  const palette: Palette = { primary: '#a41220', accent: '#e7e0d0' };
   return (
     <group>
       <Hoardings />
-      {SIDES.map((side) => (
-        <group key={`${side.axis}${side.sign}`}>
-          <Deck side={side} tier={LOWER} {...palette} />
-          <Deck side={side} tier={UPPER} {...palette} />
-        </group>
-      ))}
+      {SIDES.map((side) => {
+        // The Kop: behind one goal, a single unbroken bank rather than two split decks, and
+        // taller than everything else — the thing that stops the ground reading as generic.
+        const kop = side.axis === 'x' && side.sign < 0;
+        return (
+          <group key={`${side.axis}${side.sign}`} scale={kop ? [1, 1.35, 1] : [1, 1, 1]}>
+            <Deck side={side} tier={LOWER} {...palette} />
+            <Deck side={side} tier={kop ? KOP_UPPER : UPPER} {...palette} />
+          </group>
+        );
+      })}
       <Crowd density={crowdDensity} />
       <Dugouts />
       <Roof />

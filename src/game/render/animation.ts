@@ -39,6 +39,13 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   let roll = 0;
   let twist = 0;
   let bob = Math.abs(Math.sin(phase)) * 0.05 * stride;
+  /*
+   * Knee flexion. The lower leg folds hardest just after toe-off, as the thigh swings through —
+   * without it the legs scissor like a mannequin's, which was most of why the run looked wrong.
+   * Positive x folds the shin backwards.
+   */
+  let shinL = stride * (0.18 + 1.05 * Math.max(0, -Math.sin(phase - 0.55)));
+  let shinR = stride * (0.18 + 1.05 * Math.max(0, Math.sin(phase - 0.55)));
 
   const length = CLIP_LENGTH[player.anim] ?? 0;
   // 0 at the start of the clip, 1 at the end.
@@ -55,6 +62,8 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
      */
     case 'shot': {
       const contact = (1 - t) ** 0.7;
+      shinR = 0.9 * contact;
+      shinL = 0.25;
       const lift = Math.sin(t * Math.PI);
       // Driving leg swings through and high, plant leg braced, hips open, chest over the ball.
       legR = -(1.25 * contact + 0.85 * lift);
@@ -69,6 +78,7 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
     case 'pass': {
       // Side-foot: short, compact, hips opened to the ball, very little follow-through.
       const contact = (1 - t) ** 0.8;
+      shinR = 0.5 * contact;
       const lift = Math.sin(t * Math.PI);
       legR = -(0.72 * contact + 0.2 * lift);
       legL = 0.24 * contact;
@@ -185,6 +195,8 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   }
 
   rig.legL.rotation.x = legL;
+  rig.shinL.rotation.x = shinL;
+  rig.shinR.rotation.x = shinR;
   rig.legR.rotation.x = legR;
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
