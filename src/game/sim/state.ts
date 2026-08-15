@@ -111,6 +111,11 @@ export interface SimPlayer {
    * body just jogged through the charge and the ball exploded off an unwound leg.
    */
   windup: number;
+  /**
+   * An AI strike that has been elected but not yet hit: the backswing plays out first, so the
+   * shot is readable — and fakeable — the way a human's charge is. Cleared if he loses the ball.
+   */
+  plannedShot: { at: number; quality: number } | null;
   /** Seconds a keeper holds the ball before distributing it. */
   holdTimer: number;
   tally: PlayerTally;
@@ -326,6 +331,8 @@ export interface SimWorld {
    */
   flight: import('./ballistics').FlightSample[] | null;
   flightDirty: boolean;
+  /** Seconds since the flight cache was built: sample times are measured from launch, not now. */
+  flightAge: number;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -410,6 +417,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         skillTimer: 0,
         touchTimer: 0,
         windup: 0,
+        plannedShot: null,
         holdTimer: 0,
         tally: emptyTally(),
       });
@@ -455,6 +463,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     pendingSwitch: null,
     flight: null,
     flightDirty: false,
+    flightAge: 0,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },

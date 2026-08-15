@@ -22,7 +22,14 @@ import {
 } from '../input/input';
 import type { TeamSide } from '../types';
 import { resolveAerials, updateBodies, updateKeepers, type HeaderIntent } from './aerial';
-import { decideOffBall, decideOnBall, kickPass, nearestOpponentDistance, registerShot } from './ai';
+import {
+  decideOffBall,
+  decideOnBall,
+  kickPass,
+  nearestOpponentDistance,
+  registerShot,
+  shoot,
+} from './ai';
 import {
   applyKick,
   ballPos2,
@@ -97,8 +104,11 @@ export function tick(
   if (world.flightDirty) {
     world.flight = predictFlight(world.ball.pos, world.ball.vel, world.ball.spin.y);
     world.flightDirty = false;
+    world.flightAge = 0;
   } else if (world.controllerId !== null && world.flight) {
     world.flight = null;
+  } else if (world.flight) {
+    world.flightAge += dt;
   }
   advanceSwitchTimers(world, dt);
   // The face buttons mean different things with and without the ball; publish which it is so
@@ -241,6 +251,35 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
     if (world.phase === 'goal' && world.lastScorer) {
       celebrate(world, p, dt);
       continue;
+    }
+
+    /*
+     * A planned AI strike: hold the backswing, then hit it. Cancelled the instant the ball is
+     * no longer his — a wound-up player whose ball has been poked away swings at nothing.
+     */
+    if (p.plannedShot && p.id !== humanControlled) {
+      /*
+       * Cancel only when the ball is genuinely gone — another man on it, possession turned, or
+       * play dead. The first cut cancelled whenever `controllerId !== p.id`, and the touch
+       * scheduler flickers that to null on every knock-ahead, so nearly every planned strike
+       * died mid-backswing: AI shot counts collapsed and matches decayed into goal-mouth
+       * scrambles.
+       */
+      const stolen = world.controllerId !== null && world.controllerId !== p.id;
+      const gone = dist(p.pos, ballPos2(world)) > 2.2;
+      if (stolen || gone || world.possession !== p.side || !isLive(world)) {
+        p.plannedShot = null;
+      } else {
+        p.plannedShot.at -= dt;
+        p.windup = clamp(1 - p.plannedShot.at / 0.34, 0, 1);
+        // Planting, not dribbling: the shooter sets his feet through the swing.
+        p.intent = { x: p.intent.x * 0.25, z: p.intent.z * 0.25 };
+        if (p.plannedShot.at <= 0) {
+          const quality = p.plannedShot.quality;
+          p.plannedShot = null;
+          shoot(world, p, profileFor(world, p), quality);
+        }
+      }
     }
 
     if (p.id === humanControlled) {
