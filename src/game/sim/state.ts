@@ -112,6 +112,13 @@ export interface SimPlayer {
    */
   windup: number;
   /**
+   * Physical composure, 0..1. Shoulder contact drains it — faster against a stronger opponent —
+   * and it recovers in space. Low balance is what being muscled off the ball *is*: slower,
+   * heavier first touches, strikes that classify as under contact. The single channel through
+   * which all physical duress flows, so jostling, shielding and duels share one currency.
+   */
+  balance: number;
+  /**
    * An AI strike that has been elected but not yet hit: the backswing plays out first, so the
    * shot is readable — and fakeable — the way a human's charge is. Cleared if he loses the ball.
    */
@@ -417,6 +424,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         skillTimer: 0,
         touchTimer: 0,
         windup: 0,
+        balance: 1,
         plannedShot: null,
         holdTimer: 0,
         tally: emptyTally(),
@@ -529,6 +537,7 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
     p.thinkTimer = 0;
     p.intent = { x: 0, z: 0 };
     p.intentFace = null;
+    p.balance = 1;
   }
 
   // The kickoff side puts two players on the ball.

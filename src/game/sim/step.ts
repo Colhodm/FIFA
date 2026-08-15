@@ -170,7 +170,7 @@ export function tick(
 
   if (playersMove(world)) {
     updatePlayers(world, input, cameraYaw, dt);
-    resolveOverlaps(world);
+    resolveOverlaps(world, dt);
   }
 
   if (world.phase === 'restart') updateRestart(world, input, cameraYaw, dt, manager);
@@ -382,6 +382,8 @@ function integrate(
     BASE_SPEED *
     (0.78 + (p.pace / 100) * 0.44) *
     (sprint ? SPRINT_MULTIPLIER : 1) *
+    // Being leant on is heavy: a jostled man cannot run at full tilt.
+    (0.55 + 0.45 * p.balance) *
     staminaFactor *
     (p.shielding ? 0.72 : 1) *
     (p.role === 'GK' ? 0.78 : 1);
@@ -444,6 +446,9 @@ function integrate(
    * Real recovery happens at low intensity. Sprinting costs, running hard costs a little, and
    * anything at a jog or below pays it back.
    */
+  // Balance recovers in space; the drain lives in the jostle inside resolveOverlaps.
+  p.balance = clamp(p.balance + 0.5 * dt, 0, 1);
+
   const endurance = 0.6 + (p.enduranceRating / 100) * 0.6;
   const intensity = clamp(speed / (BASE_SPEED * SPRINT_MULTIPLIER), 0, 1);
   if (sprint && speed > 1) p.stamina -= (STAMINA_DRAIN_SPRINT / endurance) * dt;
@@ -463,8 +468,9 @@ function integrate(
  */
 const SEPARATION = PLAYER_RADIUS * 2.5;
 
-function resolveOverlaps(world: SimWorld): void {
+function resolveOverlaps(world: SimWorld, dt: number): void {
   const min = SEPARATION;
+  const ball = ballPos2(world);
   const players = world.players.filter((p) => !p.sentOff);
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < players.length; i++) {
@@ -485,6 +491,22 @@ function resolveOverlaps(world: SimWorld): void {
         a.pos.z -= nz * push * share;
         b.pos.x += nx * push * (1 - share);
         b.pos.z += nz * push * (1 - share);
+        /*
+         * The jostle. Opponents leaning on each other near the ball drain balance from the
+         * weaker man — the physical differential sets the rate, shielding blunts it. This is
+         * the contact channel: it does not knock anyone over, it makes the pressed man slower
+         * and sloppier until he is genuinely muscled off the ball.
+         */
+        if (pass === 0 && a.side !== b.side && dt > 0) {
+          const nearBall = dist(a.pos, ball) < 3 || dist(b.pos, ball) < 3;
+          if (nearBall) {
+            const edge = (b.physical - a.physical) / 60;
+            const drainA = Math.max(0.12, 0.55 + edge) * (a.shielding ? 0.55 : 1);
+            const drainB = Math.max(0.12, 0.55 - edge) * (b.shielding ? 0.55 : 1);
+            a.balance = clamp(a.balance - drainA * dt, 0, 1);
+            b.balance = clamp(b.balance - drainB * dt, 0, 1);
+          }
+        }
       }
     }
   }
@@ -913,7 +935,9 @@ function dribbleTouch(
    * how sharply he is trying to turn the ball, and all but vanishes for an elite carrier.
    */
   const sharpness = clamp(cutTurn / Math.PI, 0, 1);
-  const spread = (1 - skill) * 0.3 * (0.35 + speed / 11) * (1 + sharpness * 1.1);
+  // A man being leant on plays heavier touches: the jostle feeds straight into ball control.
+  const duress = 1 + (1 - holder.balance) * 1.4;
+  const spread = (1 - skill) * 0.3 * (0.35 + speed / 11) * (1 + sharpness * 1.1) * duress;
   const wobble = (world.rand() + world.rand() - 1) * spread;
   const cw = Math.cos(wobble);
   const sw = Math.sin(wobble);
@@ -983,7 +1007,7 @@ function classifyShot(world: SimWorld, p: SimPlayer): ShotTake {
   const speed = Math.hypot(p.vel.x, p.vel.z);
   const heading = { x: Math.sin(p.heading), z: Math.cos(p.heading) };
   const across = speed > 0.5 ? (p.vel.x * heading.x + p.vel.z * heading.z) / speed : 1;
-  if (nearestOpponentDistance(world, p) < 1.1) return { kind: 'contact', ballY };
+  if (p.balance < 0.5 || nearestOpponentDistance(world, p) < 1.1) return { kind: 'contact', ballY };
   if (ballY > 0.35) return { kind: 'volley', ballY };
   if (relBall > 5) return { kind: 'first-time', ballY };
   if (across < 0.55 || speed > BASE_SPEED * SPRINT_MULTIPLIER * 0.88) {
@@ -1007,7 +1031,21 @@ function headerIntent(world: SimWorld, input: InputFrame, cameraYaw: number): He
   const wants = a.shoot.pressed || a.pass.pressed || a.cross.pressed || a.through.pressed;
   if (!wants) return null;
   if (dist(active.pos, ballPos2(world)) > 2) return null;
-  return { playerId: active.id, dir: aimOf(active, input, cameraYaw), attacking: a.shoot.pressed };
+  /*
+   * Grade the press against the ball's arrival. Perfect is meeting it: roughly 1.3m away at
+   * head height and closing. Early or late presses still jump, but the contact is a glance —
+   * this is what makes attacking a cross a timing skill rather than a button.
+   */
+  const gap = dist(active.pos, ballPos2(world));
+  const tdist = 1 - clamp(Math.abs(gap - 1.3) / 1.0, 0, 1);
+  const ty = 1 - clamp(Math.abs(world.ball.pos.y - 1.9) / 0.9, 0, 1);
+  const timing = clamp(0.15 + 0.85 * tdist * ty, 0, 1);
+  return {
+    playerId: active.id,
+    dir: aimOf(active, input, cameraYaw),
+    attacking: a.shoot.pressed,
+    timing,
+  };
 }
 
 /** Set pieces: the taker holds the ball until he plays it, and the phase ends on contact. */

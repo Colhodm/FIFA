@@ -53,6 +53,12 @@ export interface HeaderIntent {
   dir: Vec2;
   /** True when the human asked for a header at goal rather than a clearance. */
   attacking: boolean;
+  /**
+   * How well the press was timed against the ball's arrival, 0..1. A perfectly met cross wins
+   * duels above the jumper's weight and goes where he aimed it; a mistimed one is a glance.
+   * Before this existed any press within two metres produced the identical header.
+   */
+  timing: number;
 }
 
 /**
@@ -78,7 +84,9 @@ export function resolveAerials(world: SimWorld, intent: HeaderIntent | null): bo
       p.defending * 0.2 +
       p.shooting * 0.1 +
       world.rand() * 30 +
-      (intent && intent.playerId === p.id ? 25 : 0);
+      // Timing beats size: a perfectly met ball out-jumps a stronger man; a mistimed press
+      // barely counts for more than being there.
+      (intent && intent.playerId === p.id ? 8 + 34 * intent.timing : 0);
     if (score > bestScore) {
       bestScore = score;
       winner = p;
@@ -95,16 +103,25 @@ export function resolveAerials(world: SimWorld, intent: HeaderIntent | null): bo
   const own = ownGoalCenter(world, winner.side);
   const toGoal = dist(winner.pos, goal);
   const onTheAttack = intent ? intent.attacking : toGoal < 20;
-  const power = 8 + (winner.physical / 100) * 6 + (onTheAttack ? winner.shooting / 25 : 0);
+  // A timed header takes the pace; a glance takes what it is given. AI headers are treated as
+  // adequately timed rather than perfect.
+  const timing = intent && intent.playerId === winner.id ? intent.timing : 0.55;
+  const power =
+    (8 + (winner.physical / 100) * 6 + (onTheAttack ? winner.shooting / 25 : 0)) *
+    (0.72 + 0.42 * timing);
 
   if (onTheAttack) {
+    // A mistimed header sprays: the glance keeps the direction only loosely.
+    const scatter = (world.rand() * 2 - 1) * (1 - timing) * 3.2;
     const aim = {
       x: goal.x,
-      z: clamp(
-        (world.rand() * 2 - 1) * (HALF_GOAL_WIDTH - 0.4) * (0.4 + winner.shooting / 200),
-        -HALF_GOAL_WIDTH + 0.3,
-        HALF_GOAL_WIDTH - 0.3,
-      ),
+      z:
+        scatter +
+        clamp(
+          (world.rand() * 2 - 1) * (HALF_GOAL_WIDTH - 0.4) * (0.4 + winner.shooting / 200),
+          -HALF_GOAL_WIDTH + 0.3,
+          HALF_GOAL_WIDTH - 0.3,
+        ),
     };
     const dir =
       intent && Math.hypot(intent.dir.x, intent.dir.z) > 0.3 ? intent.dir : sub(aim, winner.pos);
