@@ -17,6 +17,8 @@ export const isAerial = (world: SimWorld): boolean =>
 
 /** Gravity for jumping players, plus the countdown on animation and dive states. */
 export function updateBodies(world: SimWorld, dt: number): void {
+  // Wind-up is re-asserted each tick by whoever is charging; everyone else stands unwound.
+  for (const p of world.players) p.windup = 0;
   for (const p of world.players) {
     if (p.height > 0 || p.verticalVel !== 0) {
       p.verticalVel -= GRAVITY * dt;

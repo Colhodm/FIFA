@@ -105,6 +105,12 @@ export interface SimPlayer {
   skillTimer: number;
   /** Seconds until this carrier's next touch on the ball. See the touch scheduler in step.ts. */
   touchTimer: number;
+  /**
+   * Live backswing while a strike is being charged, 0..1. The charge *is* the wind-up: holding
+   * the button is when a footballer plants and draws the leg back, and until this existed the
+   * body just jogged through the charge and the ball exploded off an unwound leg.
+   */
+  windup: number;
   /** Seconds a keeper holds the ball before distributing it. */
   holdTimer: number;
   tally: PlayerTally;
@@ -403,6 +409,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         diveTargetZ: 0,
         skillTimer: 0,
         touchTimer: 0,
+        windup: 0,
         holdTimer: 0,
         tally: emptyTally(),
       });
