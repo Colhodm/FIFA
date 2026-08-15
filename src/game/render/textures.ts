@@ -237,6 +237,10 @@ export function hoardingTexture(): CanvasTexture {
      * on screen and made every wide shot look like a toy.
      */
     const sponsors = [
+      // Title sponsor: this was built by Devin, so Cognition takes the naming rights and appears
+      // more often around the ground than anybody else.
+      ['#0a0f1a', '#7dd3fc', 'COGNITION'],
+      ['#0a0f1a', '#7dd3fc', 'COGNITION  ·  DEVIN'],
       ['#101826', '#5eead4', 'NORTHWIND'],
       ['#0c1220', '#93c5fd', 'ORBIT BANK'],
       ['#1a1013', '#fca5a5', 'RED KETTLE'],
@@ -245,6 +249,7 @@ export function hoardingTexture(): CanvasTexture {
       ['#0b1418', '#67e8f9', 'BLUE HARBOUR'],
       ['#0d1710', '#86efac', 'GREENLINE'],
       ['#140f1c', '#d8b4fe', 'AURORA AIR'],
+      ['#0a0f1a', '#7dd3fc', 'COGNITION'],
     ] as const;
     const panel = width / sponsors.length;
     sponsors.forEach(([base, ink, name], i) => {
@@ -264,6 +269,26 @@ export function hoardingTexture(): CanvasTexture {
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.fillRect(i * panel, 0, 3, height);
     });
+    const texture = colorTexture(ctx);
+    texture.wrapS = RepeatWrapping;
+    return texture;
+  });
+}
+
+/** The title sponsor's name across the stand facade: COGNITION, in lights. */
+export function facadeTexture(): CanvasTexture {
+  return cached('facade', () => {
+    const width = 2048;
+    const height = 128;
+    const ctx = canvas2d(width, height);
+    ctx.fillStyle = '#0a0f1a';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = `bold ${Math.round(height * 0.6)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = '14px';
+    ctx.fillText('COGNITION', width * 0.5, height * 0.5);
     const texture = colorTexture(ctx);
     texture.wrapS = RepeatWrapping;
     return texture;

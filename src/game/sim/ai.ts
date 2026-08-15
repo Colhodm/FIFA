@@ -25,6 +25,9 @@ import { slotToPitch, type DifficultyProfile, type SimPlayer, type SimWorld } fr
 
 const EDGE = 1.5;
 
+/** The retreat the laws require at a free kick or corner. */
+const TEN_YARDS = 9.15;
+
 const clampToPitch = (p: Vec2): Vec2 => ({
   x: clamp(p.x, -HALF_LENGTH + EDGE, HALF_LENGTH - EDGE),
   z: clamp(p.z, -HALF_WIDTH + EDGE, HALF_WIDTH - EDGE),
@@ -211,6 +214,31 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
     (recovering && p.stamina > 0.12) || (p.stamina > 0.25 && world.rand() < profile.sprintBias);
 
   if (!teamHasBall) {
+    /*
+     * Ten yards. At a free kick or a corner the defending side has to retreat 9.15m from the
+     * ball, and none of that was modelled — defenders simply stood wherever they happened to be,
+     * often right on top of the ball.
+     */
+    const set = world.restart;
+    if (set && set.side !== p.side && (set.kind === 'free-kick' || set.kind === 'corner')) {
+      const fromBall = dist(p.pos, ball);
+      if (fromBall < TEN_YARDS) {
+        const outward =
+          fromBall < 0.01
+            ? { x: 1, z: 0 }
+            : { x: (p.pos.x - ball.x) / fromBall, z: (p.pos.z - ball.z) / fromBall };
+        setIntent(
+          p,
+          clampToPitch({
+            x: ball.x + outward.x * (TEN_YARDS + 0.5),
+            z: ball.z + outward.z * (TEN_YARDS + 0.5),
+          }),
+          false,
+        );
+        return;
+      }
+    }
+
     /*
      * Kickoff: stay out of the centre circle until they have played it. Without this the whistle
      * went and the opposition simply charged the spot and took the ball off you.

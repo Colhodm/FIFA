@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SURFACE_LENGTH, SURFACE_WIDTH } from './pitchTexture';
-import { hoardingTexture, seatTexture } from './textures';
+import { facadeTexture, hoardingTexture, seatTexture } from './textures';
 import { mulberry32 } from '../sim/math';
 
 /** Inner edge of the bowl, just outside the run-off. */
@@ -77,6 +77,7 @@ function Deck({ side, tier, primary, accent }: { side: Side; tier: TierSpec } & 
   const midY = tier.base + tier.rise / 2;
   const length = span(side) * 2;
   const bottom = tier.inset > 0 ? FASCIA_BOTTOM : 0;
+  const facade = facadeTexture();
   // Yaw that turns the stand's local +Z into the direction of the pitch.
   const yaw = side.axis === 'x' ? -side.sign * (Math.PI / 2) : side.sign > 0 ? Math.PI : 0;
 
@@ -98,14 +99,15 @@ function Deck({ side, tier, primary, accent }: { side: Side; tier: TierSpec } & 
       {bottom > 0 && (
         <>
           {/* Hospitality boxes: a lit glass ribbon splits the two decks. */}
+          {/* The title sponsor's name runs the length of every stand. */}
           <mesh position={[0, bottom + (tier.base - bottom) * 0.55, -inner + 0.4]}>
             <boxGeometry args={[length - 2, 1.9, 0.3]} />
             <meshStandardMaterial
-              color="#111a2b"
-              emissive="#e8c98a"
-              emissiveIntensity={0.18}
-              roughness={0.2}
-              metalness={0.5}
+              map={facade}
+              emissive="#38bdf8"
+              emissiveIntensity={0.35}
+              roughness={0.35}
+              metalness={0.2}
             />
           </mesh>
           <mesh position={[0, tier.base - 0.35, -inner + 0.45]}>

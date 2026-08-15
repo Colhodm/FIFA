@@ -687,6 +687,48 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Ten yards. The laws make the defending side retreat 9.15m at a free kick or a corner; none of
+ * it was modelled, so defenders stood wherever they happened to be, often on top of the ball.
+ */
+function checkTenYards(): void {
+  for (const kind of ['free-kick', 'corner'] as const) {
+    let encroaching = 0;
+    let samples = 0;
+    for (let seed = 0; seed < 8; seed++) {
+      const world = newWorld(seed * 61 + 5);
+      const dir = world.attackDir.home;
+      const spot =
+        kind === 'corner'
+          ? { x: (HALF_LENGTH - 0.4) * dir, z: HALF_WIDTH - 0.4 }
+          : { x: 20 * dir, z: 6 };
+      world.phase = 'restart';
+      world.restart = { kind, side: 'home', spot, autoTake: 3, takerId: null };
+      world.ball.pos = { x: spot.x, y: BALL_RADIUS, z: spot.z };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = null;
+
+      const mgr = manager();
+      // Give them a moment to back off, as they would while the referee walks it out.
+      for (let i = 0; i < 90; i++) {
+        const before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        if (world.phase !== 'restart') break;
+      }
+      for (const p of world.players) {
+        if (p.side === 'home' || p.role === 'GK' || p.sentOff) continue;
+        samples++;
+        if (Math.hypot(p.pos.x - spot.x, p.pos.z - spot.z) < 8.4) encroaching++;
+      }
+    }
+    const pct = Math.round((encroaching / Math.max(1, samples)) * 100);
+    console.log(`${kind}: ${pct}% of defenders still inside ten yards`);
+    if (pct > 20) throw new Error(`${pct}% of defenders encroach at a ${kind}`);
+  }
+}
+
+/**
  * Driven, finesse and chip must be three genuinely different shots. The chip in particular was
  * broken: the solver had been forced onto the low arc to stop it lobbing ordinary shots, but a
  * chip is *defined* by looping the keeper, so it came out as a flat drive at waist height.
@@ -1436,6 +1478,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkTenYards();
 checkShotStyles();
 checkStaminaRecovery();
 checkBodyFeints();
