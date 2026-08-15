@@ -1054,6 +1054,18 @@ function handleHumanActions(
    */
   const r1 = a.modR1.down || a.modR1.released;
   const l1 = a.modL1.down || a.modL1.released;
+  /*
+   * The backswing. Charging a strike draws the leg back in proportion to the hold, so the
+   * follow-through clip that fires on release completes a motion instead of starting one.
+   * Shots wind up fully; a cross is a swung delivery too; a pass is a short push and gets less.
+   */
+  if (world.controllerId === active.id) {
+    active.windup = Math.max(
+      a.shoot.down ? clamp(a.shoot.heldTime / 1.2, 0, 1) : 0,
+      a.cross.down ? clamp(a.cross.heldTime / 1.0, 0, 1) * 0.85 : 0,
+      a.pass.down ? clamp(a.pass.heldTime / 1.0, 0, 1) * 0.45 : 0,
+    );
+  }
   const attacking = manager.contextForPress() === 'ATTACK';
 
   // An uninterruptible animation swallows the press; buffer it and play it when he is free.

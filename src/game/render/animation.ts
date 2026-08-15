@@ -69,6 +69,27 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   // 0 at the start of the clip, 1 at the end.
   const t = length > 0 ? clamp01(1 - player.animTimer / length) : 0;
 
+  /*
+   * The backswing. While a strike is charging the kicking leg draws back and folds, the hips
+   * close, and the body sinks into the plant — so the follow-through that fires on release
+   * completes a swing instead of erupting from a jogging pose. Layered over a damped run cycle
+   * because players do charge on the move; suppressed the moment a strike clip is playing.
+   */
+  const windup = player.animTimer > 0 ? 0 : player.windup;
+  if (windup > 0.03) {
+    const w = windup;
+    const damp = 1 - w * 0.75;
+    legL = swing * damp - 0.16 * w;
+    legR = -swing * damp + 0.6 * w;
+    shinR = shinR * damp + 0.95 * w;
+    shinL = shinL * damp + 0.1 * w;
+    armL = -swing * 0.7 * damp - 0.4 * w;
+    armR = swing * 0.7 * damp + 0.55 * w;
+    twist = 0.42 * w;
+    lean = lean * damp + 0.05 * w;
+    bob = bob * damp - 0.04 * w;
+  }
+
   switch (player.anim) {
     /*
      * The ball leaves the boot on the very first frame of these clips, so they are
