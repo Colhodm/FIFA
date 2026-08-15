@@ -19,6 +19,8 @@ export type AnimState =
   | 'dive'
   | 'jump'
   | 'skill'
+  | 'feint'
+  | 'throw'
   | 'celebrate'
   | 'down';
 
@@ -92,6 +94,8 @@ export interface SimPlayer {
   offside: boolean;
   /** Seconds a skill move keeps the player committed (and a beaten defender off balance). */
   skillTimer: number;
+  /** Seconds until this carrier's next touch on the ball. See the touch scheduler in step.ts. */
+  touchTimer: number;
   /** Seconds a keeper holds the ball before distributing it. */
   holdTimer: number;
   tally: PlayerTally;
@@ -138,6 +142,8 @@ export type SimEventType =
   | 'save'
   | 'tackle'
   | 'skill'
+  | 'feint'
+  | 'throw'
   | 'foul'
   | 'card'
   | 'offside'
@@ -246,6 +252,8 @@ export interface SwitchState {
   sincePress: number;
   /** Seconds since a manual switch, during which auto-switch defers to the player. */
   sinceManual: number;
+  /** Seconds since the defensive re-evaluation last ran. */
+  sinceAuto: number;
 }
 
 export interface SimWorld {
@@ -279,9 +287,23 @@ export interface SimWorld {
    * is never the intended receiver — so defenders, who do attack the ball, win most of them.
    */
   passTarget: { playerId: number; spot: Vec2 } | null;
+  /** Seconds since the ball was last struck. Defenders may not react inside their own latency. */
+  shotAge: number;
   /** Player id the human is currently controlling. */
   activeId: number;
   kickoffSide: TeamSide;
+  /**
+   * True from the kickoff whistle until the ball is genuinely in play. Opponents must stay out
+   * of the centre circle and cannot take the ball off you before you have played it.
+   */
+  kickoffProtected: boolean;
+  /** The human is holding the rush command: his keeper comes off his line to close the ball. */
+  keeperRush: boolean;
+  /**
+   * A cross is in the air and control is queued to pass to this man — but not until the ball is
+   * nearly on him, so the player watches the flight and times the header himself.
+   */
+  pendingSwitch: number | null;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -363,6 +385,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         offside: false,
         diveTargetZ: 0,
         skillTimer: 0,
+        touchTimer: 0,
         holdTimer: 0,
         tally: emptyTally(),
       });
@@ -372,7 +395,13 @@ export function createWorld(config: MatchConfig): SimWorld {
   const world: SimWorld = {
     config,
     tuning: config.tuning ?? DEFAULT_TUNING,
-    switching: { ranking: [], cursor: 0, sincePress: Infinity, sinceManual: Infinity },
+    switching: {
+      ranking: [],
+      cursor: 0,
+      sincePress: Infinity,
+      sinceManual: Infinity,
+      sinceAuto: 0,
+    },
     players,
     ball: {
       pos: { x: 0, y: BALL_RADIUS, z: 0 },
@@ -394,8 +423,12 @@ export function createWorld(config: MatchConfig): SimWorld {
     lastScorerId: null,
     controllerId: null,
     passTarget: null,
+    shotAge: 99,
     activeId: 0,
     kickoffSide: config.humanSide,
+    kickoffProtected: false,
+    keeperRush: false,
+    pendingSwitch: null,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },
@@ -414,6 +447,22 @@ export function createWorld(config: MatchConfig): SimWorld {
 
 /** Places both teams in their formation shape for a kickoff and centres the ball. */
 export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
+  /*
+   * Hand the human a sensible player. `activeId` starts at 0, and the Premier League rosters
+   * list the goalkeeper first — so every kickoff put you in control of Alisson, forty metres
+   * from the ball, and the auto-switcher took seconds to rescue you. Nearest outfield man to
+   * the centre spot instead.
+   */
+  const human = world.config.humanSide;
+  const active = world.players.find((q) => q.id === world.activeId);
+  const outfield = world.players
+    .filter((q) => q.side === human && q.role !== 'GK' && !q.sentOff)
+    .sort((a, b) => Math.hypot(a.pos.x, a.pos.z) - Math.hypot(b.pos.x, b.pos.z));
+  if ((!active || active.role === 'GK' || active.side !== human) && outfield[0]) {
+    world.activeId = outfield[0].id;
+  }
+  // Opponents may not challenge until the ball has been played. See `kickoffProtected`.
+  world.kickoffProtected = true;
   world.kickoffSide = kickoffSide;
   world.phase = 'kickoff';
   world.phaseTimer = 2;

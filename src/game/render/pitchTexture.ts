@@ -40,15 +40,17 @@ export function createPitchTexture(resolution = 2048): CanvasTexture {
 
   // Mown stripes across the length of the pitch. Each one is a gradient rather than a flat
   // band, because a roller leaves the grass leaning away from you and it catches the light.
-  const stripes = 14;
+  // Real mowing stripes are narrow. Fourteen bands across a 105 m pitch made 7.5 m monsters.
+  const stripes = 26;
   const stripeWidth = (HALF_LENGTH * 2) / stripes;
   for (let i = 0; i < stripes; i++) {
     const x0 = toX(-HALF_LENGTH + i * stripeWidth);
     const band = ctx.createLinearGradient(x0, 0, x0 + stripeWidth * px, 0);
     const light = i % 2 === 0;
-    band.addColorStop(0, light ? '#34773a' : '#255a2b');
-    band.addColorStop(0.5, light ? '#3c8942' : '#205024');
-    band.addColorStop(1, light ? '#34773a' : '#255a2b');
+    // Much less contrast between bands, and a deeper, less acidic green.
+    band.addColorStop(0, light ? '#2f6b34' : '#285c2d');
+    band.addColorStop(0.5, light ? '#33753a' : '#245428');
+    band.addColorStop(1, light ? '#2f6b34' : '#285c2d');
     ctx.fillStyle = band;
     ctx.fillRect(x0, toZ(-HALF_WIDTH), stripeWidth * px + 1, HALF_WIDTH * 2 * px);
   }

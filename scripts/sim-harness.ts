@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   BALL_MASS,
   BALL_RADIUS,
+  CENTER_CIRCLE_RADIUS,
   HALF_LENGTH,
   HALF_WIDTH,
   PENALTY_BOX_DEPTH,
@@ -21,6 +22,7 @@ import { applyKick } from '../src/game/sim/kick';
 import { awardFoul, book, flagOffsides, whistleOffside } from '../src/game/sim/rules';
 import { performSkill } from '../src/game/sim/skills';
 import {
+  resetToKickoff,
   createWorld,
   matchRating,
   snapshot,
@@ -256,6 +258,8 @@ interface ControlCase {
   lofted?: boolean;
   /** Normalised 0..1 hold. Defaults to a half charge. */
   charge?: number;
+  /** Where the striker stands, in attacking coordinates. Shots need a shooting position. */
+  fromX?: number;
 }
 
 const CONTROL_CASES: ControlCase[] = [
@@ -266,8 +270,9 @@ const CONTROL_CASES: ControlCase[] = [
   { name: 'lobbed through ball', action: 'through', mods: ['modL1'], minSpeed: 8, lofted: true },
   { name: 'cross', action: 'cross', minSpeed: 10, lofted: true },
   { name: 'driven cross', action: 'cross', mods: ['modR1'], minSpeed: 12, lofted: true },
-  { name: 'shot', action: 'shoot', minSpeed: 14 },
-  { name: 'chip shot', action: 'shoot', mods: ['modL1'], minSpeed: 8, lofted: true },
+  // From a real shooting position: a shot from the halfway line has to be lofted to reach.
+  { name: 'shot', action: 'shoot', minSpeed: 14, charge: 1, fromX: 34 },
+  { name: 'chip shot', action: 'shoot', mods: ['modL1'], minSpeed: 8, lofted: true, fromX: 34 },
 ];
 
 /**
@@ -290,7 +295,7 @@ function checkHumanControls(): void {
     world.phase = 'in-play';
     const active = world.players.find((p) => p.id === world.activeId);
     if (!active) throw new Error('no active player');
-    active.pos = { x: -6, z: 0 };
+    active.pos = { x: test.fromX ?? -6, z: 0 };
     active.heading = Math.PI / 2;
     world.ball.pos = { x: active.pos.x + 0.4, y: BALL_RADIUS, z: active.pos.z };
     world.ball.vel = { x: 0, y: 0, z: 0 };
@@ -325,7 +330,10 @@ function checkHumanControls(): void {
     if (test.lofted && vy < 2) {
       throw new Error(`${test.name}: expected loft, got vy ${vy.toFixed(1)}`);
     }
-    if (!test.lofted && vy > 2.5) {
+    // A shot now flies a solved arc rather than skidding along the grass, so it has to be
+    // launched high enough to beat the drop over its flight. Passes stay genuinely flat.
+    const lowBallLimit = test.action === 'shoot' ? 6.5 : 2.5;
+    if (!test.lofted && vy > lowBallLimit) {
       throw new Error(`${test.name}: expected a low ball, got vy ${vy.toFixed(1)}`);
     }
   }
@@ -418,6 +426,10 @@ function checkPassPower(): void {
  */
 function checkPassCompletion(): void {
   let completed = 0;
+  let open = 0;
+  let contested = 0;
+  let openDone = 0;
+  let contestedDone = 0;
   let total = 0;
   for (const gap of [8, 15, 22, 30]) {
     for (const charge of [0.4, 0.7, 1]) {
@@ -443,7 +455,17 @@ function checkPassCompletion(): void {
         me.kickCooldown = 0;
         mate.pos = { x: gap * dir, z: 0 };
         mate.vel = { x: 0, z: 0 };
-        marker.pos = { x: gap * dir, z: 4 };
+        /*
+         * Half the trials put the marker squarely in the passing lane rather than four metres
+         * off it. With him only ever beside the receiver this was an unopposed drill, so it
+         * scored ~99% no matter how good or bad interception was — the completion figure was
+         * really measuring whether passes were correctly weighted, not whether they could be
+         * cut out.
+         */
+        const inLane = s % 2 === 1;
+        if (inLane) contested++;
+        else open++;
+        marker.pos = inLane ? { x: gap * dir * 0.55, z: 0.9 } : { x: gap * dir, z: 4 };
         marker.vel = { x: 0, z: 0 };
         world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
         world.ball.vel = { x: 0, y: 0, z: 0 };
@@ -466,7 +488,11 @@ function checkPassCompletion(): void {
           world.events.length = 0;
           const holder = world.players.find((p) => p.id === world.controllerId);
           if (holder && holder.id !== me.id) {
-            if (holder.side === 'home') completed++;
+            if (holder.side === 'home') {
+              completed++;
+              if (inLane) contestedDone++;
+              else openDone++;
+            }
             break;
           }
           if (world.phase !== 'in-play') break;
@@ -475,10 +501,23 @@ function checkPassCompletion(): void {
     }
   }
   const pct = Math.round((completed / total) * 100);
-  if (pct < 80) {
-    throw new Error(`pass completion is only ${pct}% across ${total} passes, expected >= 80%`);
+  const openPct = Math.round((openDone / Math.max(1, open)) * 100);
+  const contestedPct = Math.round((contestedDone / Math.max(1, contested)) * 100);
+  console.log(
+    `pass completion: ${openPct}% with a clear lane, ${contestedPct}% through a defender ` +
+      `(${pct}% overall of ${total})`,
+  );
+  // Two different things, and averaging them hides both. A clear lane should nearly always find
+  // its man now that passes are weighted to arrive; a ball played straight through a defender
+  // should usually not.
+  if (openPct < 85) throw new Error(`only ${openPct}% completed with a clear lane`);
+  if (contestedPct > 45) {
+    throw new Error(`${contestedPct}% completed straight through a defender — not interceptable`);
   }
-  console.log(`pass completion check passed (${pct}% of ${total} passes found a team-mate)`);
+  // Real completion from open play is 70-85%. The old floor of 80% with no ceiling quietly
+  // enshrined a bug: completion had reached 100% because opponents could not physically touch a
+  // firm pass, and a test that only checks for "high enough" will never catch that.
+  console.log('pass completion check passed');
 }
 
 /**
@@ -543,6 +582,714 @@ function checkSwitchOnPass(): void {
   console.log(
     `switch-on-pass check passed (${followed}/${received} passes handed you the receiver)`,
   );
+}
+
+/**
+ * Block rate telemetry. Real block rates on shots from open play run about 25-30%; much higher
+ * than that means defenders are reading the trajectory with superhuman latency, or are packed
+ * into the shooting lane, and shots stop feeling earned. This measures it instead of arguing.
+ */
+function checkBlockRate(): void {
+  let shots = 0;
+  let blocked = 0;
+  let reboundRatio = 0;
+  let intercepted = 0;
+  const fell: Record<string, number> = { attacker: 0, defender: 0, outOfPlay: 0, nobody: 0 };
+
+  for (let s = 0; s < 40; s++) {
+    const world = newWorld(s * 29 + 11);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const dir = world.attackDir.home;
+    const me = world.players.find((p) => p.id === world.activeId);
+    if (!me) throw new Error('no shooter');
+    me.pos = { x: (52.5 - 17) * dir, z: (s % 7) - 3 };
+    me.vel = { x: 0, z: 0 };
+    me.kickCooldown = 0;
+    world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: me.pos.z };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = me.id;
+    world.possession = 'home';
+    world.commands.length = 0;
+
+    const mgr = manager();
+    const actions = idleActions();
+    actions.shoot = { ...actions.shoot, released: true, fired: true, charge: 1, heldTime: 1.2 };
+    let before = { ...world.ball.vel };
+    tick(world, { move: { x: -dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+    stepBall(world, TICK_DT, before);
+    world.events.length = 0;
+    shots++;
+    const struckAt = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+
+    let wasBlocked = false;
+    let reboundSpeed = 0;
+    let settled = 'nobody';
+    for (let i = 0; i < 60 * 4; i++) {
+      before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      const t = world.lastTouch;
+      // Only contacts while the ball is still travelling at shot pace count. Without this the
+      // metric drifts into "a defender eventually picked the ball up", which is neither a block
+      // nor an interception of the shot.
+      const live = world.shotAge < 1.2 && Math.hypot(world.ball.vel.x, world.ball.vel.z) > 12;
+      if (!wasBlocked && live && t && t.side === 'away') {
+        const man = world.players.find((p) => p.id === t.playerId);
+        // A defender who *controls* the ball has intercepted it, not blocked it. Counting those
+        // as blocks inflated the rate and dragged the measured rebound pace towards zero, because
+        // a controlled ball is by definition stopped.
+        if (man && man.role !== 'GK' && world.controllerId !== man.id) {
+          wasBlocked = true;
+          blocked++;
+          reboundSpeed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+        } else if (man && man.role !== 'GK') {
+          intercepted++;
+          break;
+        }
+      }
+      if (wasBlocked) {
+        // Who ends up with the rebound?
+        if (world.phase !== 'in-play') {
+          settled = 'outOfPlay';
+          break;
+        }
+        const owner = world.players.find((p) => p.id === world.controllerId);
+        if (owner && owner.id !== t?.playerId) {
+          settled = owner.side === 'home' ? 'attacker' : 'defender';
+          break;
+        }
+      } else if (world.phase !== 'in-play') {
+        break;
+      }
+    }
+    if (wasBlocked) {
+      reboundRatio += struckAt > 0 ? reboundSpeed / struckAt : 0;
+      fell[settled] += 1;
+    }
+  }
+
+  const pct = Math.round((blocked / shots) * 100);
+  const pace = blocked ? Math.round((reboundRatio / blocked) * 100) : 0;
+  console.log(
+    `block rate: ${pct}% of ${shots} shots from the edge of the box (real: 25-30%)\n` +
+      `  ${intercepted} intercepted cleanly | rebound keeps ${pace}% of the shot's pace | falls to ` +
+      Object.entries(fell)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(', '),
+  );
+  if (pct > 55) throw new Error(`defenders block ${pct}% of shots, which is not football`);
+  // A block that reliably kills the ball dead is the bug this telemetry exists to catch.
+  if (blocked >= 5 && pace < 12) {
+    throw new Error(`blocked shots retain only ${pace}% of their pace — deflections are dead`);
+  }
+}
+
+/**
+ * A ball that passes wide of the post at pace must not be scored. Goal detection sampled the
+ * ball's instantaneous position, and at a hundred miles an hour it moves three quarters of a
+ * metre per tick — so a shot that went wide could be caught *behind* the line at a moment when
+ * it was within the posts, awarding a phantom goal and dropping the match back to kickoff.
+ */
+function checkPhantomGoals(): void {
+  let phantom = 0;
+  let trials = 0;
+  for (let seed = 0; seed < 24; seed++) {
+    const world = newWorld(seed * 67 + 11);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const dir = world.attackDir.home;
+    // Fired from close range, angled to pass clearly outside the post at full pace.
+    const side = seed % 2 === 0 ? 1 : -1;
+    world.ball.pos = { x: (HALF_LENGTH - 6) * dir, y: 0.4, z: side * 5 };
+    world.ball.vel = { x: 44 * dir, y: 1.5, z: side * 7 };
+    world.controllerId = null;
+    world.lastTouch = { side: 'home', playerId: 0 };
+    const before = { home: world.score.home, away: world.score.away };
+    trials++;
+
+    const mgr = manager();
+    for (let i = 0; i < 60; i++) {
+      const prev = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, prev);
+      world.events.length = 0;
+      if (world.phase !== 'in-play') break;
+    }
+    if (world.score.home !== before.home || world.score.away !== before.away) phantom++;
+  }
+  console.log(`phantom goals: ${phantom}/${trials} shots passing wide were scored`);
+  if (phantom > 0) throw new Error(`${phantom}/${trials} balls passing wide were given as goals`);
+}
+
+/**
+ * Ten yards. The laws make the defending side retreat 9.15m at a free kick or a corner; none of
+ * it was modelled, so defenders stood wherever they happened to be, often on top of the ball.
+ */
+function checkTenYards(): void {
+  for (const kind of ['free-kick', 'corner'] as const) {
+    let encroaching = 0;
+    let samples = 0;
+    for (let seed = 0; seed < 8; seed++) {
+      const world = newWorld(seed * 61 + 5);
+      const dir = world.attackDir.home;
+      const spot =
+        kind === 'corner'
+          ? { x: (HALF_LENGTH - 0.4) * dir, z: HALF_WIDTH - 0.4 }
+          : { x: 20 * dir, z: 6 };
+      world.phase = 'restart';
+      world.restart = { kind, side: 'home', spot, autoTake: 3, takerId: null };
+      world.ball.pos = { x: spot.x, y: BALL_RADIUS, z: spot.z };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = null;
+
+      const mgr = manager();
+      // Give them a moment to back off, as they would while the referee walks it out.
+      for (let i = 0; i < 90; i++) {
+        const before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        if (world.phase !== 'restart') break;
+      }
+      for (const p of world.players) {
+        if (p.side === 'home' || p.role === 'GK' || p.sentOff) continue;
+        samples++;
+        if (Math.hypot(p.pos.x - spot.x, p.pos.z - spot.z) < 8.4) encroaching++;
+      }
+    }
+    const pct = Math.round((encroaching / Math.max(1, samples)) * 100);
+    console.log(`${kind}: ${pct}% of defenders still inside ten yards`);
+    if (pct > 20) throw new Error(`${pct}% of defenders encroach at a ${kind}`);
+  }
+}
+
+/**
+ * Driven, finesse and chip must be three genuinely different shots. The chip in particular was
+ * broken: the solver had been forced onto the low arc to stop it lobbing ordinary shots, but a
+ * chip is *defined* by looping the keeper, so it came out as a flat drive at waist height.
+ */
+function checkShotStyles(): void {
+  const run = (mods: ('modR1' | 'modL1')[]) => {
+    let peakSum = 0;
+    let speedSum = 0;
+    let n = 0;
+    for (let seed = 0; seed < 10; seed++) {
+      const world = newWorld(seed * 59 + 3);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no shooter');
+      me.pos = { x: (52.5 - 18) * dir, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.shoot = { ...actions.shoot, released: true, fired: true, charge: 1, heldTime: 1.2 };
+      for (const m of mods) actions[m] = { ...actions[m], down: true };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      speedSum += Math.hypot(world.ball.vel.x, world.ball.vel.y, world.ball.vel.z);
+      n++;
+
+      let peak = 0;
+      for (let i = 0; i < 60 * 3; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        peak = Math.max(peak, world.ball.pos.y);
+        if (world.phase !== 'in-play') break;
+      }
+      peakSum += peak;
+    }
+    return { peak: +(peakSum / n).toFixed(1), speed: +(speedSum / n).toFixed(1) };
+  };
+
+  const driven = run([]);
+  const finesse = run(['modR1']);
+  const chip = run(['modL1']);
+  console.log(
+    `shot styles: driven ${driven.speed}m/s peak ${driven.peak}m | ` +
+      `finesse ${finesse.speed}m/s peak ${finesse.peak}m | chip ${chip.speed}m/s peak ${chip.peak}m`,
+  );
+  if (finesse.speed >= driven.speed * 0.95) {
+    throw new Error(`finesse (${finesse.speed}) is not slower than driven (${driven.speed})`);
+  }
+  if (chip.peak <= driven.peak * 1.6) {
+    throw new Error(`a chip only reached ${chip.peak}m against a driven shot's ${driven.peak}m`);
+  }
+}
+
+/**
+ * Stamina has to come back. Recovery only happened when a player was standing perfectly still and
+ * *jogging drained it*, so across ninety minutes stamina fell monotonically and anyone who had
+ * sprinted was finished for the rest of the match.
+ */
+function checkStaminaRecovery(): void {
+  const world = newWorld(21);
+  world.phase = 'in-play';
+  const me = world.players.find((p) => p.id === world.activeId);
+  if (!me) throw new Error('no player');
+  const mgr = manager();
+  const drive = (sprint: boolean, seconds: number) => {
+    const actions = idleActions();
+    actions.sprint = { ...actions.sprint, down: sprint };
+    for (let i = 0; i < 60 * seconds; i++) {
+      const before = { ...world.ball.vel };
+      tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    }
+  };
+  // Sprint him into the ground, then jog for a while.
+  drive(true, 25);
+  const drained = +me.stamina.toFixed(2);
+  drive(false, 30);
+  const recovered = +me.stamina.toFixed(2);
+  console.log(`stamina: ${drained} after a 25s sprint, ${recovered} after 30s of jogging`);
+  if (drained > 0.75) throw new Error(`sprinting barely cost anything: ${drained}`);
+  if (recovered <= drained + 0.05) {
+    throw new Error(`stamina did not recover while jogging: ${drained} -> ${recovered}`);
+  }
+}
+
+/**
+ * Body feints must move the *defender* without moving the ball. Every other skill move shoves the
+ * ball a metre or two, so there was no way to sell a direction and keep it under your foot.
+ */
+function checkBodyFeints(): void {
+  let ballMoved = 0;
+  let beaten = 0;
+  let trials = 0;
+  for (const move of ['feint-left', 'feint-right'] as const) {
+    for (let seed = 0; seed < 12; seed++) {
+      const world = newWorld(seed * 53 + 7);
+      world.phase = 'in-play';
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no carrier');
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.dribbling = 85;
+      me.skillTimer = 0;
+      world.ball.pos = { x: 0.4, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+      const foe = world.players.find((p) => p.side === 'away' && p.role !== 'GK');
+      if (!foe) throw new Error('no defender');
+      foe.pos = { x: 2, z: 0 };
+      foe.vel = { x: 4, z: 0 };
+      foe.kickCooldown = 0;
+
+      const from = { x: world.ball.pos.x, z: world.ball.pos.z };
+      const ok = performSkill(world, me, move, { x: 1, z: move === 'feint-right' ? 1 : -1 });
+      if (!ok) throw new Error(`${move} refused`);
+      trials++;
+      // The ball should still be at his feet.
+      const shifted = Math.hypot(world.ball.pos.x - from.x, world.ball.pos.z - from.z);
+      const launched = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+      if (launched > 4) ballMoved++;
+      void shifted;
+      if (foe.kickCooldown > 0.2) beaten++;
+    }
+  }
+  console.log(
+    `body feints: ball left the foot on ${ballMoved}/${trials}, defender wrong-footed ${beaten}/${trials}`,
+  );
+  if (ballMoved > trials * 0.25) {
+    throw new Error(
+      `a body feint launched the ball on ${ballMoved}/${trials} — that is a touch, not a feint`,
+    );
+  }
+  if (beaten < trials * 0.5) {
+    throw new Error(`body feints wrong-footed the defender only ${beaten}/${trials} times`);
+  }
+}
+
+/**
+ * A cross has to be aerial and it has to reach the box even off a short hold. Speed used to come
+ * from hold time and *then* get split into a launch angle, so a light press produced about six
+ * metres per second of horizontal pace and the ball dropped after eight metres.
+ */
+function checkCrossing(): void {
+  const rows: string[] = [];
+  let switched = 0;
+  let crosses = 0;
+  let gapSum = 0;
+  for (const charge of [0.2, 0.6, 1]) {
+    let inBox = 0;
+    let peakSum = 0;
+    let trials = 0;
+    for (let seed = 0; seed < 10; seed++) {
+      const world = newWorld(seed * 47 + 13);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no crosser');
+      // Wide, level with the edge of the box: the classic crossing position.
+      me.pos = { x: (52.5 - 16) * dir, z: 30 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: 30 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+      // Somebody has to be attacking the cross, or it is aimed at whoever happens to be nearest
+      // in the kickoff shape — which is what the first version of this check was measuring.
+      const striker = world.players.find(
+        (q) => q.side === 'home' && q.role === 'FW' && q.id !== me.id,
+      );
+      if (striker) {
+        striker.pos = { x: (52.5 - 10) * dir, z: 1 };
+        striker.vel = { x: 0, z: 0 };
+      }
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.cross = { ...actions.cross, released: true, fired: true, charge, heldTime: charge };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: 0, z: -1 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      trials++;
+      crosses++;
+
+      let peak = 0;
+      let reached = false;
+      let handoverGap = -1;
+      for (let i = 0; i < 60 * 4; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        peak = Math.max(peak, world.ball.pos.y);
+        // Did it get into the box: within 16.5m of goal line and 20m wide.
+        const intoBox =
+          Math.abs(world.ball.pos.x) > 52.5 - PENALTY_BOX_DEPTH && Math.abs(world.ball.pos.z) < 20;
+        if (intoBox) reached = true;
+        if (handoverGap < 0 && world.activeId !== me.id) {
+          const man = world.players.find((q) => q.id === world.activeId);
+          handoverGap = man
+            ? Math.hypot(man.pos.x - world.ball.pos.x, man.pos.z - world.ball.pos.z)
+            : -1;
+        }
+        if (world.phase !== 'in-play') break;
+      }
+      if (handoverGap >= 0) {
+        switched++;
+        gapSum += handoverGap;
+      }
+      peakSum += peak;
+      if (reached) inBox++;
+    }
+    const pct = Math.round((inBox / trials) * 100);
+    const peak = +(peakSum / trials).toFixed(1);
+    rows.push(`${Math.round(charge * 100)}% -> ${pct}% into the box, peak ${peak}m`);
+    if (charge >= 0.2 && pct < 60) {
+      throw new Error(
+        `a ${Math.round(charge * 100)}% cross reached the box only ${pct}% of the time`,
+      );
+    }
+    if (peak < 1.5) throw new Error(`crosses are not aerial: peak height ${peak}m`);
+  }
+  console.log(`crossing: ${rows.join(' | ')}`);
+  const meanGap = switched ? +(gapSum / switched).toFixed(1) : 0;
+  console.log(
+    `  control handed over on ${switched}/${crosses} crosses, ball ${meanGap}m away at handover`,
+  );
+  // Handing over at the moment of the strike teleports the player into the box with the cross
+  // already on him. It has to arrive with the ball in flight and still a beat to attack it.
+  if (switched && meanGap > 14) {
+    throw new Error(`handover happened ${meanGap}m out — too early to read the flight`);
+  }
+  if (switched && meanGap < 2) throw new Error(`handover at ${meanGap}m leaves no time to react`);
+  // Standing on the wing watching it drop is not playing football.
+  if (switched < crosses * 0.8) {
+    throw new Error(`control stayed with the crosser on ${crosses - switched}/${crosses} crosses`);
+  }
+}
+
+/**
+ * Nobody may take the ball off you at kickoff. The laws give the kicking side the ball until it
+ * is played; this was not modelled at all — the whistle went and the opposition charged the spot.
+ */
+function checkKickoffProtection(): void {
+  let stolen = 0;
+  let intruded = 0;
+  for (let seed = 0; seed < 10; seed++) {
+    const world = newWorld(seed * 41 + 9);
+    resetToKickoff(world, 'home');
+    world.phase = 'in-play';
+    const mgr = manager();
+    // Stand there and do nothing for a second and a half: the ball must still be ours.
+    for (let i = 0; i < 90; i++) {
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      // Only while the kickoff is actually protected. Once it has been played the opposition are
+      // entitled to win the ball, and counting those frames made this assert normal football.
+      const holder = world.players.find((p) => p.id === world.controllerId);
+      if (world.kickoffProtected && holder && holder.side === 'away') stolen++;
+      if (
+        world.kickoffProtected &&
+        world.players.some(
+          (p) => p.side === 'away' && Math.hypot(p.pos.x, p.pos.z) < CENTER_CIRCLE_RADIUS - 0.5,
+        )
+      ) {
+        intruded++;
+      }
+    }
+  }
+  console.log(
+    `kickoff: ball stolen on ${stolen} frames, opponents inside the circle on ${intruded}`,
+  );
+  if (stolen > 0) throw new Error(`the opposition took the ball at kickoff on ${stolen} frames`);
+}
+
+/**
+ * A striker breaking in behind must be tracked. Marking used to pick whoever was *nearest* and
+ * aim at his current position, so a centre-half would follow a midfielder drifting past him while
+ * a striker ran through, and even when he did pick the right man he trailed him permanently.
+ */
+function checkRunnerMarking(): void {
+  let tracked = 0;
+  let goalSide = 0;
+  let trials = 0;
+  let gapSum = 0;
+  for (let seed = 0; seed < 12; seed++) {
+    const world = newWorld(seed * 37 + 3);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    // Away are defending; home have the ball in midfield and a striker breaking.
+    const dir = world.attackDir.home;
+    const carrier = world.players.find((p) => p.id === world.activeId);
+    const runner = world.players.find(
+      (p) => p.side === 'home' && p.role === 'FW' && p.id !== carrier?.id,
+    );
+    if (!carrier || !runner) throw new Error('missing players');
+    carrier.pos = { x: 0, z: 0 };
+    carrier.vel = { x: 0, z: 0 };
+    world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = carrier.id;
+    world.possession = 'home';
+    // A decoy who wanders near the centre-halves: the man the old rule would chase.
+    const decoy = world.players.find(
+      (p) => p.side === 'home' && p.role === 'MF' && p.id !== carrier.id,
+    );
+    if (decoy) {
+      decoy.pos = { x: 26 * dir, z: 6 };
+      decoy.vel = { x: 0, z: 0 };
+    }
+    /*
+     * Start him level with the last defender, which is what a run in behind actually is. Placing
+     * him beyond the whole back line and then asking why nobody is goal-side is not a marking
+     * test — no defender can recover from that, and the first version of this check was doing it.
+     */
+    const line = world.players
+      .filter((q) => q.side === 'away' && q.role !== 'GK' && !q.sentOff)
+      .reduce((deepest, q) => (q.pos.x * dir < deepest.pos.x * dir ? q : deepest));
+    runner.pos = { x: line.pos.x - 1.5 * dir, z: -2 };
+    runner.vel = { x: 7.5 * dir, z: 0 };
+
+    const mgr = manager();
+    for (let i = 0; i < 60 * 2; i++) {
+      // Drive the run: he is sprinting, not deciding.
+      runner.vel = { x: 7.5 * dir, z: 0 };
+      runner.pos = { x: runner.pos.x + runner.vel.x * TICK_DT, z: runner.pos.z };
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    }
+    // Who is closest to the runner, and is he between the runner and goal?
+    const defs = world.players.filter((p) => p.side === 'away' && p.role !== 'GK' && !p.sentOff);
+    const away = (q: { x: number; z: number }) =>
+      Math.hypot(q.x - runner.pos.x, q.z - runner.pos.z);
+    let nearest = defs[0];
+    for (const d of defs) if (away(d.pos) < away(nearest.pos)) nearest = d;
+    const gap = away(nearest.pos);
+    gapSum += gap;
+    trials++;
+    if (gap < 6) tracked++;
+    // Goal-side: nearer the goal the runner is attacking than the runner himself.
+    if (nearest.pos.x * dir > runner.pos.x * dir) goalSide++;
+  }
+  const meanGap = +(gapSum / trials).toFixed(1);
+  console.log(
+    `runner marking: tracked within 6m on ${tracked}/${trials}, goal-side ${goalSide}/${trials}, mean gap ${meanGap}m`,
+  );
+  if (tracked < trials * 0.7) {
+    throw new Error(`a striker running in behind was tracked only ${tracked}/${trials} times`);
+  }
+  // The binary "within 6m" passed even with the old nearest-man marking, which trailed the runner
+  // by 4.8m on average — clean through. The gap is what actually distinguishes them.
+  if (meanGap > 3.5) {
+    throw new Error(`markers trail a runner by ${meanGap}m on average — he is through on goal`);
+  }
+}
+
+/**
+ * A light tap must still play a usable through ball. Speed used to come straight from hold time,
+ * and a through ball is played twenty-odd metres into space, so anything short of a full charge
+ * died on the spot and the mechanic was unusable.
+ */
+function checkThroughBallWeight(): void {
+  const rows: string[] = [];
+  for (const charge of [0.15, 0.5, 1]) {
+    let reached = 0;
+    let trials = 0;
+    for (let s = 0; s < 10; s++) {
+      const world = newWorld(s * 31 + 5);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no passer');
+      const runner = world.players.find(
+        (p) => p.side === 'home' && p.id !== me.id && p.role === 'FW',
+      );
+      if (!runner) throw new Error('no runner');
+      for (const p of world.players) {
+        if (p === me || p === runner) continue;
+        p.pos = { x: -55 * dir, z: p.pos.z };
+        p.vel = { x: 0, z: 0 };
+      }
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      // Runner breaking into space eighteen metres ahead.
+      runner.pos = { x: 18 * dir, z: 3 };
+      runner.vel = { x: 5 * dir, z: 0 };
+      world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.through = {
+        ...actions.through,
+        released: true,
+        fired: true,
+        charge,
+        heldTime: charge,
+      };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      trials++;
+
+      for (let i = 0; i < 60 * 4; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        if (world.controllerId === runner.id) {
+          reached++;
+          break;
+        }
+        if (world.phase !== 'in-play') break;
+      }
+    }
+    rows.push(`${Math.round(charge * 100)}% charge -> ${Math.round((reached / trials) * 100)}%`);
+    if (charge <= 0.15 && reached / trials < 0.5) {
+      throw new Error(`a light through ball reached its runner only ${reached}/${trials} times`);
+    }
+  }
+  console.log(`through balls reaching the runner: ${rows.join(' | ')}`);
+}
+
+/**
+ * A 90 dribbler has to be *obviously* better than a 70, not marginally. Everything used to be
+ * driven off `dribbling / 100`, which made the difference about 11%; you could not feel it.
+ * This runs the same scripted slalom at each rating and reports the gap.
+ */
+function checkDribbleSkillGap(): void {
+  const run = (rating: number) => {
+    let strays = 0;
+    let lost = 0;
+    let gapSum = 0;
+    let samples = 0;
+    for (let seed = 0; seed < 8; seed++) {
+      const world = newWorld(seed * 13 + 7);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no carrier');
+      me.dribbling = rating;
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      // Alone with the ball: this measures control, not whether he beats anyone.
+      for (const p of world.players) {
+        if (p.id === me.id) continue;
+        p.pos = { x: -60, z: p.pos.z > 0 ? 34 : -34 };
+        p.vel = { x: 0, z: 0 };
+      }
+      world.ball.pos = { x: 0.4, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      // Slalom: swing the stick through a wide arc so he has to keep turning the ball.
+      for (let i = 0; i < 60 * 6; i++) {
+        const t = i / 60;
+        const ang = Math.sin(t * 2.1) * 1.15;
+        const actions = idleActions();
+        actions.sprint = { ...actions.sprint, down: t > 2 };
+        const before = { ...world.ball.vel };
+        tick(
+          world,
+          { move: { x: Math.sin(ang), z: Math.cos(ang) }, flick: { x: 0, z: 0 }, actions },
+          0,
+          TICK_DT,
+          mgr,
+        );
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        const gap = Math.hypot(me.pos.x - world.ball.pos.x, me.pos.z - world.ball.pos.z);
+        gapSum += gap;
+        samples++;
+        if (gap > 2.6) strays++;
+        if (world.controllerId !== me.id) lost++;
+      }
+    }
+    return {
+      meanGap: +(gapSum / samples).toFixed(2),
+      strayedPct: Math.round((strays / samples) * 100),
+      lostPct: Math.round((lost / samples) * 100),
+    };
+  };
+
+  const poor = run(55);
+  const good = run(70);
+  const elite = run(90);
+  console.log(
+    `dribble skill: 55 -> gap ${poor.meanGap}m lost ${poor.lostPct}% | ` +
+      `70 -> gap ${good.meanGap}m lost ${good.lostPct}% | ` +
+      `90 -> gap ${elite.meanGap}m lost ${elite.lostPct}%`,
+  );
+  // An elite carrier must keep the ball meaningfully tighter than a good one.
+  if (elite.meanGap >= good.meanGap * 0.9) {
+    throw new Error(
+      `a 90 dribbler holds the ball at ${elite.meanGap}m vs a 70 at ${good.meanGap}m — not a real gap`,
+    );
+  }
 }
 
 /**
@@ -799,6 +1546,17 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkPhantomGoals();
+checkTenYards();
+checkShotStyles();
+checkStaminaRecovery();
+checkBodyFeints();
+checkCrossing();
+checkKickoffProtection();
+checkRunnerMarking();
+checkThroughBallWeight();
+checkDribbleSkillGap();
+checkBlockRate();
 checkSwitching();
 checkRestarts();
 checkPenalty();

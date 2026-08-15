@@ -39,6 +39,9 @@ export function Match() {
 
   useEffect(() => {
     if (!world) return;
+    // The button that started the match keeps keyboard focus, so Space would re-activate it
+    // instead of shooting. Hand focus back to the document.
+    (document.activeElement as HTMLElement | null)?.blur?.();
     attachDevices();
     setWorld(world);
     useHudStore.getState().set({
