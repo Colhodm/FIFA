@@ -1,6 +1,7 @@
 import {
   HALF_GOAL_WIDTH,
   HALF_LENGTH,
+  BASE_SPEED,
   HALF_WIDTH,
   MAX_PASS_POWER,
   MAX_SHOT_POWER,
@@ -81,22 +82,87 @@ function shapeTarget(world: SimWorld, p: SimPlayer): Vec2 {
   });
 }
 
+/**
+ * How dangerous an attacker is to us right now. Higher is worse.
+ *
+ * The old marking picked whoever was simply *nearest*, so a centre-half would dutifully track a
+ * midfielder drifting past him while a striker ran in behind completely free. Danger is about
+ * where a man is going, not how close he happens to be.
+ */
+function threatOf(world: SimWorld, p: SimPlayer, attacker: SimPlayer): number {
+  const own = ownGoalCenter(world, p.side);
+  const toGoal = normalize(sub(own, attacker.pos));
+  const range = dist(attacker.pos, own);
+  // Running at our goal is the thing that hurts; standing still near it is much less urgent.
+  const closing = attacker.vel.x * toGoal.x + attacker.vel.z * toGoal.z;
+  // Central runners are worse than wide ones.
+  const centrality = 1 - Math.min(1, Math.abs(attacker.pos.z) / HALF_WIDTH);
+  return -range * 0.7 + closing * 4.2 + centrality * 8 - dist(attacker.pos, p.pos) * 0.25;
+}
+
+/**
+ * Who this defender is responsible for, and where he should stand to deny him.
+ *
+ * Assignment is greedy over the whole back unit in a fixed order, so two defenders never end up
+ * tracking the same man while a third attacker runs through the gap between them — which the old
+ * nearest-man rule allowed constantly.
+ */
 function markTarget(world: SimWorld, p: SimPlayer, profile: DifficultyProfile): Vec2 | null {
   const own = ownGoalCenter(world, p.side);
-  let best: SimPlayer | null = null;
-  let bestD = Infinity;
-  for (const o of world.players) {
-    if (o.side === p.side || o.role === 'GK' || o.sentOff) continue;
-    const d = dist(o.pos, p.pos);
-    if (d < bestD && d < 22) {
-      bestD = d;
-      best = o;
+  const attackers = world.players
+    .filter((o) => o.side !== p.side && o.role !== 'GK' && !o.sentOff)
+    .sort((a, b) => a.id - b.id);
+  const defenders = world.players
+    .filter((o) => o.side === p.side && o.role !== 'GK' && !o.sentOff)
+    .sort((a, b) => a.id - b.id);
+
+  // Deal the most dangerous attacker to the defender best placed to take him, then the next.
+  const taken = new Set<number>();
+  let mine: SimPlayer | null = null;
+  const ranked = attackers
+    .map((o) => ({ o, threat: threatOf(world, p, o) }))
+    .sort((x, y) => y.threat - x.threat);
+  for (const d of defenders) {
+    let pick: SimPlayer | null = null;
+    let bestScore = -Infinity;
+    for (const { o } of ranked) {
+      if (taken.has(o.id)) continue;
+      // Threat as *this* defender sees it, minus how far he has to travel to get there.
+      const score = threatOf(world, d, o) - dist(d.pos, o.pos) * 0.55;
+      if (score > bestScore) {
+        bestScore = score;
+        pick = o;
+      }
+    }
+    if (!pick) break;
+    taken.add(pick.id);
+    if (d.id === p.id) {
+      mine = pick;
+      break;
     }
   }
-  if (!best) return null;
-  const goalSide = normalize(sub(own, best.pos));
-  const gap = 1.1 + (1 - profile.marking) * 3.2;
-  return clampToPitch({ x: best.pos.x + goalSide.x * gap, z: best.pos.z + goalSide.z * gap });
+  if (!mine) return null;
+  // Too far away to be his problem; hold the shape instead.
+  if (dist(mine.pos, p.pos) > 26) return null;
+
+  /*
+   * Track where he is *going*. Marking his current position leaves a defender permanently
+   * trailing a runner by whatever he covers in the reaction time, which is exactly how strikers
+   * were getting in behind untouched.
+   */
+  const lead = 0.55;
+  const spot = { x: mine.pos.x + mine.vel.x * lead, z: mine.pos.z + mine.vel.z * lead };
+  const goalSide = normalize(sub(own, spot));
+  // Tighten right up as the danger rises: close to our goal, and on a man breaking in behind.
+  const danger = clamp(1 - dist(spot, own) / 45, 0, 1);
+  const breaking = clamp(
+    (mine.vel.x * goalSide.x + mine.vel.z * goalSide.z) / Math.max(1, BASE_SPEED),
+    0,
+    1,
+  );
+  const slack = (1 - profile.marking) * 2.6 * (1 - danger * 0.6);
+  const gap = clamp(1.0 + slack - breaking * 0.5, 0.7, 4);
+  return clampToPitch({ x: spot.x + goalSide.x * gap, z: spot.z + goalSide.z * gap });
 }
 
 function setIntent(p: SimPlayer, target: Vec2, sprint: boolean): void {

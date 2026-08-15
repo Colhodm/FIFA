@@ -685,6 +685,89 @@ function checkBlockRate(): void {
 }
 
 /**
+ * A striker breaking in behind must be tracked. Marking used to pick whoever was *nearest* and
+ * aim at his current position, so a centre-half would follow a midfielder drifting past him while
+ * a striker ran through, and even when he did pick the right man he trailed him permanently.
+ */
+function checkRunnerMarking(): void {
+  let tracked = 0;
+  let goalSide = 0;
+  let trials = 0;
+  let gapSum = 0;
+  for (let seed = 0; seed < 12; seed++) {
+    const world = newWorld(seed * 37 + 3);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    // Away are defending; home have the ball in midfield and a striker breaking.
+    const dir = world.attackDir.home;
+    const carrier = world.players.find((p) => p.id === world.activeId);
+    const runner = world.players.find(
+      (p) => p.side === 'home' && p.role === 'FW' && p.id !== carrier?.id,
+    );
+    if (!carrier || !runner) throw new Error('missing players');
+    carrier.pos = { x: 0, z: 0 };
+    carrier.vel = { x: 0, z: 0 };
+    world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = carrier.id;
+    world.possession = 'home';
+    // A decoy who wanders near the centre-halves: the man the old rule would chase.
+    const decoy = world.players.find(
+      (p) => p.side === 'home' && p.role === 'MF' && p.id !== carrier.id,
+    );
+    if (decoy) {
+      decoy.pos = { x: 26 * dir, z: 6 };
+      decoy.vel = { x: 0, z: 0 };
+    }
+    /*
+     * Start him level with the last defender, which is what a run in behind actually is. Placing
+     * him beyond the whole back line and then asking why nobody is goal-side is not a marking
+     * test — no defender can recover from that, and the first version of this check was doing it.
+     */
+    const line = world.players
+      .filter((q) => q.side === 'away' && q.role !== 'GK' && !q.sentOff)
+      .reduce((deepest, q) => (q.pos.x * dir < deepest.pos.x * dir ? q : deepest));
+    runner.pos = { x: line.pos.x - 1.5 * dir, z: -2 };
+    runner.vel = { x: 7.5 * dir, z: 0 };
+
+    const mgr = manager();
+    for (let i = 0; i < 60 * 2; i++) {
+      // Drive the run: he is sprinting, not deciding.
+      runner.vel = { x: 7.5 * dir, z: 0 };
+      runner.pos = { x: runner.pos.x + runner.vel.x * TICK_DT, z: runner.pos.z };
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    }
+    // Who is closest to the runner, and is he between the runner and goal?
+    const defs = world.players.filter((p) => p.side === 'away' && p.role !== 'GK' && !p.sentOff);
+    const away = (q: { x: number; z: number }) =>
+      Math.hypot(q.x - runner.pos.x, q.z - runner.pos.z);
+    let nearest = defs[0];
+    for (const d of defs) if (away(d.pos) < away(nearest.pos)) nearest = d;
+    const gap = away(nearest.pos);
+    gapSum += gap;
+    trials++;
+    if (gap < 6) tracked++;
+    // Goal-side: nearer the goal the runner is attacking than the runner himself.
+    if (nearest.pos.x * dir > runner.pos.x * dir) goalSide++;
+  }
+  const meanGap = +(gapSum / trials).toFixed(1);
+  console.log(
+    `runner marking: tracked within 6m on ${tracked}/${trials}, goal-side ${goalSide}/${trials}, mean gap ${meanGap}m`,
+  );
+  if (tracked < trials * 0.7) {
+    throw new Error(`a striker running in behind was tracked only ${tracked}/${trials} times`);
+  }
+  // The binary "within 6m" passed even with the old nearest-man marking, which trailed the runner
+  // by 4.8m on average — clean through. The gap is what actually distinguishes them.
+  if (meanGap > 3.5) {
+    throw new Error(`markers trail a runner by ${meanGap}m on average — he is through on goal`);
+  }
+}
+
+/**
  * A light tap must still play a usable through ball. Speed used to come straight from hold time,
  * and a through ball is played twenty-odd metres into space, so anything short of a full charge
  * died on the spot and the mechanic was unusable.
@@ -1089,6 +1172,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkRunnerMarking();
 checkThroughBallWeight();
 checkDribbleSkillGap();
 checkBlockRate();
