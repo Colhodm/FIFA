@@ -687,6 +687,43 @@ function checkBlockRate(): void {
 }
 
 /**
+ * A ball that passes wide of the post at pace must not be scored. Goal detection sampled the
+ * ball's instantaneous position, and at a hundred miles an hour it moves three quarters of a
+ * metre per tick — so a shot that went wide could be caught *behind* the line at a moment when
+ * it was within the posts, awarding a phantom goal and dropping the match back to kickoff.
+ */
+function checkPhantomGoals(): void {
+  let phantom = 0;
+  let trials = 0;
+  for (let seed = 0; seed < 24; seed++) {
+    const world = newWorld(seed * 67 + 11);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const dir = world.attackDir.home;
+    // Fired from close range, angled to pass clearly outside the post at full pace.
+    const side = seed % 2 === 0 ? 1 : -1;
+    world.ball.pos = { x: (HALF_LENGTH - 6) * dir, y: 0.4, z: side * 5 };
+    world.ball.vel = { x: 44 * dir, y: 1.5, z: side * 7 };
+    world.controllerId = null;
+    world.lastTouch = { side: 'home', playerId: 0 };
+    const before = { home: world.score.home, away: world.score.away };
+    trials++;
+
+    const mgr = manager();
+    for (let i = 0; i < 60; i++) {
+      const prev = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, prev);
+      world.events.length = 0;
+      if (world.phase !== 'in-play') break;
+    }
+    if (world.score.home !== before.home || world.score.away !== before.away) phantom++;
+  }
+  console.log(`phantom goals: ${phantom}/${trials} shots passing wide were scored`);
+  if (phantom > 0) throw new Error(`${phantom}/${trials} balls passing wide were given as goals`);
+}
+
+/**
  * Ten yards. The laws make the defending side retreat 9.15m at a free kick or a corner; none of
  * it was modelled, so defenders stood wherever they happened to be, often on top of the ball.
  */
@@ -1509,6 +1546,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkPhantomGoals();
 checkTenYards();
 checkShotStyles();
 checkStaminaRecovery();

@@ -1,4 +1,5 @@
 import {
+  TICK_DT,
   BALL_RADIUS,
   GOAL_HEIGHT,
   HALF_GOAL_WIDTH,
@@ -158,7 +159,27 @@ export function checkBallOut(world: SimWorld): boolean {
     const dir: 1 | -1 = x > 0 ? 1 : -1;
     const scorer = sideAttacking(world, dir);
     const defender = other(scorer);
-    const isGoal = Math.abs(z) < HALF_GOAL_WIDTH - BALL_RADIUS && y < GOAL_HEIGHT;
+    /*
+     * Test where the ball crossed the goal line, not where it happens to be now.
+     *
+     * A shot at a hundred miles an hour covers three quarters of a metre per tick, so sampling
+     * the instantaneous position caught the ball *behind* the goal — and if it was within the
+     * posts and under the bar at that sampled instant it counted as a goal, even when it had
+     * actually passed wide of the post or over the bar and come down beyond it. That is the
+     * phantom goal that dropped matches back to kickoff for no visible reason.
+     */
+    const line = HALF_LENGTH * dir;
+    const back = {
+      x: x - world.ball.vel.x * TICK_DT,
+      y: y - world.ball.vel.y * TICK_DT,
+      z: z - world.ball.vel.z * TICK_DT,
+    };
+    const span = x - back.x;
+    // If it did not travel across the line this tick, judge it where it is.
+    const f = Math.abs(span) < 1e-6 ? 1 : clamp((line - back.x) / span, 0, 1);
+    const crossZ = back.z + (z - back.z) * f;
+    const crossY = back.y + (y - back.y) * f;
+    const isGoal = Math.abs(crossZ) < HALF_GOAL_WIDTH - BALL_RADIUS && crossY < GOAL_HEIGHT;
     if (isGoal) {
       scoreGoal(world, scorer);
       return true;

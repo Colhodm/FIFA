@@ -4,7 +4,7 @@ import { Radar } from './Radar';
 
 /** What the taker is being asked to do, keyboard-side. */
 const SET_PIECE_HINT: Record<RestartKind, string> = {
-  'throw-in': 'Aim with WASD or the arrows, K to throw short',
+  'throw-in': 'Aim with WASD or the arrows · hold K to throw it in by hand',
   'goal-kick': 'Hold K or Space to launch it, aim with WASD',
   corner: 'Aim with WASD, hold J to whip it in',
   'free-kick': 'Aim with WASD · hold Space to shoot, J to cross',

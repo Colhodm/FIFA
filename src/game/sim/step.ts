@@ -873,6 +873,24 @@ function autoSwitch(world: SimWorld, holder: SimPlayer): void {
   if (best) world.activeId = best.id;
 }
 
+/** A throw is an arm, not a boot: about twenty metres flat out for a strong thrower. */
+const THROW_MAX_RANGE = 22;
+
+/**
+ * Two hands from above the head. Reuses the ordinary kick path — an earlier attempt at a bespoke
+ * launch put the match into an endless restart loop — but with a throw's arc, a throw's range and
+ * a throw's animation, and it cannot be a shot.
+ */
+function throwIn(world: SimWorld, taker: SimPlayer, aim: Vec2, charge: number): void {
+  const range = 6 + clamp(charge, 0, 1) * (THROW_MAX_RANGE - 6) * (0.75 + taker.physical / 400);
+  const theta = 0.6;
+  const v = Math.sqrt((range * 9.81) / Math.sin(2 * theta)) * 1.05;
+  applyKick(world, taker, aim, v * Math.cos(theta), v * Math.sin(theta), 0, 'kick');
+  taker.anim = 'throw';
+  taker.animTimer = 0.5;
+  world.events.push({ type: 'throw', side: taker.side, intensity: clamp(charge, 0.2, 1) });
+}
+
 /** Direction the human is aiming: his stick, or where he is facing if it is centred. */
 function aimOf(player: SimPlayer, input: InputFrame, cameraYaw: number): Vec2 {
   const moveDir = cameraRelative(input.move, cameraYaw);
@@ -924,6 +942,9 @@ function updateRestart(
     const a = input.actions;
     if (set.kind === 'penalty') {
       if (a.shoot.fired) takePenalty(world, taker, aimOf(taker, input, cameraYaw), a.shoot.charge);
+    } else if (set.kind === 'throw-in') {
+      // A throw-in is taken with the hands: aim with the stick, K to throw, hold for distance.
+      if (a.pass.fired) throwIn(world, taker, aimOf(taker, input, cameraYaw), a.pass.charge);
     } else {
       handleHumanActions(world, input, cameraYaw, manager);
     }
