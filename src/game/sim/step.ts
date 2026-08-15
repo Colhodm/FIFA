@@ -50,6 +50,7 @@ import {
   manualSwitchHeld,
   rankSwitchCandidates,
   requestSwitch,
+  reviewDefensiveSwitch,
 } from './switching';
 import {
   DIFFICULTY,
@@ -147,6 +148,7 @@ export function tick(
     updateControl(world, dt);
     // Manual switching is read before the action handler so the new man acts this same tick.
     if (input.actions.switch.pressed) requestSwitch(world);
+    else reviewDefensiveSwitch(world);
     handleHumanActions(world, input, cameraYaw, manager);
     releaseBuffered(world, input, cameraYaw, manager);
     if (world.possession) world.possessionTicks[world.possession] += 1;
@@ -507,7 +509,11 @@ function updateControl(world: SimWorld, dt: number): void {
     // A team-mate expecting the ball must be able to take *any* pass his own side can strike,
     // or a full-power pass sails straight through him as though he were not there. The cost of
     // pace is a heavier first touch (`firstTouchError` below), not an uncontrollable ball.
-    const limit = keeper ? 18 : (expecting ? 28 : 12) + (p.defending + p.dribbling) / 40;
+    // Interception difficulty must come from *position and reaction*, not from a cap that makes
+    // the ball untouchable to one team. An opponent used to top out at ~15 m/s against a
+    // team-mate's 28, so any pass above half charge was physically un-interceptable and
+    // completion sat at 100%. He reads it later and controls it worse; he is not made of glass.
+    const limit = keeper ? 18 : (expecting ? 28 : 22) + (p.defending + p.dribbling) / 40;
     if (ballSpeed > limit) {
       const incoming =
         world.ball.vel.x * (p.pos.x - ball.x) + world.ball.vel.z * (p.pos.z - ball.z) > 0;

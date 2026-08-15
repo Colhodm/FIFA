@@ -481,8 +481,14 @@ function checkPassCompletion(): void {
     }
   }
   const pct = Math.round((completed / total) * 100);
-  if (pct < 80) {
-    throw new Error(`pass completion is only ${pct}% across ${total} passes, expected >= 80%`);
+  // Real completion from open play is 70-85%. The old floor of 80% with no ceiling quietly
+  // enshrined a bug: completion had reached 100% because opponents could not physically touch a
+  // firm pass, and a test that only checks for "high enough" will never catch that.
+  if (pct < 62) {
+    throw new Error(`pass completion is only ${pct}% across ${total} passes, expected >= 62%`);
+  }
+  if (pct > 92) {
+    throw new Error(`pass completion is ${pct}% — defenders are not able to intercept`);
   }
   console.log(`pass completion check passed (${pct}% of ${total} passes found a team-mate)`);
 }

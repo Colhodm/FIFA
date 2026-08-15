@@ -248,6 +248,8 @@ export interface SwitchState {
   sincePress: number;
   /** Seconds since a manual switch, during which auto-switch defers to the player. */
   sinceManual: number;
+  /** Seconds since the defensive re-evaluation last ran. */
+  sinceAuto: number;
 }
 
 export interface SimWorld {
@@ -377,7 +379,13 @@ export function createWorld(config: MatchConfig): SimWorld {
   const world: SimWorld = {
     config,
     tuning: config.tuning ?? DEFAULT_TUNING,
-    switching: { ranking: [], cursor: 0, sincePress: Infinity, sinceManual: Infinity },
+    switching: {
+      ranking: [],
+      cursor: 0,
+      sincePress: Infinity,
+      sinceManual: Infinity,
+      sinceAuto: 0,
+    },
     players,
     ball: {
       pos: { x: 0, y: BALL_RADIUS, z: 0 },

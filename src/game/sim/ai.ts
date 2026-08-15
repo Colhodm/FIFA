@@ -163,6 +163,27 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
         }
       }
     }
+    /*
+     * A ball is travelling between two opponents. Only the single nearest defender ever went for
+     * it, so a pass into a lane a defender was standing in simply sailed past him. Anyone close
+     * to the line attacks it — once his own perception delay has elapsed, so this reads as
+     * reading the pass rather than clairvoyance.
+     */
+    // Passes only. A ball hammered at our goal is the shot-block branch's business above, which
+    // is gated far more tightly; letting this one chase shots as well doubled the block rate.
+    const isPass = struck > 5 && struck < 24;
+    if (world.controllerId === null && isPass) {
+      const lead = 0.5;
+      const ahead = {
+        x: world.ball.pos.x + world.ball.vel.x * lead,
+        z: world.ball.pos.z + world.ball.vel.z * lead,
+      };
+      const offLine = distToSegment(p.pos, ball, ahead);
+      if (world.shotAge >= reaction && offLine < 3.5 && chaser?.id !== p.id) {
+        setIntent(p, clampToPitch(interceptPoint(world, 0.35)), p.stamina > 0.12);
+        return;
+      }
+    }
     if (chaser?.id === p.id) {
       setIntent(p, clampToPitch(interceptPoint(world)), p.stamina > 0.15);
       return;
