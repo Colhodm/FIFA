@@ -687,6 +687,81 @@ function checkBlockRate(): void {
 }
 
 /**
+ * A cross has to be aerial and it has to reach the box even off a short hold. Speed used to come
+ * from hold time and *then* get split into a launch angle, so a light press produced about six
+ * metres per second of horizontal pace and the ball dropped after eight metres.
+ */
+function checkCrossing(): void {
+  const rows: string[] = [];
+  for (const charge of [0.2, 0.6, 1]) {
+    let inBox = 0;
+    let peakSum = 0;
+    let trials = 0;
+    for (let seed = 0; seed < 10; seed++) {
+      const world = newWorld(seed * 47 + 13);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no crosser');
+      // Wide, level with the edge of the box: the classic crossing position.
+      me.pos = { x: (52.5 - 16) * dir, z: 30 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: 30 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+      // Somebody has to be attacking the cross, or it is aimed at whoever happens to be nearest
+      // in the kickoff shape — which is what the first version of this check was measuring.
+      const striker = world.players.find(
+        (q) => q.side === 'home' && q.role === 'FW' && q.id !== me.id,
+      );
+      if (striker) {
+        striker.pos = { x: (52.5 - 10) * dir, z: 1 };
+        striker.vel = { x: 0, z: 0 };
+      }
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.cross = { ...actions.cross, released: true, fired: true, charge, heldTime: charge };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: 0, z: -1 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      trials++;
+
+      let peak = 0;
+      let reached = false;
+      for (let i = 0; i < 60 * 4; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        peak = Math.max(peak, world.ball.pos.y);
+        // Did it get into the box: within 16.5m of goal line and 20m wide.
+        const intoBox =
+          Math.abs(world.ball.pos.x) > 52.5 - PENALTY_BOX_DEPTH && Math.abs(world.ball.pos.z) < 20;
+        if (intoBox) reached = true;
+        if (world.phase !== 'in-play') break;
+      }
+      peakSum += peak;
+      if (reached) inBox++;
+    }
+    const pct = Math.round((inBox / trials) * 100);
+    const peak = +(peakSum / trials).toFixed(1);
+    rows.push(`${Math.round(charge * 100)}% -> ${pct}% into the box, peak ${peak}m`);
+    if (charge >= 0.2 && pct < 60) {
+      throw new Error(
+        `a ${Math.round(charge * 100)}% cross reached the box only ${pct}% of the time`,
+      );
+    }
+    if (peak < 1.5) throw new Error(`crosses are not aerial: peak height ${peak}m`);
+  }
+  console.log(`crossing: ${rows.join(' | ')}`);
+}
+
+/**
  * Nobody may take the ball off you at kickoff. The laws give the kicking side the ball until it
  * is played; this was not modelled at all — the whistle went and the opposition charged the spot.
  */
@@ -1210,6 +1285,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkCrossing();
 checkKickoffProtection();
 checkRunnerMarking();
 checkThroughBallWeight();

@@ -70,7 +70,8 @@ export const DEFAULT_TUNING: Tuning = {
     // A driven ground pass is 25-30 m/s in real football. The old 22 cap made a firm pass to a
     // man sixteen metres away saturate, so leaning on the button bought nothing.
     ground: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 28 },
-    lob: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 18 },
+    // A 30 m cross needs ~20 m/s of launch to carry; 18 could not reach the far post.
+    lob: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 26 },
     // Weighted through balls travel 25-30 m into space; the old 20 cap could not reach.
     through: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 26 },
     lobAngleDegrees: [30, 45],

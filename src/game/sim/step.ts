@@ -1109,16 +1109,52 @@ function playCross(
   ground: boolean,
 ): void {
   const t = world.tuning.pass.lob;
-  // A driven cross is whipped in harder and flatter; L1 floats it higher.
-  const speed = speedFor(charge, t) * (r1 ? 1.15 : 1);
-  const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees) * (r1 ? 0.7 : 1);
   const option = bestCross(world, active);
+  // No target: put it into the middle of the six-to-twelve yard zone, which is where a cross
+  // belongs even when nobody has gambled on it yet.
   const spot = option
     ? option.spot
-    : { x: goalCenter(world, active.side).x - world.attackDir[active.side] * 8, z: 0 };
+    : { x: goalCenter(world, active.side).x - world.attackDir[active.side] * 9, z: 0 };
+  const range = dist(active.pos, spot);
+
+  if (ground) {
+    // A cutback is a hard ground pass, so it uses the ground-pass weighting.
+    const flat = clamp(
+      weightedPassSpeed(
+        range,
+        charge,
+        PASS_ARRIVAL_SPEED,
+        passSloppiness(world, active),
+        world.rand,
+      ),
+      speedFor(0, world.tuning.pass.ground),
+      speedFor(1, world.tuning.pass.ground),
+    );
+    kickPass(world, active, spot, HUMAN_PROFILE, 1, {
+      lift: 0,
+      speed: flat,
+      receiverId: option?.target.id,
+    });
+    return;
+  }
+
+  /*
+   * A cross is a ballistic problem, not a power problem. Taking the speed from hold time and
+   * *then* splitting it into a launch angle meant a short hold produced about six metres per
+   * second of horizontal pace — the ball travelled eight metres and dropped, nowhere near the
+   * box. Solve the launch that actually carries the distance instead, so even a light press
+   * reaches the middle, and let charge decide how it is delivered.
+   *
+   * In a vacuum `v = sqrt(R * g / sin(2 * theta))`; the ball's drag costs a little more than that.
+   */
+  const theta = r1 ? 0.38 : l1 ? 0.72 : 0.55;
+  const needed = Math.sqrt((range * 9.81) / Math.max(0.2, Math.sin(2 * theta))) * 1.12;
+  const sloppiness = passSloppiness(world, active);
+  const misweight = 1 + (world.rand() + world.rand() - 1) * sloppiness * 0.35;
+  const v = clamp(needed * (0.95 + charge * 0.35) * misweight, 6, speedFor(1, t));
   kickPass(world, active, spot, HUMAN_PROFILE, 1, {
-    lift: ground ? 0 : liftFor(speed, angle) * (l1 ? 1.25 : 1),
-    speed: ground ? speed : groundSpeedFor(speed, angle),
+    lift: v * Math.sin(theta),
+    speed: v * Math.cos(theta),
     receiverId: option?.target.id,
   });
 }
