@@ -141,7 +141,8 @@ export function ballTexture(): CanvasTexture {
  * squad number across the back. Cylindrical UVs put u=0 on the player's chest.
  */
 export function shirtTexture(kit: Kit, shirt: number, keeper: boolean): CanvasTexture {
-  return cached(`shirt-${kit.primary}-${kit.secondary}-${keeper}-${shirt}`, () => {
+  const pattern = kit.pattern ?? 'plain';
+  return cached(`shirt-${kit.primary}-${kit.secondary}-${pattern}-${keeper}-${shirt}`, () => {
     const width = 512;
     const height = 256;
     const ctx = canvas2d(width, height);
@@ -150,21 +151,39 @@ export function shirtTexture(kit: Kit, shirt: number, keeper: boolean): CanvasTe
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
 
+    /*
+     * Kits are not all striped. Drawing vertical bars on every shirt made Liverpool, Arsenal and
+     * City all look like Newcastle, which is most of why the teams did not read as themselves.
+     */
     if (!keeper) {
-      // Vertical stripes on the front and back panels only, so the sides stay clean.
       ctx.fillStyle = accent;
-      ctx.globalAlpha = 0.85;
-      for (let i = 0; i < 8; i++) {
-        if (i % 2 === 1) continue;
-        ctx.fillRect((i / 8) * width + width / 32, 0, width / 16, height);
+      if (pattern === 'stripes') {
+        for (let i = 0; i < 10; i++) {
+          if (i % 2 === 1) continue;
+          ctx.fillRect((i / 10) * width, 0, width / 20, height);
+        }
+      } else if (pattern === 'halves') {
+        ctx.fillRect(width * 0.5, 0, width * 0.25, height);
+        ctx.fillRect(0, 0, width * 0.25, height);
+      } else if (pattern === 'sash') {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(width * 0.18, height);
+        ctx.lineTo(width * 0.36, height);
+        ctx.lineTo(width * 0.62, 0);
+        ctx.lineTo(width * 0.44, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
     }
 
-    // Sleeves: the quarter turns either side of the body read as the arms' shoulder line.
-    ctx.fillStyle = accent;
-    ctx.fillRect(width * 0.2, 0, width * 0.1, height * 0.34);
-    ctx.fillRect(width * 0.7, 0, width * 0.1, height * 0.34);
+    // Sleeves: the quarter turns either side of the body read as the arms' shoulder line. A
+    // contrasting sleeve is a kit feature in its own right (Arsenal, Villa), not just trim.
+    ctx.fillStyle = pattern === 'sleeves' || keeper ? accent : accent;
+    const sleeveDepth = pattern === 'sleeves' ? 1 : 0.34;
+    ctx.fillRect(width * 0.2, 0, width * 0.1, height * sleeveDepth);
+    ctx.fillRect(width * 0.7, 0, width * 0.1, height * sleeveDepth);
 
     // Collar.
     ctx.fillStyle = accent;
@@ -231,28 +250,64 @@ export function hoardingTexture(): CanvasTexture {
     const width = 2048;
     const height = 128;
     const ctx = canvas2d(width, height);
+    /*
+     * Perimeter LED reads as a dark band with bright lettering on television, not as a row of
+     * saturated colour blocks. Eight fully-lit panels in primary colours were the loudest thing
+     * on screen and made every wide shot look like a toy.
+     */
     const sponsors = [
-      ['#0f766e', 'NORTHWIND'],
-      ['#1d4ed8', 'ORBIT BANK'],
-      ['#b91c1c', 'RED KETTLE'],
-      ['#7c3aed', 'LUMEN'],
-      ['#c2410c', 'FORGE TYRES'],
-      ['#0e7490', 'BLUE HARBOUR'],
-      ['#166534', 'GREENLINE'],
-      ['#9333ea', 'AURORA AIR'],
+      // Title sponsor: this was built by Devin, so Cognition takes the naming rights and appears
+      // more often around the ground than anybody else.
+      ['#0a0f1a', '#7dd3fc', 'COGNITION'],
+      ['#0a0f1a', '#7dd3fc', 'COGNITION  ·  DEVIN'],
+      ['#101826', '#5eead4', 'NORTHWIND'],
+      ['#0c1220', '#93c5fd', 'ORBIT BANK'],
+      ['#1a1013', '#fca5a5', 'RED KETTLE'],
+      ['#121020', '#c4b5fd', 'LUMEN'],
+      ['#1a1410', '#fdba74', 'FORGE TYRES'],
+      ['#0b1418', '#67e8f9', 'BLUE HARBOUR'],
+      ['#0d1710', '#86efac', 'GREENLINE'],
+      ['#140f1c', '#d8b4fe', 'AURORA AIR'],
+      ['#0a0f1a', '#7dd3fc', 'COGNITION'],
     ] as const;
     const panel = width / sponsors.length;
-    sponsors.forEach(([color, name], i) => {
-      ctx.fillStyle = color;
+    sponsors.forEach(([base, ink, name], i) => {
+      ctx.fillStyle = base;
       ctx.fillRect(i * panel, 0, panel, height);
-      ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.fillRect(i * panel, height * 0.72, panel, height * 0.28);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = `bold ${Math.round(height * 0.42)}px sans-serif`;
+      // A thin lit strip along the bottom is what actually catches the eye on a broadcast.
+      ctx.fillStyle = ink;
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(i * panel, height * 0.86, panel, height * 0.14);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = ink;
+      ctx.font = `bold ${Math.round(height * 0.36)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(name, i * panel + panel / 2, height * 0.42);
+      ctx.fillText(name, i * panel + panel / 2, height * 0.44);
+      // Panel seam.
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(i * panel, 0, 3, height);
     });
+    const texture = colorTexture(ctx);
+    texture.wrapS = RepeatWrapping;
+    return texture;
+  });
+}
+
+/** The title sponsor's name across the stand facade: COGNITION, in lights. */
+export function facadeTexture(): CanvasTexture {
+  return cached('facade', () => {
+    const width = 2048;
+    const height = 128;
+    const ctx = canvas2d(width, height);
+    ctx.fillStyle = '#0a0f1a';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = `bold ${Math.round(height * 0.6)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = '14px';
+    ctx.fillText('COGNITION', width * 0.5, height * 0.5);
     const texture = colorTexture(ctx);
     texture.wrapS = RepeatWrapping;
     return texture;

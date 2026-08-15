@@ -84,23 +84,76 @@ export function rankSwitchCandidates(
   const toGoal = normalize(sub(own, ball));
 
   return pool
-    .map((p) => {
-      const toPlayer = normalize(sub(p.pos, ball));
-      const cos = Math.max(-1, Math.min(1, toPlayer.x * toGoal.x + toPlayer.z * toGoal.z));
-      const angle = defending ? (Math.acos(cos) / Math.PI) * ANGLE_PENALTY_METRES : 0;
-      const predicted = dist(p.pos, ahead);
-      const current = dist(p.pos, ball);
-      return {
-        id: p.id,
-        name: p.name,
-        predicted,
-        current,
-        angle,
-        score:
-          w.predictedDistance * predicted + w.currentDistance * current + w.anglePenalty * angle,
-      };
-    })
+    .map((p) => score(world, p, ball, ahead, toGoal, defending))
     .sort((a, b) => a.score - b.score);
+}
+
+function score(
+  world: SimWorld,
+  p: SimPlayer,
+  ball: Vec2,
+  ahead: Vec2,
+  toGoal: Vec2,
+  defending: boolean,
+): SwitchCandidate {
+  const w = world.tuning.switching;
+  const toPlayer = normalize(sub(p.pos, ball));
+  const cos = Math.max(-1, Math.min(1, toPlayer.x * toGoal.x + toPlayer.z * toGoal.z));
+  const angle = defending ? (Math.acos(cos) / Math.PI) * ANGLE_PENALTY_METRES : 0;
+  const predicted = dist(p.pos, ahead);
+  const current = dist(p.pos, ball);
+  return {
+    id: p.id,
+    name: p.name,
+    predicted,
+    current,
+    angle,
+    score: w.predictedDistance * predicted + w.currentDistance * current + w.anglePenalty * angle,
+  };
+}
+
+/** How well placed one specific player is — used to judge whether a handover is worth making. */
+export function scoreForPlayer(world: SimWorld, p: SimPlayer, defending: boolean): number {
+  const ball = ballPos2(world);
+  const ahead = predictedBall(world, world.tuning.switching.predictSeconds);
+  const toGoal = normalize(sub(ownGoalCenter(world, p.side), ball));
+  return score(world, p, ball, ahead, toGoal, defending).score;
+}
+
+/** Re-evaluated on this cadence while defending, rather than only when the ball changes hands. */
+const DEFENSIVE_REVIEW = 0.45;
+/** The new man must be this much better placed before control is taken off you. */
+const HANDOVER_MARGIN = 0.68;
+
+/**
+ * Continuous switching while the opposition has the ball.
+ *
+ * Every other switch decision hangs off "a new player took possession". That is fine going
+ * forward, but defending is precisely the case where possession does *not* change: an opponent
+ * carries the ball for several seconds, the attack develops past your man, and because no
+ * holder change ever fires you stay glued to whoever happened to be nearest when the ball was
+ * lost. The camera frames on the active player, so a stale pick drags the shot away from the
+ * play as well.
+ */
+export function reviewDefensiveSwitch(world: SimWorld): void {
+  const human = world.config.humanSide;
+  if (world.possession === null || world.possession === human) return;
+  if (manualSwitchHeld(world)) return;
+  const s = world.switching;
+  if (s.sinceAuto < DEFENSIVE_REVIEW) return;
+  s.sinceAuto = 0;
+
+  const active = world.players.find((p) => p.id === world.activeId);
+  if (!active || active.sentOff) return;
+  // Never yank a man out of a committed action.
+  if (active.kickCooldown > 0 || active.skillTimer > 0.15 || active.anim === 'slide') return;
+
+  const best = rankSwitchCandidates(world, false, true)[0];
+  if (!best) return;
+  // Hysteresis: a marginally better candidate is not worth the disorientation of a handover.
+  if (best.score < scoreForPlayer(world, active, true) * HANDOVER_MARGIN) {
+    world.activeId = best.id;
+  }
 }
 
 /** Ignore a repeated switch press inside this window (hardware key repeat, not intent). */
@@ -144,4 +197,5 @@ export const manualSwitchHeld = (world: SimWorld): boolean =>
 export function advanceSwitchTimers(world: SimWorld, dt: number): void {
   world.switching.sincePress += dt;
   world.switching.sinceManual += dt;
+  world.switching.sinceAuto += dt;
 }

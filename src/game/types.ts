@@ -20,11 +20,16 @@ export interface PlayerData {
   stats: PlayerStats;
 }
 
+/** How the shirt is made up. Every kit used to be drawn with vertical stripes. */
+export type KitPattern = 'plain' | 'stripes' | 'sleeves' | 'sash' | 'halves';
+
 export interface Kit {
   primary: string;
   secondary: string;
   shorts: string;
   keeper: string;
+  /** Defaults to plain when a team file omits it. */
+  pattern?: KitPattern;
 }
 
 export interface TeamData {

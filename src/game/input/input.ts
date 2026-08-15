@@ -92,9 +92,16 @@ export type BindingTarget = ActionName | 'up' | 'down' | 'left' | 'right';
  * ```
  *        I  through
  *  J          L
- * cross     shoot
+ * cross     skill
  *        K  pass
+ *
+ *      Space  shoot
  * ```
+ *
+ * Shooting is on the spacebar deliberately: it is the highest-stakes, most time-pressured
+ * action, it is the largest and most reliably-hit key, it is thumb-operated so the movement
+ * fingers stay free to adjust aim during the power charge, and hold-and-release timing on it is
+ * more consistent than on a letter key — which matters when power is hold-duration.
  *
  * Every one of these is overridable from `public/config/controls.json`.
  */
@@ -112,10 +119,10 @@ export const DEFAULT_BINDINGS: Record<string, BindingTarget> = {
   KeyK: 'pass',
   KeyJ: 'cross',
   KeyI: 'through',
-  KeyL: 'shoot',
+  KeyL: 'skill',
   KeyO: 'modR1',
   KeyU: 'modL1',
-  Space: 'skill',
+  Space: 'shoot',
   KeyQ: 'switch',
   Tab: 'switch',
   Escape: 'pause',

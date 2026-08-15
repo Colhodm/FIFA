@@ -17,6 +17,9 @@ export interface PlayerRig {
   root: Group;
   legL: Group;
   legR: Group;
+  /** Knee pivots: the lower leg folds through the recovery stride instead of scissoring rigid. */
+  shinL: Group;
+  shinR: Group;
   armL: Group;
   armR: Group;
   torso: Group;

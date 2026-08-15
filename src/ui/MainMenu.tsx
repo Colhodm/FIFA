@@ -66,7 +66,10 @@ export function MainMenu() {
     <div className="menu">
       <header className="menu-header">
         <h1>Browser FIFA</h1>
-        <p>Single player vs CPU · placeholder clubs, no licensed content</p>
+        <p>
+          Single player vs CPU · Premier League squads, unofficial · not affiliated with any club or
+          league
+        </p>
       </header>
 
       {teamsError && <p className="error">{teamsError}</p>}

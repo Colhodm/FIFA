@@ -3,7 +3,8 @@ import { ballPos2 } from './kick';
 import { clamp, dist, dot, normalize, type Vec2 } from './math';
 import { onPitch, type SimPlayer, type SimWorld } from './state';
 
-export type SkillMove = 'ball-roll' | 'stepover' | 'drag-back' | 'fake-shot' | 'knock-on';
+export type SkillMove =
+  'ball-roll' | 'stepover' | 'drag-back' | 'fake-shot' | 'knock-on' | 'feint-left' | 'feint-right';
 
 /** Picks the move from the direction of the flick relative to where the player is facing. */
 export function skillFromDirection(player: SimPlayer, dir: Vec2): SkillMove {
@@ -11,7 +12,13 @@ export function skillFromDirection(player: SimPlayer, dir: Vec2): SkillMove {
   const forward = dot(normalize(dir), facing);
   if (forward > 0.6) return 'knock-on';
   if (forward < -0.5) return 'drag-back';
-  return Math.abs(forward) < 0.25 ? 'ball-roll' : 'stepover';
+  // Sideways is a body feint — drop the shoulder one way. Which way depends on the side of the
+  // flick relative to his facing, so left and right are genuinely different moves.
+  if (Math.abs(forward) < 0.35) {
+    const side = { x: facing.z, z: -facing.x };
+    return dot(normalize(dir), side) > 0 ? 'feint-right' : 'feint-left';
+  }
+  return 'stepover';
 }
 
 const COST: Record<SkillMove, number> = {
@@ -20,6 +27,9 @@ const COST: Record<SkillMove, number> = {
   'drag-back': 0.015,
   'fake-shot': 0.02,
   'knock-on': 0.03,
+  // A feint is a body movement, not a touch: cheap, and the ball barely moves.
+  'feint-left': 0.008,
+  'feint-right': 0.008,
 };
 
 /**
@@ -58,12 +68,27 @@ export function performSkill(
       push = { x: flick.x * 1.6, z: flick.z * 1.6 };
       commit = 0.45;
       break;
+    case 'feint-left':
+    case 'feint-right': {
+      /*
+       * A body feint sells a direction with the shoulders and hips while the ball stays under
+       * you. That is the whole point of it — every other move here shoves the ball a metre or
+       * two, so there was no way to move a defender without also committing the ball.
+       */
+      const sign = move === 'feint-right' ? 1 : -1;
+      push = { x: side.x * sign * 0.35, z: side.z * sign * 0.35 };
+      commit = 0.26;
+      // Drop the shoulder: the visible heading swings, which is what the defender reads.
+      player.heading += sign * 0.5;
+      break;
+    }
     default:
       // Knock-on: shove it into space and go.
       push = { x: facing.x * 4.5, z: facing.z * 4.5 };
       commit = 0.2;
       break;
   }
+  const feinting = move === 'feint-left' || move === 'feint-right';
 
   const vel = {
     x: push.x * control * 3.2 + player.vel.x * 0.4,
@@ -73,11 +98,12 @@ export function performSkill(
   world.ball.vel = vel;
   world.commands.push({ type: 'velocity', vel });
   player.skillTimer = commit;
-  player.anim = 'skill';
+  player.anim = feinting ? 'feint' : 'skill';
   player.animTimer = commit;
   player.stamina = clamp(player.stamina - COST[move], 0, 1);
   // The dribbler carries his own momentum into the space he has just made.
-  player.vel = { x: player.vel.x + push.x * 0.35, z: player.vel.z + push.z * 0.35 };
+  const carry = feinting ? 0.1 : 0.35;
+  player.vel = { x: player.vel.x + push.x * carry, z: player.vel.z + push.z * carry };
 
   const ball = ballPos2(world);
   for (const defender of onPitch(world)) {
@@ -85,7 +111,13 @@ export function performSkill(
     const d = dist(defender.pos, ball);
     if (d > 3.5) continue;
     // A convincing move against a committed defender wins a yard.
-    const odds = clamp(0.35 + (player.dribbling - defender.defending) / 120, 0.05, 0.9);
+    // A feint works on the defender's *read*, so it buys a beat far more often than a touch does
+    // — but it wins less space when it lands, because the ball has not gone anywhere.
+    const odds = clamp(
+      (feinting ? 0.55 : 0.35) + (player.dribbling - defender.defending) / 120,
+      0.05,
+      feinting ? 0.95 : 0.9,
+    );
     if (world.rand() < odds) {
       defender.kickCooldown = Math.max(defender.kickCooldown, KICK_COOLDOWN + commit);
       defender.vel = { x: defender.vel.x * 0.4, z: defender.vel.z * 0.4 };
