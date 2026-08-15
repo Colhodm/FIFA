@@ -293,6 +293,8 @@ export interface SimWorld {
    * of the centre circle and cannot take the ball off you before you have played it.
    */
   kickoffProtected: boolean;
+  /** The human is holding the rush command: his keeper comes off his line to close the ball. */
+  keeperRush: boolean;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -416,6 +418,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     activeId: 0,
     kickoffSide: config.humanSide,
     kickoffProtected: false,
+    keeperRush: false,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },

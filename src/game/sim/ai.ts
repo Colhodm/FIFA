@@ -179,6 +179,19 @@ function setIntent(p: SimPlayer, target: Vec2, sprint: boolean): void {
 /** Off-ball decision for one AI player. Called on the reaction-time cadence. */
 export function decideOffBall(world: SimWorld, p: SimPlayer, profile: DifficultyProfile): void {
   if (p.role === 'GK') {
+    /*
+     * Rush: the human has called his keeper out. He goes for the ball rather than his line, but
+     * only within a sane range of his own goal — a keeper who sprints to the halfway line because
+     * a button is held is worse than no command at all.
+     */
+    if (world.keeperRush && p.side === world.config.humanSide) {
+      const own = ownGoalCenter(world, p.side);
+      const target = interceptPoint(world, 0.35);
+      if (dist(target, own) < 30) {
+        setIntent(p, clampToPitch(target), true);
+        return;
+      }
+    }
     decideKeeper(world, p, profile);
     return;
   }

@@ -687,6 +687,39 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Stamina has to come back. Recovery only happened when a player was standing perfectly still and
+ * *jogging drained it*, so across ninety minutes stamina fell monotonically and anyone who had
+ * sprinted was finished for the rest of the match.
+ */
+function checkStaminaRecovery(): void {
+  const world = newWorld(21);
+  world.phase = 'in-play';
+  const me = world.players.find((p) => p.id === world.activeId);
+  if (!me) throw new Error('no player');
+  const mgr = manager();
+  const drive = (sprint: boolean, seconds: number) => {
+    const actions = idleActions();
+    actions.sprint = { ...actions.sprint, down: sprint };
+    for (let i = 0; i < 60 * seconds; i++) {
+      const before = { ...world.ball.vel };
+      tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    }
+  };
+  // Sprint him into the ground, then jog for a while.
+  drive(true, 25);
+  const drained = +me.stamina.toFixed(2);
+  drive(false, 30);
+  const recovered = +me.stamina.toFixed(2);
+  console.log(`stamina: ${drained} after a 25s sprint, ${recovered} after 30s of jogging`);
+  if (drained > 0.75) throw new Error(`sprinting barely cost anything: ${drained}`);
+  if (recovered <= drained + 0.05) {
+    throw new Error(`stamina did not recover while jogging: ${drained} -> ${recovered}`);
+  }
+}
+
+/**
  * Body feints must move the *defender* without moving the ball. Every other skill move shoves the
  * ball a metre or two, so there was no way to sell a direction and keep it under your foot.
  */
@@ -1338,6 +1371,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkStaminaRecovery();
 checkBodyFeints();
 checkCrossing();
 checkKickoffProtection();

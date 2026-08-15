@@ -43,7 +43,7 @@ import {
   whistleOffside,
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
-import { groundSpeedFor, liftFor, lobAngle, speedFor } from './power';
+import { speedFor } from './power';
 import { strike, type ShotStyle } from './finishing';
 import { firstTouchError, performSkill, skillFromDirection } from './skills';
 import {
@@ -159,6 +159,12 @@ export function tick(
     updateKeepers(world, dt);
     updateControl(world, dt);
     // Manual switching is read before the action handler so the new man acts this same tick.
+    /*
+     * Holding jockey while defending sends the keeper out. It is the same "engage" meaning the
+     * button already has for outfield players, and there was previously no way at all to bring
+     * him off his line for a through ball.
+     */
+    world.keeperRush = input.actions.jockey.down && world.possession !== world.config.humanSide;
     if (input.actions.switch.pressed) requestSwitch(world);
     else reviewDefensiveSwitch(world);
     handleHumanActions(world, input, cameraYaw, manager);
@@ -364,10 +370,19 @@ function integrate(
     p.heading += clamp(angleDelta(p.heading, want), -rate * dt, rate * dt);
   }
 
+  /*
+   * Stamina only recovered when a player was standing perfectly still, and *jogging drained it*.
+   * Nobody in a football match stands still, so stamina fell monotonically for ninety minutes and
+   * a player who had sprinted was finished for the rest of the game.
+   *
+   * Real recovery happens at low intensity. Sprinting costs, running hard costs a little, and
+   * anything at a jog or below pays it back.
+   */
   const endurance = 0.6 + (p.enduranceRating / 100) * 0.6;
+  const intensity = clamp(speed / (BASE_SPEED * SPRINT_MULTIPLIER), 0, 1);
   if (sprint && speed > 1) p.stamina -= (STAMINA_DRAIN_SPRINT / endurance) * dt;
-  else if (speed > 1) p.stamina -= (STAMINA_DRAIN_RUN / endurance) * dt;
-  else p.stamina += STAMINA_RECOVERY * endurance * dt;
+  else if (intensity > 0.62) p.stamina -= (STAMINA_DRAIN_RUN / endurance) * dt;
+  else p.stamina += STAMINA_RECOVERY * endurance * (1 - intensity * 0.7) * dt;
   p.stamina = clamp(p.stamina, 0, 1);
 }
 
@@ -433,6 +448,28 @@ function weightedPassSpeed(
   const weighted = arrival + range * PASS_DECAY_PER_METRE;
   const misweight = 1 + (rand() + rand() - 1) * sloppiness * 0.42;
   return weighted * (0.95 + charge * 0.5) * misweight;
+}
+
+/**
+ * Launch that carries a lofted ball `range` metres at `theta` radians. In a vacuum
+ * `v = sqrt(R * g / sin(2 * theta))`; the ball's drag costs a little more than that.
+ *
+ * Every lofted delivery in the game used to take its speed from hold time and *then* split it
+ * into an angle, which meant a light press had almost no horizontal pace left and the ball fell
+ * out of the sky after a few metres. Solve the launch for the distance instead.
+ */
+function loftedLaunch(
+  range: number,
+  theta: number,
+  charge: number,
+  sloppiness: number,
+  rand: () => number,
+  cap: number,
+): { speed: number; lift: number } {
+  const needed = Math.sqrt((range * 9.81) / Math.max(0.2, Math.sin(2 * theta))) * 1.12;
+  const misweight = 1 + (rand() + rand() - 1) * sloppiness * 0.35;
+  const v = clamp(needed * (0.95 + charge * 0.35) * misweight, 6, cap);
+  return { speed: v * Math.cos(theta), lift: v * Math.sin(theta) };
 }
 
 /** How badly a passer is likely to mis-hit it, from his passing and how closely he is pressed. */
@@ -1092,9 +1129,30 @@ function playThroughBall(
     passSloppiness(world, active),
     world.rand,
   );
+  if (lofted) {
+    /*
+     * A dinked ball over the defensive line. This used to be the flat through-ball speed with a
+     * fixed 3.4 m/s of lift bolted on, which is not a trajectory — it either skimmed along or
+     * ballooned, depending entirely on how hard the flat pass happened to be.
+     */
+    const air = loftedLaunch(
+      dist(active.pos, spot),
+      0.58,
+      charge,
+      passSloppiness(world, active),
+      world.rand,
+      speedFor(1, world.tuning.pass.lob),
+    );
+    kickPass(world, active, spot, HUMAN_PROFILE, 1, {
+      lift: air.lift,
+      speed: air.speed,
+      receiverId: option?.target.id,
+    });
+    return;
+  }
   const speed = clamp(raw, speedFor(0, t), speedFor(1, t)) * (r1 ? 1.1 : 1);
   kickPass(world, active, spot, HUMAN_PROFILE, 1, {
-    lift: lofted ? 3.4 : 0,
+    lift: 0,
     speed,
     receiverId: option?.target.id,
   });
@@ -1205,10 +1263,26 @@ function playGroundPass(
     world.rand,
   );
   const speed = clamp(raw, speedFor(0, t), speedFor(1, t)) * (r1 ? 1.1 : 1);
-  const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees);
+  if (lofted) {
+    // Chipped over the press and dropped on him, rather than a ground pass with some loft added.
+    const air = loftedLaunch(
+      range,
+      0.62,
+      charge,
+      passSloppiness(world, active),
+      world.rand,
+      speedFor(1, world.tuning.pass.lob),
+    );
+    kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
+      lift: air.lift,
+      speed: air.speed,
+      receiverId: option.target.id,
+    });
+    return;
+  }
   kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
-    lift: lofted ? liftFor(speed, angle) : 0,
-    speed: lofted ? groundSpeedFor(speed, angle) : speed,
+    lift: 0,
+    speed,
     receiverId: option.target.id,
   });
 }

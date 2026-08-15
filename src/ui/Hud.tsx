@@ -14,7 +14,7 @@ const SET_PIECE_HINT: Record<RestartKind, string> = {
 const KEYBOARD_HINTS = [
   'WASD / arrows move',
   'Shift sprint',
-  'K pass / jockey',
+  'K pass / jockey (hold = keeper out)',
   'J cross / slide',
   'I through / contain',
   'Space shoot / tackle',
