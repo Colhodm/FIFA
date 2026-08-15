@@ -2,6 +2,7 @@ import {
   HALF_GOAL_WIDTH,
   HALF_LENGTH,
   BASE_SPEED,
+  CENTER_CIRCLE_RADIUS,
   HALF_WIDTH,
   MAX_PASS_POWER,
   MAX_SHOT_POWER,
@@ -197,6 +198,53 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
     (recovering && p.stamina > 0.12) || (p.stamina > 0.25 && world.rand() < profile.sprintBias);
 
   if (!teamHasBall) {
+    /*
+     * Kickoff: stay out of the centre circle until they have played it. Without this the whistle
+     * went and the opposition simply charged the spot and took the ball off you.
+     */
+    if (world.kickoffProtected) {
+      const fromSpot = Math.hypot(p.pos.x, p.pos.z);
+      if (fromSpot < CENTER_CIRCLE_RADIUS + 0.6) {
+        const outward =
+          fromSpot < 0.01 ? { x: 0, z: 1 } : { x: p.pos.x / fromSpot, z: p.pos.z / fromSpot };
+        const edge = CENTER_CIRCLE_RADIUS + 1.2;
+        setIntent(p, clampToPitch({ x: outward.x * edge, z: outward.z * edge }), false);
+        return;
+      }
+      setIntent(p, clampToPitch(shapeTarget(world, p)), false);
+      return;
+    }
+
+    /*
+     * An attacker driving into shooting range has to be closed down, not escorted. Defenders were
+     * retreating towards their own goal on the assumption that depth is safety — but inside about
+     * twenty-two metres the man simply shoots, and backing off hands him the yard he needs. The
+     * two nearest defenders step out and engage; the rest keep the shape behind them.
+     */
+    const carrierNow = world.players.find((q) => q.id === world.controllerId);
+    if (carrierNow && carrierNow.side !== p.side) {
+      const own = ownGoalCenter(world, p.side);
+      const range = dist(carrierNow.pos, own);
+      if (range < 24) {
+        const closest = world.players
+          .filter((q) => q.side === p.side && q.role !== 'GK' && !q.sentOff)
+          .sort((x, y) => dist(x.pos, carrierNow.pos) - dist(y.pos, carrierNow.pos));
+        if (closest[0]?.id === p.id || closest[1]?.id === p.id) {
+          // Goal-side but tight enough to be in his face rather than shepherding him in.
+          const goalSide = normalize(sub(own, carrierNow.pos));
+          const stand = closest[0]?.id === p.id ? 1.1 : 2.6;
+          setIntent(
+            p,
+            clampToPitch({
+              x: carrierNow.pos.x + goalSide.x * stand,
+              z: carrierNow.pos.z + goalSide.z * stand,
+            }),
+            true,
+          );
+          return;
+        }
+      }
+    }
     /*
      * A ball has been struck at our goal. Anyone close to its line throws himself in front of
      * it rather than carrying on marking a runner — previously a shot simply flew past

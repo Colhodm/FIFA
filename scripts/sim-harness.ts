@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   BALL_MASS,
   BALL_RADIUS,
+  CENTER_CIRCLE_RADIUS,
   HALF_LENGTH,
   HALF_WIDTH,
   PENALTY_BOX_DEPTH,
@@ -21,6 +22,7 @@ import { applyKick } from '../src/game/sim/kick';
 import { awardFoul, book, flagOffsides, whistleOffside } from '../src/game/sim/rules';
 import { performSkill } from '../src/game/sim/skills';
 import {
+  resetToKickoff,
   createWorld,
   matchRating,
   snapshot,
@@ -685,6 +687,42 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Nobody may take the ball off you at kickoff. The laws give the kicking side the ball until it
+ * is played; this was not modelled at all — the whistle went and the opposition charged the spot.
+ */
+function checkKickoffProtection(): void {
+  let stolen = 0;
+  let intruded = 0;
+  for (let seed = 0; seed < 10; seed++) {
+    const world = newWorld(seed * 41 + 9);
+    resetToKickoff(world, 'home');
+    world.phase = 'in-play';
+    const mgr = manager();
+    // Stand there and do nothing for a second and a half: the ball must still be ours.
+    for (let i = 0; i < 90; i++) {
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      const holder = world.players.find((p) => p.id === world.controllerId);
+      if (holder && holder.side === 'away') stolen++;
+      if (
+        world.kickoffProtected &&
+        world.players.some(
+          (p) => p.side === 'away' && Math.hypot(p.pos.x, p.pos.z) < CENTER_CIRCLE_RADIUS - 0.5,
+        )
+      ) {
+        intruded++;
+      }
+    }
+  }
+  console.log(
+    `kickoff: ball stolen on ${stolen} frames, opponents inside the circle on ${intruded}`,
+  );
+  if (stolen > 0) throw new Error(`the opposition took the ball at kickoff on ${stolen} frames`);
+}
+
+/**
  * A striker breaking in behind must be tracked. Marking used to pick whoever was *nearest* and
  * aim at his current position, so a centre-half would follow a midfielder drifting past him while
  * a striker ran through, and even when he did pick the right man he trailed him permanently.
@@ -1172,6 +1210,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkKickoffProtection();
 checkRunnerMarking();
 checkThroughBallWeight();
 checkDribbleSkillGap();

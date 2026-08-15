@@ -288,6 +288,11 @@ export interface SimWorld {
   /** Player id the human is currently controlling. */
   activeId: number;
   kickoffSide: TeamSide;
+  /**
+   * True from the kickoff whistle until the ball is genuinely in play. Opponents must stay out
+   * of the centre circle and cannot take the ball off you before you have played it.
+   */
+  kickoffProtected: boolean;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -410,6 +415,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     shotAge: 99,
     activeId: 0,
     kickoffSide: config.humanSide,
+    kickoffProtected: false,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },
@@ -428,6 +434,8 @@ export function createWorld(config: MatchConfig): SimWorld {
 
 /** Places both teams in their formation shape for a kickoff and centres the ball. */
 export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
+  // Opponents may not challenge until the ball has been played. See `kickoffProtected`.
+  world.kickoffProtected = true;
   world.kickoffSide = kickoffSide;
   world.phase = 'kickoff';
   world.phaseTimer = 2;

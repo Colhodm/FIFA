@@ -1,6 +1,7 @@
 import {
   ACCELERATION,
   BALL_DAMPING,
+  CENTER_CIRCLE_RADIUS,
   BASE_SPEED,
   CONTROL_RADIUS,
   HALF_LENGTH,
@@ -131,6 +132,17 @@ export function tick(
 
   if (isLive(world)) advanceClock(world, dt);
   if (world.phase === 'kickoff') freezeBall(world);
+  /*
+   * The kickoff is over the moment the ball is genuinely played — it has left the centre circle,
+   * or been struck with something on it. Until then the opposition has to stand off, which is
+   * the actual law and was not modelled at all: the whistle went and everyone charged.
+   */
+  if (world.kickoffProtected) {
+    const moved = Math.hypot(world.ball.pos.x, world.ball.pos.z) > CENTER_CIRCLE_RADIUS;
+    const struck = Math.hypot(world.ball.vel.x, world.ball.vel.z) > 2.5;
+    if (world.phase === 'in-play' && (moved || struck)) world.kickoffProtected = false;
+    else if (world.phase !== 'in-play' && world.phase !== 'kickoff') world.kickoffProtected = false;
+  }
 
   updateBodies(world, dt);
 
@@ -529,6 +541,8 @@ function updateControl(world: SimWorld, dt: number): void {
     // A carrier still owns the ball he has just knocked ahead: possession is "can I get there
     // first", not "is it inside arm's length". Without this the touch scheduler loses the ball
     // to nobody every time it pushes it in front.
+    // Nobody may nick the ball off the side taking the kickoff before they have played it.
+    if (world.kickoffProtected && p.side !== world.kickoffSide) continue;
     const carrying = p.id === previous && p.kickCooldown <= 0;
     const reach = CONTROL_RADIUS + (keeper ? 0.55 : expecting ? 0.25 : 0) + (carrying ? 1.15 : 0);
     const height = keeper ? 2.6 : 1.5;
