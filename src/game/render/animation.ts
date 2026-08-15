@@ -29,17 +29,29 @@ const CLIP_LENGTH: Record<string, number> = {
  */
 export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   const speed = Math.hypot(player.vel.x, player.vel.z);
-  const stride = Math.min(1, speed / 7);
+  /*
+   * Facing and travel are decoupled now: a jockeying defender shuffles sideways and back-pedals
+   * while watching the ball. Running the full stride cycle while travelling across the facing
+   * is a moonwalk, so the swing follows only the component of travel along the body, and the
+   * lateral remainder becomes a side-step: shorter, quicker-looking, with the body dipped into
+   * the direction of travel.
+   */
+  const facing = { x: Math.sin(player.heading), z: Math.cos(player.heading) };
+  const along = speed > 0.3 ? (player.vel.x * facing.x + player.vel.z * facing.z) / speed : 1;
+  const lateral = speed > 0.3 ? (player.vel.x * facing.z - player.vel.z * facing.x) / speed : 0;
+  const stride = Math.min(1, speed / 7) * Math.max(0.25, Math.abs(along));
   const phase = player.gait * 2;
   const swing = Math.sin(phase) * stride * 0.85;
+  const shuffle = Math.min(1, speed / 7) * Math.abs(lateral);
 
   // Baseline run cycle; each clip below layers on top of it.
   let legL = swing;
   let legR = -swing;
   let armL = -swing * 0.7;
   let armR = swing * 0.7;
-  let lean = -stride * 0.12;
-  let roll = 0;
+  let lean = -stride * 0.12 * Math.sign(along || 1);
+  // Dip into the side-step, and widen the legs a touch so it reads as a shuffle, not a glide.
+  let roll = -lateral * 0.14;
   let twist = 0;
   let bob = Math.abs(Math.sin(phase)) * 0.05 * stride;
   /*
@@ -50,7 +62,8 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   let shinL = stride * (0.18 + 1.05 * Math.max(0, -Math.sin(phase - 0.55)));
   let shinR = stride * (0.18 + 1.05 * Math.max(0, Math.sin(phase - 0.55)));
   // Sideways swing of the kicking leg: the finesse wrap and the volley need it; zero elsewhere.
-  let legRz = 0;
+  let legRz = shuffle * (0.18 + Math.abs(Math.sin(phase)) * 0.2) * Math.sign(lateral || 1);
+  const legLz = -legRz;
 
   const length = CLIP_LENGTH[player.anim] ?? 0;
   // 0 at the start of the clip, 1 at the end.
@@ -258,6 +271,7 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   rig.legR.rotation.x = legR;
   // Written every frame: a clip that borrowed the z axis must not leave it behind.
   rig.legR.rotation.z = legRz;
+  rig.legL.rotation.z = legLz;
   rig.armL.rotation.x = armL;
   rig.armR.rotation.x = armR;
   rig.torso.rotation.x = lean * 0.6;

@@ -74,6 +74,12 @@ export interface SimPlayer {
   thinkTimer: number;
   /** Cached AI intent, refreshed on the reaction-time cadence. */
   intent: Vec2;
+  /**
+   * Where the body should point while executing the intent, or null to face travel. Real
+   * defending is done side-on and backwards — a marker who turns his back on the ball to run to
+   * his spot is not marking anything.
+   */
+  intentFace: Vec2 | null;
   intentSprint: boolean;
   /** Jockeying (off the ball) or shielding (on it) — slower, but much harder to beat. */
   shielding: boolean;
@@ -307,6 +313,13 @@ export interface SimWorld {
    * nearly on him, so the player watches the flight and times the header himself.
    */
   pendingSwitch: number | null;
+  /**
+   * The predicted flight of the ball from its last strike or deflection, sampled at 30Hz by the
+   * same forward model the shot solver uses. Everything that wants to know where the ball is
+   * going queries this instead of doing its own physics — the goalkeeper first among them.
+   */
+  flight: import('./ballistics').FlightSample[] | null;
+  flightDirty: boolean;
   restart: SetPiece | null;
   possessionTicks: Record<TeamSide, number>;
   shots: Record<TeamSide, number>;
@@ -374,6 +387,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         gait: 0,
         thinkTimer: 0,
         intent: { x: 0, z: 0 },
+        intentFace: null,
         intentSprint: false,
         shielding: false,
         slot: { x: slot.x, z: slot.z },
@@ -432,6 +446,8 @@ export function createWorld(config: MatchConfig): SimWorld {
     kickoffProtected: false,
     keeperRush: false,
     pendingSwitch: null,
+    flight: null,
+    flightDirty: false,
     restart: null,
     possessionTicks: { home: 0, away: 0 },
     shots: { home: 0, away: 0 },
@@ -496,6 +512,7 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
     p.kickCooldown = 0;
     p.thinkTimer = 0;
     p.intent = { x: 0, z: 0 };
+    p.intentFace = null;
   }
 
   // The kickoff side puts two players on the ball.
