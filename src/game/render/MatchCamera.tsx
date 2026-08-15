@@ -24,6 +24,14 @@ const TOUCHLINE = 1;
 const RIGS: Record<'broadcast' | 'tele', { height: number; back: number; track: number }> = {
   // Both rigs sit inside the bowl: broadcast on the gantry at the front of the second tier,
   // tele higher and further back, clear of the seats and under the roof.
+  /*
+   * Left where it is deliberately. Pulling the rig in makes players usefully bigger, but it also
+   * widens the angle subtended by the pitch, and a run straight up the field from an off-centre
+   * position then projects with a lot more sideways drift: pressing "up" moved the player 12 deg
+   * off screen-vertical at this height and 23 deg at 17m/20m. Camera-relative control gets
+   * measurably less predictable, which is too high a price. If bigger players are wanted, the
+   * answer is better models, not a closer camera.
+   */
   broadcast: { height: 19, back: 23, track: 0.55 },
   tele: { height: 30, back: 26, track: 0.35 },
 };

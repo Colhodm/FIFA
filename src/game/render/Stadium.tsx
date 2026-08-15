@@ -148,19 +148,27 @@ function Crowd({ density }: { density: number }) {
   const seats = useMemo(() => {
     const rand = mulberry32(1337);
     const color = new Color();
+    /*
+     * A televised crowd reads as a dark, desaturated mass with occasional light flecks — not the
+     * neon confetti this used to be. Mostly darks and greys, a few muted club colours.
+     */
     const palette = [
-      '#e2e8f0',
-      '#cbd5f5',
-      '#f87171',
-      '#60a5fa',
-      '#fbbf24',
-      '#34d399',
-      '#f472b6',
-      '#1f2937',
-      '#94a3b8',
-      '#0f172a',
-      '#fda4af',
-      '#a78bfa',
+      '#1e2532',
+      '#2b3444',
+      '#141a24',
+      '#3a4354',
+      '#8d97a8',
+      '#5b6577',
+      '#232c3a',
+      '#6b7385',
+      '#454f61',
+      '#0f141c',
+      '#7d8798',
+      '#2f3a4a',
+      '#9aa4b4',
+      '#1a222e',
+      '#54408f',
+      '#7a3340',
     ];
     const list: { pos: [number, number, number]; rot: number; scale: number; rgb: Color }[] = [];
     for (let i = 0; i < count; i++) {

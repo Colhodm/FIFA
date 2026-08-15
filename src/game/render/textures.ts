@@ -231,27 +231,38 @@ export function hoardingTexture(): CanvasTexture {
     const width = 2048;
     const height = 128;
     const ctx = canvas2d(width, height);
+    /*
+     * Perimeter LED reads as a dark band with bright lettering on television, not as a row of
+     * saturated colour blocks. Eight fully-lit panels in primary colours were the loudest thing
+     * on screen and made every wide shot look like a toy.
+     */
     const sponsors = [
-      ['#0f766e', 'NORTHWIND'],
-      ['#1d4ed8', 'ORBIT BANK'],
-      ['#b91c1c', 'RED KETTLE'],
-      ['#7c3aed', 'LUMEN'],
-      ['#c2410c', 'FORGE TYRES'],
-      ['#0e7490', 'BLUE HARBOUR'],
-      ['#166534', 'GREENLINE'],
-      ['#9333ea', 'AURORA AIR'],
+      ['#101826', '#5eead4', 'NORTHWIND'],
+      ['#0c1220', '#93c5fd', 'ORBIT BANK'],
+      ['#1a1013', '#fca5a5', 'RED KETTLE'],
+      ['#121020', '#c4b5fd', 'LUMEN'],
+      ['#1a1410', '#fdba74', 'FORGE TYRES'],
+      ['#0b1418', '#67e8f9', 'BLUE HARBOUR'],
+      ['#0d1710', '#86efac', 'GREENLINE'],
+      ['#140f1c', '#d8b4fe', 'AURORA AIR'],
     ] as const;
     const panel = width / sponsors.length;
-    sponsors.forEach(([color, name], i) => {
-      ctx.fillStyle = color;
+    sponsors.forEach(([base, ink, name], i) => {
+      ctx.fillStyle = base;
       ctx.fillRect(i * panel, 0, panel, height);
-      ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.fillRect(i * panel, height * 0.72, panel, height * 0.28);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = `bold ${Math.round(height * 0.42)}px sans-serif`;
+      // A thin lit strip along the bottom is what actually catches the eye on a broadcast.
+      ctx.fillStyle = ink;
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(i * panel, height * 0.86, panel, height * 0.14);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = ink;
+      ctx.font = `bold ${Math.round(height * 0.36)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(name, i * panel + panel / 2, height * 0.42);
+      ctx.fillText(name, i * panel + panel / 2, height * 0.44);
+      // Panel seam.
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(i * panel, 0, 3, height);
     });
     const texture = colorTexture(ctx);
     texture.wrapS = RepeatWrapping;
