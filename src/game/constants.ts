@@ -78,6 +78,8 @@ export const MIN_PASS_POWER = 7;
 export const CHARGE_TIME = 0.8;
 
 /** Sideways acceleration per unit of spin per m/s of pace: the Magnus effect on a curled ball. */
+/** Lateral acceleration per m/s for a spinless, fast, airborne ball: the knuckle wobble. */
+export const KNUCKLE = 0.055;
 export const MAGNUS = 0.42;
 /** Spin decays this fast in flight (fraction remaining per second). */
 export const SPIN_DECAY = 0.55;

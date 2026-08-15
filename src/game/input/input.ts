@@ -402,6 +402,18 @@ export class InputManager {
   }
 
   /** Clears every held key and pending buffer — used on pause, restart and phase changes. */
+  /**
+   * Abandons an in-progress charge: the next release of this action will not fire. This is what
+   * makes the fake shot a real *cancel* — without it the feint played, and then the shot came
+   * out anyway the moment the button was released, which railroaded every mistimed charge.
+   */
+  cancel(action: ActionName): void {
+    const state = this.frame.actions[action];
+    state.autoFired = true;
+    state.charge = 0;
+    state.heldTime = 0;
+  }
+
   reset(): void {
     for (const source of this.sources) {
       if (source instanceof KeyboardSource) source.releaseAll();

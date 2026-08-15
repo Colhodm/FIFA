@@ -226,6 +226,8 @@ export function updateKeepers(world: SimWorld, dt: number): void {
       world.ball.spin = { x: 0, y: 0, z: 0 };
       world.commands.push({ type: 'velocity', vel });
       world.lastTouch = { side: keeper.side, playerId: keeper.id };
+      // A parry is a loose ball in the most dangerous place on the pitch. See the block path.
+      world.possession = null;
       keeper.kickCooldown = 0.5;
       world.controllerId = null;
     }

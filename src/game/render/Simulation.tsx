@@ -5,6 +5,7 @@ import {
   BALL_MASS,
   CHARGE_TIME,
   HALF_LENGTH,
+  KNUCKLE,
   MAGNUS,
   MAX_TICKS_PER_FRAME,
   SPIN_DECAY,
@@ -105,6 +106,28 @@ export function Simulation({ world }: { world: SimWorld }) {
           body.setLinvel({ x: 0, y: 0, z: 0 }, true);
           body.setAngvel({ x: 0, y: 0, z: 0 }, true);
         }
+      }
+
+      /*
+       * Knuckle. A near-spinless ball at pace does not fly straight — the air peels off it
+       * unevenly and it wobbles late, which is what makes a driven strike frightening rather
+       * than merely fast. A slowly-wandering pseudo-noise force, only when the ball is quick,
+       * airborne and spinless; deterministic in the flight so replays agree.
+       */
+      const kv = world.ball.vel;
+      const kSpeed = Math.hypot(kv.x, kv.z);
+      if (Math.abs(world.ball.spin.y) < 0.25 && kSpeed > 17 && world.ball.pos.y > 0.25) {
+        const t = world.ball.pos.x * 0.37 + world.ball.pos.z * 0.53 + world.ball.pos.y * 1.7;
+        const wob = Math.sin(t * 3.1) * Math.cos(t * 1.7);
+        const side = { x: -kv.z / kSpeed, z: kv.x / kSpeed };
+        body.applyImpulse(
+          {
+            x: side.x * wob * KNUCKLE * kSpeed * BALL_MASS * dt,
+            y: Math.sin(t * 2.3) * KNUCKLE * 0.5 * kSpeed * BALL_MASS * dt,
+            z: side.z * wob * KNUCKLE * kSpeed * BALL_MASS * dt,
+          },
+          true,
+        );
       }
 
       // Magnus effect: sidespin pushes the ball perpendicular to its flight, so a curled

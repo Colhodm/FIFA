@@ -72,6 +72,14 @@ export function MainMenu() {
         </p>
       </header>
 
+      {/* The whole control scheme is a keyboard; a phone cannot play this. Say so up front. */}
+      {isProbablyMobile() && (
+        <p className="error">
+          This game needs a keyboard — please open it on a desktop or laptop. Mobile is not
+          supported.
+        </p>
+      )}
+
       {teamsError && <p className="error">{teamsError}</p>}
       {!teams.length && !teamsError && <p className="muted">Loading teams…</p>}
 
@@ -272,5 +280,14 @@ export function MainMenu() {
         <span className="muted">Hold a kick button to charge; double-tap to loft it.</span>
       </footer>
     </div>
+  );
+}
+
+/** Coarse pointer plus no keyboard is a phone or tablet: warn rather than let them flounder. */
+function isProbablyMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia?.('(pointer: coarse)').matches &&
+    !window.matchMedia?.('(pointer: fine)').matches
   );
 }
