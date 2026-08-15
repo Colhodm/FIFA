@@ -705,6 +705,79 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Defending is done side-on: a containing defender must keep facing the ball while his feet
+ * carry him sideways. Facing used to be welded to velocity, so every defender turned his back
+ * on the play to jog to his spot.
+ */
+function checkFacingDecoupled(): void {
+  let watching = 0;
+  let decoupled = 0;
+  let samples = 0;
+  for (let seed = 0; seed < 6; seed++) {
+    const world = newWorld(seed * 83 + 3);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const carrier = world.players.find((p) => p.side === 'away' && p.role === 'FW');
+    if (!carrier) throw new Error('no carrier');
+    carrier.pos = { x: -20, z: 0 };
+    world.ball.pos = { x: -20.4, y: BALL_RADIUS, z: 0 };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = carrier.id;
+    world.possession = 'away';
+
+    const mgr = manager();
+    for (let i = 0; i < 60 * 4; i++) {
+      // Drag the carrier across the pitch so the container has to travel laterally.
+      // Trackable pace: the first draft swept at 16 m/s peak, faster than anybody can shuffle,
+      // so the defender was permanently chasing diagonally instead of containing.
+      carrier.pos.z = Math.sin(i / 95) * 9;
+      carrier.pos.x = -20;
+      // He can never release it: the first draft let him pass on his first think and the whole
+      // containment scene dissolved into open play within half a second.
+      carrier.kickCooldown = 99;
+      world.ball.pos.x = -20.4;
+      world.ball.pos.z = carrier.pos.z;
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = carrier.id;
+      world.possession = 'away';
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      if (i < 60) continue; // let him arrive first
+      /*
+       * Every home player under a facing order who is actually moving: guessing which single
+       * body was "the container" kept measuring the wrong man. If facing is decoupled anywhere
+       * in the unit, it shows here.
+       */
+      for (const d of world.players) {
+        if (d.side !== 'home' || d.role === 'GK' || d.sentOff || !d.intentFace) continue;
+        const speed = Math.hypot(d.vel.x, d.vel.z);
+        if (speed < 0.6) continue;
+        const facing = { x: Math.sin(d.heading), z: Math.cos(d.heading) };
+        const fl = Math.hypot(d.intentFace.x, d.intentFace.z) || 1;
+        const watch = (facing.x * d.intentFace.x + facing.z * d.intentFace.z) / fl;
+        const travel = (d.vel.x * facing.x + d.vel.z * facing.z) / speed;
+        samples++;
+        if (watch > 0.7) watching++;
+        if (watch > 0.7 && Math.abs(travel) < 0.75) decoupled++;
+      }
+    }
+  }
+  const wPct = Math.round((watching / Math.max(1, samples)) * 100);
+  const dPct = Math.round((decoupled / Math.max(1, samples)) * 100);
+  console.log(
+    `facing: containing defender watches the ball on ${wPct}% of moving frames, side-steps on ${dPct}%`,
+  );
+  if (wPct < 40) {
+    throw new Error(`the containing defender only watches the ball ${wPct}% of the time`);
+  }
+  if (dPct < 10) {
+    throw new Error(`facing never decouples from travel (${dPct}%) — he just runs at his spot`);
+  }
+}
+
+/**
  * A ball that passes wide of the post at pace must not be scored. Goal detection sampled the
  * ball's instantaneous position, and at a hundred miles an hour it moves three quarters of a
  * metre per tick — so a shot that went wide could be caught *behind* the line at a moment when
@@ -954,13 +1027,16 @@ function checkStaminaRecovery(): void {
   const drive = (sprint: boolean, seconds: number) => {
     const actions = idleActions();
     actions.sprint = { ...actions.sprint, down: sprint };
+    // Full stick without sprint is still hard running, which drains: a recovery jog is a half
+    // stick. Driving "jog" at full tilt made this check hinge on threshold rounding.
+    const tilt = sprint ? 1 : 0.45;
     for (let i = 0; i < 60 * seconds; i++) {
       // Pin control: the auto-switcher otherwise hands the input to whoever wins the ball and
       // the man being measured stops moving entirely.
       world.activeId = me.id;
       world.switching.sinceManual = 0;
       const before = { ...world.ball.vel };
-      tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      tick(world, { move: { x: tilt, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
       stepBall(world, TICK_DT, before);
       world.events.length = 0;
     }
@@ -1660,6 +1736,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkFacingDecoupled();
 checkPhantomGoals();
 checkTenYards();
 checkShotContexts();

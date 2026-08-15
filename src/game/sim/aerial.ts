@@ -128,6 +128,25 @@ export function resolveAerials(world: SimWorld, intent: HeaderIntent | null): bo
  * Keepers: read the shot, commit to a dive, and either hold it or push it away. A held ball
  * buys a couple of seconds before distribution; a parry drops back into play.
  */
+/** Where and when the cached flight crosses the vertical plane x = lineX, if it does. */
+function crossingOnLine(
+  world: SimWorld,
+  lineX: number,
+): { z: number; y: number; t: number } | null {
+  const flight = world.flight;
+  if (!flight || flight.length < 2) return null;
+  for (let i = 1; i < flight.length; i++) {
+    const a = flight[i - 1];
+    const b = flight[i];
+    if (Math.sign(lineX - a.x) !== Math.sign(lineX - b.x)) {
+      const span = b.x - a.x;
+      const f = Math.abs(span) < 1e-9 ? 0 : (lineX - a.x) / span;
+      return { z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f, t: a.t + (b.t - a.t) * f };
+    }
+  }
+  return null;
+}
+
 export function updateKeepers(world: SimWorld, dt: number): void {
   const ball = ballPos2(world);
   const speed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
@@ -146,9 +165,18 @@ export function updateKeepers(world: SimWorld, dt: number): void {
       speed > 9 &&
       closing > 4
     ) {
-      const eta = Math.abs(own.x - world.ball.pos.x) / closing;
-      const crossZ = world.ball.pos.z + world.ball.vel.z * eta;
-      const crossY = world.ball.pos.y + world.ball.vel.y * eta - 0.5 * GRAVITY * eta * eta;
+      /*
+       * Read the real flight, not a straight line. The keeper used to extrapolate linearly with
+       * a bare gravity term — a third model of the same ball, disagreeing with both the rigid
+       * body and the shot solver, so he dived to where a different physics engine thought the
+       * ball was going. Curl beat him for free; now it has to actually beat him.
+       */
+      const read = crossingOnLine(world, own.x);
+      const eta = read ? read.t : Math.abs(own.x - world.ball.pos.x) / closing;
+      const crossZ = read ? read.z : world.ball.pos.z + world.ball.vel.z * eta;
+      const crossY = read
+        ? read.y
+        : world.ball.pos.y + world.ball.vel.y * eta - 0.5 * GRAVITY * eta * eta;
       const lateral = crossZ - keeper.pos.z;
       const reachable = Math.abs(lateral) < DIVE_REACH + keeper.defending / 60;
       // A keeper reads the shot, he does not know where it is going. Diving to the exact
@@ -228,6 +256,7 @@ export function updateKeepers(world: SimWorld, dt: number): void {
       world.lastTouch = { side: keeper.side, playerId: keeper.id };
       // A parry is a loose ball in the most dangerous place on the pitch. See the block path.
       world.possession = null;
+      world.flightDirty = true;
       keeper.kickCooldown = 0.5;
       world.controllerId = null;
     }

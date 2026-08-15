@@ -72,6 +72,7 @@ export function applyKickVelocity(
   world.possession = player.side;
   world.pendingKickId = player.id;
   world.shotAge = 0;
+  world.flightDirty = true;
 }
 
 export function applyKick(
@@ -112,6 +113,7 @@ export function applyKick(
   world.lastTouch = { side: player.side, playerId: player.id };
   world.possession = player.side;
   world.shotAge = 0;
+  world.flightDirty = true;
   // Resolved at the end of the tick so the offside law never has to import the rules here.
   world.pendingKickId = player.id;
 }

@@ -24,6 +24,96 @@ export interface FlightModel {
 
 export const DEFAULT_FLIGHT: FlightModel = { gravity: 9.81, damping: 0.32, spinDecay: 0.55 };
 
+/** One instant of a predicted flight. */
+export interface FlightSample {
+  t: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Mutable state advanced by `flightStep`. */
+export interface FlightState {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  spin: number;
+}
+
+/**
+ * Advances the ball one step under the exact forces the live body feels: gravity, Rapier's
+ * damping form, the Magnus term, and the ground bounce. This is *the* forward model — the shot
+ * solver, the trajectory cache and (through it) the goalkeeper all use this one function, so
+ * prediction and reality can no longer quietly disagree. The knuckle force is deliberately
+ * absent: it is noise, and nobody should be able to predict it — that is what makes it knuckle.
+ */
+export function flightStep(
+  st: FlightState,
+  dt: number,
+  model: FlightModel = DEFAULT_FLIGHT,
+): boolean {
+  const ax = MAGNUS * st.spin * st.vz;
+  const az = -MAGNUS * st.spin * st.vx;
+  st.vx += ax * dt;
+  st.vz += az * dt;
+  st.vy -= model.gravity * dt;
+  const damp = 1 / (1 + model.damping * dt);
+  st.vx *= damp;
+  st.vy *= damp;
+  st.vz *= damp;
+  st.x += st.vx * dt;
+  st.y += st.vy * dt;
+  st.z += st.vz * dt;
+  st.spin *= Math.pow(model.spinDecay, dt);
+  if (st.y < BALL_RADIUS && st.vy < 0) {
+    st.y = BALL_RADIUS;
+    st.vy = -st.vy * 0.62;
+    if (Math.abs(st.vy) < 0.6) st.vy = 0;
+    // Grass takes pace off a bouncing ball beyond the air damping.
+    st.vx *= 0.85;
+    st.vz *= 0.85;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Rolls the whole flight forward and samples it. Rebuilt whenever the ball is struck or
+ * deflected; queried instead of every consumer doing its own physics.
+ */
+export function predictFlight(
+  from: { x: number; y: number; z: number },
+  vel: { x: number; y: number; z: number },
+  spinY: number,
+  seconds = 2.5,
+  hz = 30,
+  model: FlightModel = DEFAULT_FLIGHT,
+): FlightSample[] {
+  const st: FlightState = {
+    x: from.x,
+    y: from.y,
+    z: from.z,
+    vx: vel.x,
+    vy: vel.y,
+    vz: vel.z,
+    spin: spinY,
+  };
+  const dt = 1 / 120;
+  const out: FlightSample[] = [{ t: 0, x: st.x, y: st.y, z: st.z }];
+  const every = Math.max(1, Math.round(120 / hz));
+  let i = 0;
+  for (let t = 0; t < seconds; t += dt) {
+    flightStep(st, dt, model);
+    i++;
+    if (i % every === 0) out.push({ t: t + dt, x: st.x, y: st.y, z: st.z });
+    if (Math.hypot(st.vx, st.vz) < 0.4 && st.y <= BALL_RADIUS + 0.01) break;
+  }
+  return out;
+}
+
 export interface Crossing {
   /** Where the ball crosses the plane. */
   z: number;
@@ -45,49 +135,30 @@ export function crossingAt(
   dt = 1 / 120,
   maxTime = 4,
 ): Crossing | null {
-  let x = from.x;
-  let y = from.y;
-  let z = from.z;
-  let vx = vel.x;
-  let vy = vel.y;
-  let vz = vel.z;
-  let spin = spinY;
-  const towards = Math.sign(planeX - x);
-  if (towards === 0) return { z, y, t: 0 };
+  const st: FlightState = {
+    x: from.x,
+    y: from.y,
+    z: from.z,
+    vx: vel.x,
+    vy: vel.y,
+    vz: vel.z,
+    spin: spinY,
+  };
+  const towards = Math.sign(planeX - st.x);
+  if (towards === 0) return { z: st.z, y: st.y, t: 0 };
 
   for (let t = 0; t < maxTime; t += dt) {
-    const px = x;
-    const py = y;
-    const pz = z;
-
-    // Magnus: sidespin pushes perpendicular to travel, in the horizontal plane.
-    const ax = MAGNUS * spin * vz;
-    const az = -MAGNUS * spin * vx;
-    vx += ax * dt;
-    vz += az * dt;
-    vy -= model.gravity * dt;
-
-    // Rapier's damping is applied as a divisor, not an exponential.
-    const damp = 1 / (1 + model.damping * dt);
-    vx *= damp;
-    vy *= damp;
-    vz *= damp;
-
-    x += vx * dt;
-    y += vy * dt;
-    z += vz * dt;
-    spin *= Math.pow(model.spinDecay, dt);
-
+    const px = st.x;
+    const py = st.y;
+    const pz = st.z;
     // If it hits the deck before the plane the shot is simply short. Bouncing on and reporting
     // a crossing several hops later makes this function wildly non-smooth, and the solver's
     // numerical Jacobian then points in nonsense directions.
-    if (y < BALL_RADIUS) return null;
-
-    if (Math.sign(planeX - x) !== towards) {
-      // Interpolate the exact crossing between the previous step and this one.
-      const span = x - px;
+    if (flightStep(st, dt, model)) return null;
+    if (Math.sign(planeX - st.x) !== towards) {
+      const span = st.x - px;
       const f = Math.abs(span) < 1e-9 ? 0 : (planeX - px) / span;
-      return { z: pz + (z - pz) * f, y: py + (y - py) * f, t: t + dt * f };
+      return { z: pz + (st.z - pz) * f, y: py + (st.y - py) * f, t: t + dt * f };
     }
   }
   return null;

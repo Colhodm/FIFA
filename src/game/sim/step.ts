@@ -44,6 +44,7 @@ import {
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
 import { speedFor } from './power';
+import { predictFlight } from './ballistics';
 import { strike, type ShotStyle, type ShotTake } from './finishing';
 import { firstTouchError, performSkill, skillFromDirection } from './skills';
 import {
@@ -88,6 +89,17 @@ export function tick(
 ): void {
   world.pendingKickId = null;
   world.shotAge += dt;
+  /*
+   * The trajectory cache: rebuilt after any strike or deflection, dropped once somebody has the
+   * ball at his feet. Built here, at the top of the tick after the event, so the launch
+   * velocity it samples is the one the rigid body actually received.
+   */
+  if (world.flightDirty) {
+    world.flight = predictFlight(world.ball.pos, world.ball.vel, world.ball.spin.y);
+    world.flightDirty = false;
+  } else if (world.controllerId !== null && world.flight) {
+    world.flight = null;
+  }
   advanceSwitchTimers(world, dt);
   // The face buttons mean different things with and without the ball; publish which it is so
   // the input layer can resolve a press against the state it was made in.
@@ -264,6 +276,7 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
       }
       desired = p.intent;
       sprint = p.intentSprint && p.stamina > 0.08;
+      face = p.intentFace;
     }
 
     integrate(p, desired, sprint, dt, face);
@@ -367,7 +380,14 @@ function integrate(
     // the spot; at full sprint the turning circle is metres wide, which is what stops players
     // changing direction like cursors.
     const pace = clamp(speed / (BASE_SPEED * SPRINT_MULTIPLIER), 0, 1);
-    const rate = TURN_RATE * (0.85 + p.dribbling / 400) * (1 - pace * 0.68);
+    /*
+     * The pace coupling models a *change of travel direction* — you cannot cut at sprint. But an
+     * explicit facing target is the torso turning to watch the ball while the feet keep their
+     * line, which costs almost nothing: throttling it welded every defender's eyes to his
+     * toes and made side-on containment physically impossible.
+     */
+    const throttle = face && Math.hypot(face.x, face.z) > 0.01 ? 0.15 : 0.68;
+    const rate = TURN_RATE * (0.85 + p.dribbling / 400) * (1 - pace * throttle);
     p.heading += clamp(angleDelta(p.heading, want), -rate * dt, rate * dt);
   }
 
@@ -689,6 +709,7 @@ function updateControl(world: SimWorld, dt: number): void {
      * open, both teams' AI treats it as a ball to be won.
      */
     world.possession = null;
+    world.flightDirty = true;
     return;
   }
 

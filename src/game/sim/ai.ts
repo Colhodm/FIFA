@@ -169,13 +169,14 @@ function markTarget(world: SimWorld, p: SimPlayer, profile: DifficultyProfile): 
   return clampToPitch({ x: spot.x + goalSide.x * gap, z: spot.z + goalSide.z * gap });
 }
 
-function setIntent(p: SimPlayer, target: Vec2, sprint: boolean): void {
+function setIntent(p: SimPlayer, target: Vec2, sprint: boolean, face: Vec2 | null = null): void {
   const to = sub(target, p.pos);
   const d = Math.hypot(to.x, to.z);
   // Ease off near the target so players settle instead of jittering.
   const throttle = clamp(d / 2.5, 0, 1);
   const n = normalize(to);
   p.intent = { x: n.x * throttle, z: n.z * throttle };
+  p.intentFace = face;
   p.intentSprint = sprint && d > 5;
 }
 
@@ -296,6 +297,7 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
             z: ball.z + outward.z * (TEN_YARDS + 0.5),
           }),
           false,
+          sub(ball, p.pos),
         );
         return;
       }
@@ -343,6 +345,7 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
               z: carrierNow.pos.z + goalSide.z * stand,
             }),
             true,
+            sub(carrierNow.pos, p.pos),
           );
           return;
         }
@@ -432,6 +435,7 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
             z: ball.z + world.ball.vel.z * 0.25 + goalSide.z * 0.8,
           }),
           p.stamina > 0.15,
+          sub(ball, p.pos),
         );
         return;
       }
@@ -454,7 +458,10 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
     const target = mark
       ? { x: shape.x * (1 - w) + mark.x * w, z: shape.z * (1 - w) + mark.z * w }
       : shape;
-    setIntent(p, target, wantsSprint && dist(p.pos, target) > 9);
+    // A marker holds his position bladed to the ball; he does not turn his back on it to jog to
+    // a spot. Only when the move is a genuine recovery sprint does he turn and run.
+    const blade = wantsSprint && dist(p.pos, target) > 9 ? null : sub(ball, p.pos);
+    setIntent(p, target, wantsSprint && dist(p.pos, target) > 9, blade);
     return;
   }
 
@@ -463,7 +470,12 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
   // The ball has been played to this man: go and get it, do not stand in your shape and watch
   // the defender run onto it.
   if (!carrier && world.passTarget?.playerId === p.id) {
-    setIntent(p, clampToPitch(interceptPoint(world, 0.4)), p.stamina > 0.12);
+    setIntent(
+      p,
+      clampToPitch(interceptPoint(world, 0.4)),
+      p.stamina > 0.12,
+      sub(ballPos2(world), p.pos),
+    );
     return;
   }
   // A pass is in flight: the closest man goes and meets it instead of holding his shape.
