@@ -784,6 +784,95 @@ function checkTenYards(): void {
 }
 
 /**
+ * The circumstances of a strike must matter: a settled plant-foot finish, a rising half-volley
+ * and a flat-sprint hit are different shots. Every strike used to be treated as settled.
+ */
+function checkShotContexts(): void {
+  const run = (setup: (world: SimWorld, me: SimPlayer) => void) => {
+    const crossings: { z: number; y: number }[] = [];
+    let n = 0;
+    for (let seed = 0; seed < 14; seed++) {
+      const world = newWorld(seed * 71 + 7);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no shooter');
+      me.pos = { x: (52.5 - 15) * dir, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      // Nobody else on the pitch: a keeper save stops the ball before the goal plane and
+      // poisons the accuracy measurement with his behaviour instead of the striker's.
+      for (const q of world.players) {
+        if (q.id === me.id) continue;
+        q.pos = { x: -52 * dir, z: q.pos.z > 0 ? 32 : -32 };
+        q.vel = { x: 0, z: 0 };
+        q.kickCooldown = 99;
+      }
+      world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+      setup(world, me);
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.shoot = { ...actions.shoot, released: true, fired: true, charge: 0.85, heldTime: 1 };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      n++;
+      // Did it cross the goal plane inside the frame?
+      let prevX = world.ball.pos.x;
+      for (let i = 0; i < 60 * 2; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        const line = 52.5 * dir;
+        if (Math.sign(line - world.ball.pos.x) !== Math.sign(line - prevX)) {
+          crossings.push({ z: world.ball.pos.z, y: world.ball.pos.y });
+          break;
+        }
+        prevX = world.ball.pos.x;
+        if (world.phase !== 'in-play') break;
+      }
+    }
+    void n;
+    // Dispersion of where the ball actually arrives: binary on-target saturates because the
+    // goal is over seven metres wide, and a keeper in the scene poisons it with saves.
+    const mz = crossings.reduce((a, c) => a + c.z, 0) / crossings.length;
+    const my = crossings.reduce((a, c) => a + c.y, 0) / crossings.length;
+    const spread =
+      crossings.reduce((a, c) => a + Math.hypot(c.z - mz, c.y - my), 0) / crossings.length;
+    return +spread.toFixed(2);
+  };
+
+  const settled = run(() => {});
+  const volley = run((world) => {
+    // A ball bouncing at thigh height, still rising.
+    world.ball.pos.y = 0.55;
+    world.ball.vel.y = 2.5;
+  });
+  const sprinting = run((world, me) => {
+    const dir = world.attackDir.home;
+    me.vel = { x: 9.5 * dir, z: 2 };
+  });
+  console.log(
+    `shot context dispersion: settled ${settled}m | rising volley ${volley}m | flat sprint ${sprinting}m`,
+  );
+  if (volley < settled * 1.25) {
+    throw new Error(`a rising volley (${volley}m) is as tight as a settled shot (${settled}m)`);
+  }
+  if (sprinting < settled * 1.2) {
+    throw new Error(
+      `a flat-sprint hit (${sprinting}m) is as tight as a settled shot (${settled}m)`,
+    );
+  }
+}
+
+/**
  * Driven, finesse and chip must be three genuinely different shots. The chip in particular was
  * broken: the solver had been forced onto the low arc to stop it lobbing ordinary shots, but a
  * chip is *defined* by looping the keeper, so it came out as a flat drive at waist height.
@@ -856,13 +945,20 @@ function checkShotStyles(): void {
 function checkStaminaRecovery(): void {
   const world = newWorld(21);
   world.phase = 'in-play';
-  const me = world.players.find((p) => p.id === world.activeId);
+  // An outfield player, explicitly: activeId defaults to index 0, and the Premier League
+  // rosters list the goalkeeper first — the same trap that once put every kickoff on Alisson.
+  const me = world.players.find((p) => p.side === 'home' && p.role === 'MF');
   if (!me) throw new Error('no player');
+  world.activeId = me.id;
   const mgr = manager();
   const drive = (sprint: boolean, seconds: number) => {
     const actions = idleActions();
     actions.sprint = { ...actions.sprint, down: sprint };
     for (let i = 0; i < 60 * seconds; i++) {
+      // Pin control: the auto-switcher otherwise hands the input to whoever wins the ball and
+      // the man being measured stops moving entirely.
+      world.activeId = me.id;
+      world.switching.sinceManual = 0;
       const before = { ...world.ball.vel };
       tick(world, { move: { x: 1, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
       stepBall(world, TICK_DT, before);
@@ -1566,6 +1662,7 @@ checkSwitchOnPass();
 checkDefensiveSwitch();
 checkPhantomGoals();
 checkTenYards();
+checkShotContexts();
 checkShotStyles();
 checkStaminaRecovery();
 checkBodyFeints();

@@ -8,6 +8,26 @@ import type { SimPlayer, SimWorld } from './state';
 /** How the ball is struck, which fixes the spin and roughly fixes the flight. */
 export type ShotStyle = 'driven' | 'finesse' | 'chip';
 
+/**
+ * The circumstances of the strike. A settled plant-foot finish and a bouncing half-volley under
+ * a defender's shoulder are different shots, and treating them identically was most of what
+ * remained between this and real shooting feel.
+ */
+export interface ShotTake {
+  kind: 'settled' | 'first-time' | 'volley' | 'off-balance' | 'contact';
+  /** Ball height at contact — a volley struck on the rise blazes over. */
+  ballY: number;
+}
+
+/** Error and power multipliers per take. Tuned so contexts are felt, not merely logged. */
+const TAKE_TABLE: Record<ShotTake['kind'], { spread: number; power: number }> = {
+  settled: { spread: 1, power: 1 },
+  'first-time': { spread: 1.7, power: 1.05 },
+  volley: { spread: 2.1, power: 1.1 },
+  'off-balance': { spread: 1.8, power: 0.82 },
+  contact: { spread: 2.3, power: 0.75 },
+};
+
 export interface ShotContext {
   style: ShotStyle;
   /** 0..1 charge from the hold. */
@@ -16,6 +36,8 @@ export interface ShotContext {
   aim: Vec2 | null;
   /** Distance to the nearest opponent, so pressure can spoil the strike. */
   pressure: number;
+  /** The circumstances of the strike. Omitted means settled (the AI's shots via `shoot`). */
+  take?: ShotTake;
 }
 
 /**
@@ -77,9 +99,20 @@ export function pickTarget(
     (1 + clamp(1 - ctx.pressure / 4, 0, 1) * tuning.pressureSpread) *
     (1.35 - p.shooting / 130);
 
+  const take = ctx.take ?? { kind: 'settled' as const, ballY: 0.11 };
+  const table = TAKE_TABLE[take.kind];
+  const takenSpread = spread * table.spread;
+  /*
+   * Contact height on a volley biases elevation asymmetrically: struck on the rise, below the
+   * equator with the laces, the ball climbs — the classic blazed half-volley. Let it drop to
+   * knee height and it can be kept down. This is what makes bouncing chances treacherous, and
+   * waiting for the drop a real skill.
+   */
+  const riseBias =
+    take.kind === 'volley' ? clamp((take.ballY - 0.3) * 2.2, 0, 1.4) * (0.6 + world.rand()) : 0;
   const gauss = () => (world.rand() + world.rand() + world.rand() - 1.5) / 1.5;
-  let z = wantZ + gauss() * spread;
-  let y = wantY + gauss() * spread * 0.55;
+  let z = wantZ + gauss() * takenSpread;
+  let y = wantY + riseBias + gauss() * takenSpread * 0.55;
 
   // Pull an absurd miss back to a believable one: just past the post, or just over the bar.
   const postGap = Math.abs(z) - HALF_GOAL_WIDTH;
@@ -134,8 +167,12 @@ export function strike(
     tuning.maxSpeed *
     (tuning.minPowerFraction +
       (1 - tuning.minPowerFraction) * Math.pow(clamp(ctx.charge, 0, 1), 1.1));
-  // A chip is struck softly, but not so softly it cannot loop the distance.
-  const speed = base * (ctx.style === 'chip' ? 0.72 : ctx.style === 'finesse' ? 0.85 : 1);
+  // A chip is struck softly, but not so softly it cannot loop the distance. The take modulates
+  // power too: you cannot get full weight through a ball while off balance or under contact.
+  const speed =
+    base *
+    (ctx.style === 'chip' ? 0.72 : ctx.style === 'finesse' ? 0.85 : 1) *
+    TAKE_TABLE[(ctx.take ?? { kind: 'settled', ballY: 0.11 }).kind].power;
 
   const from: Vec3 = {
     x: world.ball.pos.x,

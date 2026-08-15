@@ -489,6 +489,29 @@ function decideKeeper(world: SimWorld, p: SimPlayer, profile: DifficultyProfile)
   const ball = ballPos2(world);
   const toBall = normalize(sub(ball, own));
   const ballDist = dist(ball, own);
+
+  /*
+   * One against one, the keeper does not stand on his line waiting to be picked off — he comes
+   * to meet the carrier and closes the angle, which is the entire craft of the position in that
+   * moment. Triggered when an opponent has the ball inside ~20m with no team-mate goal-side.
+   */
+  const carrier = world.players.find((q) => q.id === world.controllerId);
+  if (carrier && carrier.side !== p.side && dist(carrier.pos, own) < 20) {
+    const cover = world.players.some(
+      (q) =>
+        q.side === p.side &&
+        q.role !== 'GK' &&
+        !q.sentOff &&
+        dist(q.pos, own) < dist(carrier.pos, own) &&
+        Math.abs(q.pos.z - carrier.pos.z) < 4,
+    );
+    if (!cover) {
+      const line = normalize(sub(carrier.pos, own));
+      const out = clamp(dist(carrier.pos, own) * 0.45, 2, 8);
+      setIntent(p, { x: own.x + line.x * out, z: own.z + line.z * out }, true);
+      return;
+    }
+  }
   const advance = clamp(ballDist * 0.14, 0.5, 3.5) * (0.7 + profile.marking * 0.4);
   const target = {
     x: own.x + toBall.x * advance,
