@@ -687,6 +687,59 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Body feints must move the *defender* without moving the ball. Every other skill move shoves the
+ * ball a metre or two, so there was no way to sell a direction and keep it under your foot.
+ */
+function checkBodyFeints(): void {
+  let ballMoved = 0;
+  let beaten = 0;
+  let trials = 0;
+  for (const move of ['feint-left', 'feint-right'] as const) {
+    for (let seed = 0; seed < 12; seed++) {
+      const world = newWorld(seed * 53 + 7);
+      world.phase = 'in-play';
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no carrier');
+      me.pos = { x: 0, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.dribbling = 85;
+      me.skillTimer = 0;
+      world.ball.pos = { x: 0.4, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+      const foe = world.players.find((p) => p.side === 'away' && p.role !== 'GK');
+      if (!foe) throw new Error('no defender');
+      foe.pos = { x: 2, z: 0 };
+      foe.vel = { x: 4, z: 0 };
+      foe.kickCooldown = 0;
+
+      const from = { x: world.ball.pos.x, z: world.ball.pos.z };
+      const ok = performSkill(world, me, move, { x: 1, z: move === 'feint-right' ? 1 : -1 });
+      if (!ok) throw new Error(`${move} refused`);
+      trials++;
+      // The ball should still be at his feet.
+      const shifted = Math.hypot(world.ball.pos.x - from.x, world.ball.pos.z - from.z);
+      const launched = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+      if (launched > 4) ballMoved++;
+      void shifted;
+      if (foe.kickCooldown > 0.2) beaten++;
+    }
+  }
+  console.log(
+    `body feints: ball left the foot on ${ballMoved}/${trials}, defender wrong-footed ${beaten}/${trials}`,
+  );
+  if (ballMoved > trials * 0.25) {
+    throw new Error(
+      `a body feint launched the ball on ${ballMoved}/${trials} — that is a touch, not a feint`,
+    );
+  }
+  if (beaten < trials * 0.5) {
+    throw new Error(`body feints wrong-footed the defender only ${beaten}/${trials} times`);
+  }
+}
+
+/**
  * A cross has to be aerial and it has to reach the box even off a short hold. Speed used to come
  * from hold time and *then* get split into a launch angle, so a light press produced about six
  * metres per second of horizontal pace and the ball dropped after eight metres.
@@ -1285,6 +1338,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkBodyFeints();
 checkCrossing();
 checkKickoffProtection();
 checkRunnerMarking();

@@ -19,7 +19,7 @@ const KEYBOARD_HINTS = [
   'I through / contain',
   'Space shoot / tackle',
   'O finesse · U chip',
-  'L skill move',
+  'L skill · L+left/right feint',
   'Q switch',
   'Esc pause',
 ];
