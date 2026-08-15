@@ -737,6 +737,59 @@ function checkBlockRate(): void {
 }
 
 /**
+ * The jostle. Shoulder contact near the ball must drain the weaker man's balance and slow him:
+ * being muscled off the ball is a physical process, not a dice roll. A strong defender leaning
+ * on a slight carrier should wear him down measurably faster than the reverse pairing.
+ */
+function checkJostle(): void {
+  const run = (carrierPhys: number, defenderPhys: number) => {
+    const world = newWorld(97);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const carrier = world.players.find((p) => p.side === 'home' && p.role === 'FW');
+    const defender = world.players.find((p) => p.side === 'away' && p.role === 'DF');
+    if (!carrier || !defender) throw new Error('no pair');
+    carrier.physical = carrierPhys;
+    defender.physical = defenderPhys;
+    for (const q of world.players) {
+      if (q.id === carrier.id || q.id === defender.id) continue;
+      q.pos = { x: -45, z: q.pos.z > 0 ? 30 : -30 };
+      q.kickCooldown = 99;
+    }
+    const mgr = manager();
+    for (let i = 0; i < 60 * 2; i++) {
+      // Pinned shoulder to shoulder over the ball for two seconds.
+      carrier.pos = { x: 10, z: 0 };
+      defender.pos = { x: 10.35, z: 0.2 };
+      defender.kickCooldown = 99;
+      carrier.kickCooldown = 99;
+      world.ball.pos = { x: 10.3, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = carrier.id;
+      world.possession = 'home';
+      const before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    }
+    return +carrier.balance.toFixed(2);
+  };
+  const weakVsStrong = run(52, 92);
+  const strongVsWeak = run(92, 52);
+  console.log(
+    `jostle: 52-phys carrier at balance ${weakVsStrong} under a 92-phys shoulder; 92-phys carrier at ${strongVsWeak} under a 52-phys one`,
+  );
+  if (weakVsStrong > 0.55) {
+    throw new Error(`two seconds under a far stronger shoulder only cost ${1 - weakVsStrong}`);
+  }
+  if (strongVsWeak - weakVsStrong < 0.15) {
+    throw new Error(
+      `physique barely matters: ${strongVsWeak} vs ${weakVsStrong} — the jostle is a flat tax`,
+    );
+  }
+}
+
+/**
  * Defending is done side-on: a containing defender must keep facing the ball while his feet
  * carry him sideways. Facing used to be welded to velocity, so every defender turned his back
  * on the play to jog to his spot.
@@ -1768,6 +1821,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkJostle();
 checkFacingDecoupled();
 checkPhantomGoals();
 checkTenYards();
