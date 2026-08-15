@@ -44,7 +44,7 @@ import {
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
 import { speedFor } from './power';
-import { strike, type ShotStyle } from './finishing';
+import { strike, type ShotStyle, type ShotTake } from './finishing';
 import { firstTouchError, performSkill, skillFromDirection } from './skills';
 import {
   advanceSwitchTimers,
@@ -597,7 +597,14 @@ function updateControl(world: SimWorld, dt: number): void {
     // the ball untouchable to one team. An opponent used to top out at ~15 m/s against a
     // team-mate's 28, so any pass above half charge was physically un-interceptable and
     // completion sat at 100%. He reads it later and controls it worse; he is not made of glass.
-    const limit = keeper ? 18 : (expecting ? 28 : 22) + (p.defending + p.dribbling) / 40;
+    /*
+     * The keeper's catch is a probability, not a cliff. A hard 18 m/s limit meant everything
+     * above it parried and everything below it stuck, so rebounds arrived in two flavours only.
+     */
+    // Deterministic: rolling the dice here consumed RNG every tick for every candidate and
+    // shifted every seeded scenario downstream of it. The attribute does the scaling instead.
+    const keeperCatch = keeper ? 14 + (p.defending / 100) * 10 : 0;
+    const limit = keeper ? keeperCatch : (expecting ? 28 : 22) + (p.defending + p.dribbling) / 40;
     if (ballSpeed > limit) {
       const incoming =
         world.ball.vel.x * (p.pos.x - ball.x) + world.ball.vel.z * (p.pos.z - ball.z) > 0;
@@ -675,6 +682,13 @@ function updateControl(world: SimWorld, dt: number): void {
     blocker.kickCooldown = KICK_COOLDOWN * 0.8;
     world.events.push({ type: 'tackle', side: blocker.side, intensity: clamp(speed / 30, 0.2, 1) });
     world.controllerId = null;
+    /*
+     * A deflection is *nobody's* ball. Possession used to stay with the shooting side, so their
+     * team kept running attacking support shapes, the defenders kept their block, and the
+     * rebound died untouched — measured as 15 of 15 rebounds falling to no one. With possession
+     * open, both teams' AI treats it as a ball to be won.
+     */
+    world.possession = null;
     return;
   }
 
@@ -891,6 +905,27 @@ function throwIn(world: SimWorld, taker: SimPlayer, aim: Vec2, charge: number): 
   world.events.push({ type: 'throw', side: taker.side, intensity: clamp(charge, 0.2, 1) });
 }
 
+/**
+ * How the shot is being taken. Every strike used to be treated as a settled, plant-foot finish
+ * whether the man was flat out, mid-turn, or hitting a bouncing ball — and that sameness is most
+ * of what was left between this and real shooting feel. The classification keys the error and
+ * power tables in `strike`, and volleys carry the contact height so a rising half-volley blazes.
+ */
+function classifyShot(world: SimWorld, p: SimPlayer): ShotTake {
+  const ballY = world.ball.pos.y;
+  const relBall = Math.hypot(world.ball.vel.x - p.vel.x, world.ball.vel.z - p.vel.z);
+  const speed = Math.hypot(p.vel.x, p.vel.z);
+  const heading = { x: Math.sin(p.heading), z: Math.cos(p.heading) };
+  const across = speed > 0.5 ? (p.vel.x * heading.x + p.vel.z * heading.z) / speed : 1;
+  if (nearestOpponentDistance(world, p) < 1.1) return { kind: 'contact', ballY };
+  if (ballY > 0.35) return { kind: 'volley', ballY };
+  if (relBall > 5) return { kind: 'first-time', ballY };
+  if (across < 0.55 || speed > BASE_SPEED * SPRINT_MULTIPLIER * 0.88) {
+    return { kind: 'off-balance', ballY };
+  }
+  return { kind: 'settled', ballY };
+}
+
 /** Direction the human is aiming: his stick, or where he is facing if it is centred. */
 function aimOf(player: SimPlayer, input: InputFrame, cameraYaw: number): Vec2 {
   const moveDir = cameraRelative(input.move, cameraYaw);
@@ -1023,7 +1058,11 @@ function handleHumanActions(
   }
   // Fake shot: shoot then pass in the same beat.
   if (a.shoot.down && a.pass.pressed) {
-    if (performSkill(world, active, 'fake-shot', aimDir)) return;
+    if (performSkill(world, active, 'fake-shot', aimDir)) {
+      // The charge is abandoned, not banked: releasing the button must not still shoot.
+      manager.cancel('shoot');
+      return;
+    }
   }
 
   // Each of the four kicks fires on `fired`, which covers both the release and the automatic
@@ -1112,8 +1151,9 @@ function playShot(
   const pressure = nearestOpponentDistance(world, active);
   // A centred stick means "at goal"; a held direction is a genuine aim.
   const aim = Math.hypot(aimDir.x, aimDir.z) > 0.2 ? aimDir : null;
+  const take = classifyShot(world, active);
 
-  const result = strike(world, active, { style, charge, aim, pressure }, world.tuning.shot);
+  const result = strike(world, active, { style, charge, aim, pressure, take }, world.tuning.shot);
   registerShot(world, active, { x: goal.x, z: result.targetZ });
   world.events.push({
     type: 'shot',
