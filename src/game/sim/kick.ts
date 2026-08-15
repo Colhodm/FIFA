@@ -24,9 +24,16 @@ export const ballPos2 = (world: SimWorld): Vec2 => ({
  * `curl` is side-spin in rad/s: positive bends the ball to the kicker's right.
  */
 /** Which strike animation to play. Contact is instantaneous, so these are follow-throughs. */
-export type KickClip = 'kick' | 'shot' | 'pass';
+export type KickClip = 'kick' | 'shot' | 'shot-finesse' | 'shot-chip' | 'shot-volley' | 'pass';
 
-const CLIP_HOLD: Record<KickClip, number> = { kick: 0.3, shot: 0.45, pass: 0.28 };
+const CLIP_HOLD: Record<KickClip, number> = {
+  kick: 0.3,
+  shot: 0.45,
+  'shot-finesse': 0.4,
+  'shot-chip': 0.34,
+  'shot-volley': 0.5,
+  pass: 0.28,
+};
 
 /**
  * Strikes the ball with an exact launch velocity. Used by the shot solver, which has already
