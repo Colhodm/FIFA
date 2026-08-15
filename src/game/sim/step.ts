@@ -1019,8 +1019,14 @@ function handleHumanActions(
   const a = input.actions;
   const aimDir = aimOf(active, input, cameraYaw);
   const hasBall = world.controllerId === active.id;
-  const r1 = a.modR1.down;
-  const l1 = a.modL1.down;
+  /*
+   * A modifier counts if it was down this tick *or released* this tick. Releasing the trigger
+   * and the modifier together — which is what fingers naturally do — lands both keyups inside
+   * one 16ms tick, and reading only .down meant the finesse or chip silently became a plain
+   * driven shot. This was chased for a long time as an input-eating bug; it was release order.
+   */
+  const r1 = a.modR1.down || a.modR1.released;
+  const l1 = a.modL1.down || a.modL1.released;
   const attacking = manager.contextForPress() === 'ATTACK';
 
   // An uninterruptible animation swallows the press; buffer it and play it when he is free.
