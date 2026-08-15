@@ -1,1018 +1,1694 @@
 {
-  "teams": [
+ "teams": [
+  {
+   "id": "arsenal",
+   "name": "Arsenal",
+   "shortName": "ARS",
+   "formation": "4-3-3",
+   "rating": 86,
+   "kit": {
+    "primary": "#EF0107",
+    "secondary": "#FFFFFF",
+    "shorts": "#FFFFFF",
+    "keeper": "#7ee081"
+   },
+   "players": [
     {
-      "id": "azure-rovers",
-      "name": "Azure Rovers",
-      "shortName": "AZR",
-      "formation": "4-3-3",
-      "rating": 80,
-      "kit": {
-        "primary": "#2563eb",
-        "secondary": "#f8fafc",
-        "shorts": "#1e3a8a",
-        "keeper": "#facc15"
-      },
-      "players": [
-        {
-          "name": "Silas Lindqvist",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 66,
-            "shooting": 53,
-            "passing": 67,
-            "dribbling": 58,
-            "defending": 60,
-            "physical": 78,
-            "stamina": 74
-          }
-        },
-        {
-          "name": "Amir Sandoval",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 80,
-            "shooting": 71,
-            "passing": 82,
-            "dribbling": 74,
-            "defending": 93,
-            "physical": 91,
-            "stamina": 80
-          }
-        },
-        {
-          "name": "Tomas Esposito",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 75,
-            "shooting": 67,
-            "passing": 75,
-            "dribbling": 73,
-            "defending": 85,
-            "physical": 87,
-            "stamina": 81
-          }
-        },
-        {
-          "name": "Ander Halden",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 83,
-            "shooting": 72,
-            "passing": 79,
-            "dribbling": 71,
-            "defending": 90,
-            "physical": 85,
-            "stamina": 77
-          }
-        },
-        {
-          "name": "Jonas Osei",
-          "shirt": 5,
-          "role": "DF",
-          "stats": {
-            "pace": 88,
-            "shooting": 70,
-            "passing": 77,
-            "dribbling": 78,
-            "defending": 91,
-            "physical": 91,
-            "stamina": 85
-          }
-        },
-        {
-          "name": "Ravi Tobin",
-          "shirt": 6,
-          "role": "MF",
-          "stats": {
-            "pace": 80,
-            "shooting": 85,
-            "passing": 93,
-            "dribbling": 87,
-            "defending": 78,
-            "physical": 78,
-            "stamina": 91
-          }
-        },
-        {
-          "name": "Yuto Quinn",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 82,
-            "shooting": 78,
-            "passing": 88,
-            "dribbling": 88,
-            "defending": 76,
-            "physical": 81,
-            "stamina": 82
-          }
-        },
-        {
-          "name": "Cato Marek",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 84,
-            "shooting": 85,
-            "passing": 87,
-            "dribbling": 86,
-            "defending": 79,
-            "physical": 75,
-            "stamina": 88
-          }
-        },
-        {
-          "name": "Kai Serra",
-          "shirt": 9,
-          "role": "FW",
-          "stats": {
-            "pace": 90,
-            "shooting": 87,
-            "passing": 79,
-            "dribbling": 85,
-            "defending": 66,
-            "physical": 78,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Luka Alvi",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 90,
-            "shooting": 87,
-            "passing": 80,
-            "dribbling": 88,
-            "defending": 69,
-            "physical": 87,
-            "stamina": 84
-          }
-        },
-        {
-          "name": "Nils Mbeki",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 92,
-            "shooting": 90,
-            "passing": 78,
-            "dribbling": 85,
-            "defending": 63,
-            "physical": 76,
-            "stamina": 84
-          }
-        }
-      ]
+     "name": "David Raya",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 67,
+      "shooting": 49,
+      "passing": 75,
+      "dribbling": 61,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 79
+     }
     },
     {
-      "id": "crimson-united",
-      "name": "Crimson United",
-      "shortName": "CRU",
-      "formation": "4-4-2",
-      "rating": 76,
-      "kit": {
-        "primary": "#dc2626",
-        "secondary": "#fef2f2",
-        "shorts": "#7f1d1d",
-        "keeper": "#22c55e"
-      },
-      "players": [
-        {
-          "name": "Milo Vance",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 62,
-            "shooting": 48,
-            "passing": 62,
-            "dribbling": 52,
-            "defending": 63,
-            "physical": 80,
-            "stamina": 74
-          }
-        },
-        {
-          "name": "Emeka Rios",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 74,
-            "shooting": 66,
-            "passing": 75,
-            "dribbling": 71,
-            "defending": 90,
-            "physical": 85,
-            "stamina": 82
-          }
-        },
-        {
-          "name": "Idris Kovac",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 77,
-            "shooting": 69,
-            "passing": 75,
-            "dribbling": 73,
-            "defending": 82,
-            "physical": 86,
-            "stamina": 77
-          }
-        },
-        {
-          "name": "Feli Farrow",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 70,
-            "shooting": 66,
-            "passing": 73,
-            "dribbling": 66,
-            "defending": 83,
-            "physical": 86,
-            "stamina": 74
-          }
-        },
-        {
-          "name": "Dario Brant",
-          "shirt": 5,
-          "role": "DF",
-          "stats": {
-            "pace": 72,
-            "shooting": 65,
-            "passing": 73,
-            "dribbling": 67,
-            "defending": 85,
-            "physical": 84,
-            "stamina": 76
-          }
-        },
-        {
-          "name": "Mateo Duarte",
-          "shirt": 6,
-          "role": "MF",
-          "stats": {
-            "pace": 76,
-            "shooting": 71,
-            "passing": 86,
-            "dribbling": 82,
-            "defending": 71,
-            "physical": 71,
-            "stamina": 81
-          }
-        },
-        {
-          "name": "Ozzy Bellamy",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 82,
-            "shooting": 73,
-            "passing": 83,
-            "dribbling": 84,
-            "defending": 76,
-            "physical": 80,
-            "stamina": 81
-          }
-        },
-        {
-          "name": "Noel Renard",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 75,
-            "shooting": 75,
-            "passing": 86,
-            "dribbling": 82,
-            "defending": 77,
-            "physical": 80,
-            "stamina": 79
-          }
-        },
-        {
-          "name": "Rafa Ilic",
-          "shirt": 9,
-          "role": "MF",
-          "stats": {
-            "pace": 82,
-            "shooting": 73,
-            "passing": 81,
-            "dribbling": 81,
-            "defending": 80,
-            "physical": 77,
-            "stamina": 86
-          }
-        },
-        {
-          "name": "Bruno Okoro",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 80,
-            "shooting": 82,
-            "passing": 78,
-            "dribbling": 86,
-            "defending": 60,
-            "physical": 78,
-            "stamina": 77
-          }
-        },
-        {
-          "name": "Iker Nakai",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 87,
-            "shooting": 82,
-            "passing": 75,
-            "dribbling": 79,
-            "defending": 63,
-            "physical": 76,
-            "stamina": 78
-          }
-        }
-      ]
+     "name": "Gabriel",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 81,
+      "shooting": 63,
+      "passing": 81,
+      "dribbling": 76,
+      "defending": 95,
+      "physical": 96,
+      "stamina": 87
+     }
     },
     {
-      "id": "verdant-city",
-      "name": "Verdant City",
-      "shortName": "VER",
-      "formation": "3-5-2",
-      "rating": 76,
-      "kit": {
-        "primary": "#059669",
-        "secondary": "#ecfdf5",
-        "shorts": "#064e3b",
-        "keeper": "#f97316"
-      },
-      "players": [
-        {
-          "name": "Silas Lindqvist",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 64,
-            "shooting": 48,
-            "passing": 57,
-            "dribbling": 48,
-            "defending": 58,
-            "physical": 75,
-            "stamina": 70
-          }
-        },
-        {
-          "name": "Amir Sandoval",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 83,
-            "shooting": 65,
-            "passing": 78,
-            "dribbling": 68,
-            "defending": 90,
-            "physical": 89,
-            "stamina": 80
-          }
-        },
-        {
-          "name": "Tomas Esposito",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 71,
-            "shooting": 61,
-            "passing": 71,
-            "dribbling": 72,
-            "defending": 83,
-            "physical": 85,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Ander Halden",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 76,
-            "shooting": 68,
-            "passing": 75,
-            "dribbling": 68,
-            "defending": 87,
-            "physical": 87,
-            "stamina": 79
-          }
-        },
-        {
-          "name": "Jonas Osei",
-          "shirt": 5,
-          "role": "MF",
-          "stats": {
-            "pace": 81,
-            "shooting": 77,
-            "passing": 82,
-            "dribbling": 81,
-            "defending": 71,
-            "physical": 73,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Ravi Tobin",
-          "shirt": 6,
-          "role": "MF",
-          "stats": {
-            "pace": 81,
-            "shooting": 72,
-            "passing": 87,
-            "dribbling": 85,
-            "defending": 79,
-            "physical": 76,
-            "stamina": 84
-          }
-        },
-        {
-          "name": "Yuto Quinn",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 73,
-            "shooting": 70,
-            "passing": 81,
-            "dribbling": 76,
-            "defending": 75,
-            "physical": 74,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Cato Marek",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 79,
-            "shooting": 76,
-            "passing": 85,
-            "dribbling": 83,
-            "defending": 76,
-            "physical": 77,
-            "stamina": 84
-          }
-        },
-        {
-          "name": "Kai Serra",
-          "shirt": 9,
-          "role": "MF",
-          "stats": {
-            "pace": 75,
-            "shooting": 74,
-            "passing": 84,
-            "dribbling": 82,
-            "defending": 68,
-            "physical": 67,
-            "stamina": 74
-          }
-        },
-        {
-          "name": "Luka Alvi",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 89,
-            "shooting": 89,
-            "passing": 79,
-            "dribbling": 84,
-            "defending": 65,
-            "physical": 82,
-            "stamina": 83
-          }
-        },
-        {
-          "name": "Nils Mbeki",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 81,
-            "shooting": 79,
-            "passing": 73,
-            "dribbling": 81,
-            "defending": 60,
-            "physical": 74,
-            "stamina": 75
-          }
-        }
-      ]
+     "name": "William Saliba",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 80,
+      "shooting": 62,
+      "passing": 80,
+      "dribbling": 75,
+      "defending": 94,
+      "physical": 95,
+      "stamina": 86
+     }
     },
     {
-      "id": "solar-athletic",
-      "name": "Solar Athletic",
-      "shortName": "SOL",
-      "formation": "5-3-2",
-      "rating": 72,
-      "kit": {
-        "primary": "#f59e0b",
-        "secondary": "#1f2937",
-        "shorts": "#1f2937",
-        "keeper": "#8b5cf6"
-      },
-      "players": [
-        {
-          "name": "Milo Vance",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 56,
-            "shooting": 42,
-            "passing": 63,
-            "dribbling": 49,
-            "defending": 54,
-            "physical": 76,
-            "stamina": 67
-          }
-        },
-        {
-          "name": "Emeka Rios",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 76,
-            "shooting": 61,
-            "passing": 67,
-            "dribbling": 72,
-            "defending": 86,
-            "physical": 84,
-            "stamina": 71
-          }
-        },
-        {
-          "name": "Idris Kovac",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 72,
-            "shooting": 61,
-            "passing": 69,
-            "dribbling": 65,
-            "defending": 79,
-            "physical": 83,
-            "stamina": 70
-          }
-        },
-        {
-          "name": "Feli Farrow",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 77,
-            "shooting": 60,
-            "passing": 73,
-            "dribbling": 64,
-            "defending": 82,
-            "physical": 77,
-            "stamina": 71
-          }
-        },
-        {
-          "name": "Dario Brant",
-          "shirt": 5,
-          "role": "DF",
-          "stats": {
-            "pace": 70,
-            "shooting": 61,
-            "passing": 66,
-            "dribbling": 69,
-            "defending": 81,
-            "physical": 81,
-            "stamina": 73
-          }
-        },
-        {
-          "name": "Mateo Duarte",
-          "shirt": 6,
-          "role": "DF",
-          "stats": {
-            "pace": 70,
-            "shooting": 57,
-            "passing": 69,
-            "dribbling": 67,
-            "defending": 83,
-            "physical": 77,
-            "stamina": 71
-          }
-        },
-        {
-          "name": "Ozzy Bellamy",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 76,
-            "shooting": 76,
-            "passing": 80,
-            "dribbling": 82,
-            "defending": 77,
-            "physical": 72,
-            "stamina": 76
-          }
-        },
-        {
-          "name": "Noel Renard",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 73,
-            "shooting": 71,
-            "passing": 79,
-            "dribbling": 84,
-            "defending": 72,
-            "physical": 69,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Rafa Ilic",
-          "shirt": 9,
-          "role": "MF",
-          "stats": {
-            "pace": 83,
-            "shooting": 72,
-            "passing": 86,
-            "dribbling": 82,
-            "defending": 73,
-            "physical": 76,
-            "stamina": 83
-          }
-        },
-        {
-          "name": "Bruno Okoro",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 79,
-            "shooting": 89,
-            "passing": 76,
-            "dribbling": 83,
-            "defending": 56,
-            "physical": 74,
-            "stamina": 79
-          }
-        },
-        {
-          "name": "Iker Nakai",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 75,
-            "shooting": 79,
-            "passing": 75,
-            "dribbling": 77,
-            "defending": 54,
-            "physical": 76,
-            "stamina": 77
-          }
-        }
-      ]
+     "name": "Jurri\u00ebn Timber",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 89,
+      "shooting": 66,
+      "passing": 82,
+      "dribbling": 84,
+      "defending": 86,
+      "physical": 81,
+      "stamina": 89
+     }
     },
     {
-      "id": "harbour-metro",
-      "name": "Harbour Metro",
-      "shortName": "HBM",
-      "formation": "4-3-3",
-      "rating": 74,
-      "kit": {
-        "primary": "#0f172a",
-        "secondary": "#38bdf8",
-        "shorts": "#0f172a",
-        "keeper": "#f43f5e"
-      },
-      "players": [
-        {
-          "name": "Silas Lindqvist",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 66,
-            "shooting": 50,
-            "passing": 64,
-            "dribbling": 46,
-            "defending": 53,
-            "physical": 78,
-            "stamina": 69
-          }
-        },
-        {
-          "name": "Amir Sandoval",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 71,
-            "shooting": 67,
-            "passing": 73,
-            "dribbling": 68,
-            "defending": 82,
-            "physical": 85,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Tomas Esposito",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 70,
-            "shooting": 62,
-            "passing": 70,
-            "dribbling": 67,
-            "defending": 88,
-            "physical": 79,
-            "stamina": 80
-          }
-        },
-        {
-          "name": "Ander Halden",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 77,
-            "shooting": 62,
-            "passing": 70,
-            "dribbling": 66,
-            "defending": 81,
-            "physical": 85,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Jonas Osei",
-          "shirt": 5,
-          "role": "DF",
-          "stats": {
-            "pace": 69,
-            "shooting": 63,
-            "passing": 77,
-            "dribbling": 71,
-            "defending": 82,
-            "physical": 85,
-            "stamina": 78
-          }
-        },
-        {
-          "name": "Ravi Tobin",
-          "shirt": 6,
-          "role": "MF",
-          "stats": {
-            "pace": 83,
-            "shooting": 75,
-            "passing": 84,
-            "dribbling": 85,
-            "defending": 75,
-            "physical": 73,
-            "stamina": 83
-          }
-        },
-        {
-          "name": "Yuto Quinn",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 82,
-            "shooting": 76,
-            "passing": 80,
-            "dribbling": 78,
-            "defending": 73,
-            "physical": 73,
-            "stamina": 84
-          }
-        },
-        {
-          "name": "Cato Marek",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 77,
-            "shooting": 72,
-            "passing": 80,
-            "dribbling": 83,
-            "defending": 78,
-            "physical": 76,
-            "stamina": 81
-          }
-        },
-        {
-          "name": "Kai Serra",
-          "shirt": 9,
-          "role": "FW",
-          "stats": {
-            "pace": 79,
-            "shooting": 79,
-            "passing": 73,
-            "dribbling": 84,
-            "defending": 54,
-            "physical": 78,
-            "stamina": 76
-          }
-        },
-        {
-          "name": "Luka Alvi",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 80,
-            "shooting": 86,
-            "passing": 79,
-            "dribbling": 88,
-            "defending": 64,
-            "physical": 76,
-            "stamina": 77
-          }
-        },
-        {
-          "name": "Nils Mbeki",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 81,
-            "shooting": 83,
-            "passing": 77,
-            "dribbling": 86,
-            "defending": 55,
-            "physical": 80,
-            "stamina": 79
-          }
-        }
-      ]
+     "name": "Piero Hincapi\u00e9",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 88,
+      "shooting": 65,
+      "passing": 81,
+      "dribbling": 83,
+      "defending": 85,
+      "physical": 80,
+      "stamina": 88
+     }
     },
     {
-      "id": "northgate-albion",
-      "name": "Northgate Albion",
-      "shortName": "NGA",
-      "formation": "4-4-2",
-      "rating": 69,
-      "kit": {
-        "primary": "#f8fafc",
-        "secondary": "#7c3aed",
-        "shorts": "#7c3aed",
-        "keeper": "#14b8a6"
-      },
-      "players": [
-        {
-          "name": "Milo Vance",
-          "shirt": 1,
-          "role": "GK",
-          "stats": {
-            "pace": 48,
-            "shooting": 42,
-            "passing": 56,
-            "dribbling": 43,
-            "defending": 51,
-            "physical": 65,
-            "stamina": 58
-          }
-        },
-        {
-          "name": "Emeka Rios",
-          "shirt": 2,
-          "role": "DF",
-          "stats": {
-            "pace": 67,
-            "shooting": 55,
-            "passing": 64,
-            "dribbling": 69,
-            "defending": 81,
-            "physical": 77,
-            "stamina": 75
-          }
-        },
-        {
-          "name": "Idris Kovac",
-          "shirt": 3,
-          "role": "DF",
-          "stats": {
-            "pace": 71,
-            "shooting": 64,
-            "passing": 75,
-            "dribbling": 64,
-            "defending": 80,
-            "physical": 83,
-            "stamina": 77
-          }
-        },
-        {
-          "name": "Feli Farrow",
-          "shirt": 4,
-          "role": "DF",
-          "stats": {
-            "pace": 64,
-            "shooting": 54,
-            "passing": 66,
-            "dribbling": 60,
-            "defending": 77,
-            "physical": 77,
-            "stamina": 67
-          }
-        },
-        {
-          "name": "Dario Brant",
-          "shirt": 5,
-          "role": "DF",
-          "stats": {
-            "pace": 65,
-            "shooting": 54,
-            "passing": 64,
-            "dribbling": 63,
-            "defending": 82,
-            "physical": 78,
-            "stamina": 74
-          }
-        },
-        {
-          "name": "Mateo Duarte",
-          "shirt": 6,
-          "role": "MF",
-          "stats": {
-            "pace": 70,
-            "shooting": 73,
-            "passing": 82,
-            "dribbling": 79,
-            "defending": 71,
-            "physical": 72,
-            "stamina": 81
-          }
-        },
-        {
-          "name": "Ozzy Bellamy",
-          "shirt": 7,
-          "role": "MF",
-          "stats": {
-            "pace": 71,
-            "shooting": 68,
-            "passing": 76,
-            "dribbling": 75,
-            "defending": 73,
-            "physical": 66,
-            "stamina": 75
-          }
-        },
-        {
-          "name": "Noel Renard",
-          "shirt": 8,
-          "role": "MF",
-          "stats": {
-            "pace": 74,
-            "shooting": 72,
-            "passing": 79,
-            "dribbling": 73,
-            "defending": 67,
-            "physical": 72,
-            "stamina": 75
-          }
-        },
-        {
-          "name": "Rafa Ilic",
-          "shirt": 9,
-          "role": "MF",
-          "stats": {
-            "pace": 70,
-            "shooting": 69,
-            "passing": 81,
-            "dribbling": 72,
-            "defending": 69,
-            "physical": 66,
-            "stamina": 73
-          }
-        },
-        {
-          "name": "Bruno Okoro",
-          "shirt": 10,
-          "role": "FW",
-          "stats": {
-            "pace": 69,
-            "shooting": 79,
-            "passing": 63,
-            "dribbling": 72,
-            "defending": 49,
-            "physical": 65,
-            "stamina": 68
-          }
-        },
-        {
-          "name": "Iker Nakai",
-          "shirt": 11,
-          "role": "FW",
-          "stats": {
-            "pace": 84,
-            "shooting": 85,
-            "passing": 72,
-            "dribbling": 80,
-            "defending": 51,
-            "physical": 72,
-            "stamina": 76
-          }
-        }
-      ]
+     "name": "Declan Rice",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 83,
+      "shooting": 76,
+      "passing": 90,
+      "dribbling": 85,
+      "defending": 93,
+      "physical": 91,
+      "stamina": 90
+     }
+    },
+    {
+     "name": "Martin \u00d8degaard",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 84,
+      "shooting": 80,
+      "passing": 91,
+      "dribbling": 88,
+      "defending": 84,
+      "physical": 84,
+      "stamina": 90
+     }
+    },
+    {
+     "name": "Zubimendi",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 80,
+      "shooting": 73,
+      "passing": 87,
+      "dribbling": 82,
+      "defending": 90,
+      "physical": 88,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Bukayo Saka",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 95,
+      "shooting": 85,
+      "passing": 87,
+      "dribbling": 94,
+      "defending": 69,
+      "physical": 77,
+      "stamina": 89
+     }
+    },
+    {
+     "name": "Leandro Trossard",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 91,
+      "shooting": 81,
+      "passing": 83,
+      "dribbling": 90,
+      "defending": 65,
+      "physical": 73,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Viktor Gy\u00f6keres",
+     "shirt": 11,
+     "role": "FW",
+     "stats": {
+      "pace": 91,
+      "shooting": 94,
+      "passing": 80,
+      "dribbling": 89,
+      "defending": 60,
+      "physical": 88,
+      "stamina": 84
+     }
     }
-  ]
+   ]
+  },
+  {
+   "id": "liverpool",
+   "name": "Liverpool",
+   "shortName": "LIV",
+   "formation": "4-3-3",
+   "rating": 85,
+   "kit": {
+    "primary": "#C8102E",
+    "secondary": "#F6EB61",
+    "shorts": "#C8102E",
+    "keeper": "#3ddc97"
+   },
+   "players": [
+    {
+     "name": "Alisson",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 68,
+      "shooting": 50,
+      "passing": 76,
+      "dribbling": 62,
+      "defending": 89,
+      "physical": 90,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Virgil van Dijk",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 80,
+      "shooting": 62,
+      "passing": 80,
+      "dribbling": 75,
+      "defending": 94,
+      "physical": 95,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Ibrahima Konat\u00e9",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 76,
+      "shooting": 58,
+      "passing": 76,
+      "dribbling": 71,
+      "defending": 90,
+      "physical": 91,
+      "stamina": 82
+     }
+    },
+    {
+     "name": "Dominik Szoboszlai",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 91,
+      "shooting": 68,
+      "passing": 84,
+      "dribbling": 86,
+      "defending": 88,
+      "physical": 83,
+      "stamina": 91
+     }
+    },
+    {
+     "name": "Jeremie Frimpong",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 87,
+      "shooting": 64,
+      "passing": 80,
+      "dribbling": 82,
+      "defending": 84,
+      "physical": 79,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Ryan Gravenberch",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 81,
+      "shooting": 74,
+      "passing": 88,
+      "dribbling": 83,
+      "defending": 91,
+      "physical": 89,
+      "stamina": 88
+     }
+    },
+    {
+     "name": "Alexis Mac Allister",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 80,
+      "shooting": 73,
+      "passing": 87,
+      "dribbling": 82,
+      "defending": 90,
+      "physical": 88,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Curtis Jones",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 78,
+      "shooting": 74,
+      "passing": 85,
+      "dribbling": 82,
+      "defending": 78,
+      "physical": 78,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Mohamed Salah",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 97,
+      "shooting": 87,
+      "passing": 89,
+      "dribbling": 96,
+      "defending": 71,
+      "physical": 79,
+      "stamina": 91
+     }
+    },
+    {
+     "name": "Cody Gakpo",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 91,
+      "shooting": 81,
+      "passing": 83,
+      "dribbling": 90,
+      "defending": 65,
+      "physical": 73,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Alexander Isak",
+     "shirt": 11,
+     "role": "FW",
+     "stats": {
+      "pace": 92,
+      "shooting": 95,
+      "passing": 81,
+      "dribbling": 90,
+      "defending": 61,
+      "physical": 89,
+      "stamina": 85
+     }
+    }
+   ]
+  },
+  {
+   "id": "manchester-city",
+   "name": "Manchester City",
+   "shortName": "MCI",
+   "formation": "4-3-3",
+   "rating": 85,
+   "kit": {
+    "primary": "#6CABDD",
+    "secondary": "#FFFFFF",
+    "shorts": "#FFFFFF",
+    "keeper": "#1c2c5b"
+   },
+   "players": [
+    {
+     "name": "Gianluigi Donnarumma",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 69,
+      "shooting": 51,
+      "passing": 77,
+      "dribbling": 63,
+      "defending": 90,
+      "physical": 91,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "R\u00faben Dias",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 79,
+      "shooting": 61,
+      "passing": 79,
+      "dribbling": 74,
+      "defending": 93,
+      "physical": 94,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Jo\u0161ko Gvardiol",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 77,
+      "shooting": 59,
+      "passing": 77,
+      "dribbling": 72,
+      "defending": 91,
+      "physical": 92,
+      "stamina": 83
+     }
+    },
+    {
+     "name": "Matheus Nunes",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 87,
+      "shooting": 64,
+      "passing": 80,
+      "dribbling": 82,
+      "defending": 84,
+      "physical": 79,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Nico O'Reilly",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 86,
+      "shooting": 63,
+      "passing": 79,
+      "dribbling": 81,
+      "defending": 83,
+      "physical": 78,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Rodri",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 84,
+      "shooting": 77,
+      "passing": 91,
+      "dribbling": 86,
+      "defending": 94,
+      "physical": 92,
+      "stamina": 91
+     }
+    },
+    {
+     "name": "Tijjani Reijnders",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 83,
+      "shooting": 79,
+      "passing": 90,
+      "dribbling": 87,
+      "defending": 83,
+      "physical": 83,
+      "stamina": 89
+     }
+    },
+    {
+     "name": "Bernardo Silva",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 78,
+      "shooting": 71,
+      "passing": 85,
+      "dribbling": 80,
+      "defending": 88,
+      "physical": 86,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Antoine Semenyo",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 92,
+      "shooting": 82,
+      "passing": 84,
+      "dribbling": 91,
+      "defending": 66,
+      "physical": 74,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "J\u00e9r\u00e9my Doku",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 91,
+      "shooting": 81,
+      "passing": 83,
+      "dribbling": 90,
+      "defending": 65,
+      "physical": 73,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Erling Haaland",
+     "shirt": 11,
+     "role": "FW",
+     "stats": {
+      "pace": 96,
+      "shooting": 99,
+      "passing": 85,
+      "dribbling": 94,
+      "defending": 65,
+      "physical": 93,
+      "stamina": 89
+     }
+    }
+   ]
+  },
+  {
+   "id": "aston-villa",
+   "name": "Aston Villa",
+   "shortName": "AVL",
+   "formation": "4-3-3",
+   "rating": 82,
+   "kit": {
+    "primary": "#95BFE5",
+    "secondary": "#670E36",
+    "shorts": "#FFFFFF",
+    "keeper": "#f2c14e"
+   },
+   "players": [
+    {
+     "name": "Emiliano Mart\u00ednez",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 65,
+      "shooting": 47,
+      "passing": 73,
+      "dribbling": 59,
+      "defending": 86,
+      "physical": 87,
+      "stamina": 77
+     }
+    },
+    {
+     "name": "Ezri Konsa",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 76,
+      "shooting": 58,
+      "passing": 76,
+      "dribbling": 71,
+      "defending": 90,
+      "physical": 91,
+      "stamina": 82
+     }
+    },
+    {
+     "name": "Pau Torres",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 72,
+      "shooting": 54,
+      "passing": 72,
+      "dribbling": 67,
+      "defending": 86,
+      "physical": 87,
+      "stamina": 78
+     }
+    },
+    {
+     "name": "Matty Cash",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 86,
+      "shooting": 63,
+      "passing": 79,
+      "dribbling": 81,
+      "defending": 83,
+      "physical": 78,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Lucas Digne",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 85,
+      "shooting": 62,
+      "passing": 78,
+      "dribbling": 80,
+      "defending": 82,
+      "physical": 77,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Youri Tielemans",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 80,
+      "shooting": 73,
+      "passing": 87,
+      "dribbling": 82,
+      "defending": 90,
+      "physical": 88,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Boubacar Kamara",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 79,
+      "shooting": 72,
+      "passing": 86,
+      "dribbling": 81,
+      "defending": 89,
+      "physical": 87,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Amadou Onana",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 76,
+      "shooting": 69,
+      "passing": 83,
+      "dribbling": 78,
+      "defending": 86,
+      "physical": 84,
+      "stamina": 83
+     }
+    },
+    {
+     "name": "John McGinn",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 89,
+      "shooting": 79,
+      "passing": 81,
+      "dribbling": 88,
+      "defending": 63,
+      "physical": 71,
+      "stamina": 83
+     }
+    },
+    {
+     "name": "Jadon Sancho",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 87,
+      "shooting": 77,
+      "passing": 79,
+      "dribbling": 86,
+      "defending": 61,
+      "physical": 69,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "Morgan Rogers",
+     "shirt": 11,
+     "role": "MF",
+     "stats": {
+      "pace": 85,
+      "shooting": 86,
+      "passing": 90,
+      "dribbling": 90,
+      "defending": 66,
+      "physical": 76,
+      "stamina": 84
+     }
+    }
+   ]
+  },
+  {
+   "id": "chelsea",
+   "name": "Chelsea",
+   "shortName": "CHE",
+   "formation": "4-3-3",
+   "rating": 83,
+   "kit": {
+    "primary": "#034694",
+    "secondary": "#FFFFFF",
+    "shorts": "#034694",
+    "keeper": "#c6f24e"
+   },
+   "players": [
+    {
+     "name": "Robert S\u00e1nchez",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 61,
+      "shooting": 43,
+      "passing": 69,
+      "dribbling": 55,
+      "defending": 82,
+      "physical": 83,
+      "stamina": 73
+     }
+    },
+    {
+     "name": "Trevoh Chalobah",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 72,
+      "shooting": 54,
+      "passing": 72,
+      "dribbling": 67,
+      "defending": 86,
+      "physical": 87,
+      "stamina": 78
+     }
+    },
+    {
+     "name": "Levi Colwill",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 72,
+      "shooting": 54,
+      "passing": 72,
+      "dribbling": 67,
+      "defending": 86,
+      "physical": 87,
+      "stamina": 78
+     }
+    },
+    {
+     "name": "Marc Cucurella",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 90,
+      "shooting": 67,
+      "passing": 83,
+      "dribbling": 85,
+      "defending": 87,
+      "physical": 82,
+      "stamina": 90
+     }
+    },
+    {
+     "name": "Malo Gusto",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 84,
+      "shooting": 61,
+      "passing": 77,
+      "dribbling": 79,
+      "defending": 81,
+      "physical": 76,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Mois\u00e9s Caicedo",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 83,
+      "shooting": 76,
+      "passing": 90,
+      "dribbling": 85,
+      "defending": 93,
+      "physical": 91,
+      "stamina": 90
+     }
+    },
+    {
+     "name": "Reece James",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 79,
+      "shooting": 72,
+      "passing": 86,
+      "dribbling": 81,
+      "defending": 89,
+      "physical": 87,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Andrey Santos",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 78,
+      "shooting": 74,
+      "passing": 85,
+      "dribbling": 82,
+      "defending": 78,
+      "physical": 78,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Cole Palmer",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 94,
+      "shooting": 84,
+      "passing": 86,
+      "dribbling": 93,
+      "defending": 68,
+      "physical": 76,
+      "stamina": 88
+     }
+    },
+    {
+     "name": "Pedro Neto",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 90,
+      "shooting": 80,
+      "passing": 82,
+      "dribbling": 89,
+      "defending": 64,
+      "physical": 72,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Enzo Fern\u00e1ndez",
+     "shirt": 11,
+     "role": "MF",
+     "stats": {
+      "pace": 86,
+      "shooting": 87,
+      "passing": 91,
+      "dribbling": 91,
+      "defending": 67,
+      "physical": 77,
+      "stamina": 85
+     }
+    }
+   ]
+  },
+  {
+   "id": "newcastle-united",
+   "name": "Newcastle United",
+   "shortName": "NEW",
+   "formation": "4-3-3",
+   "rating": 82,
+   "kit": {
+    "primary": "#241F20",
+    "secondary": "#FFFFFF",
+    "shorts": "#241F20",
+    "keeper": "#61d4c2"
+   },
+   "players": [
+    {
+     "name": "Nick Pope",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 59,
+      "shooting": 41,
+      "passing": 67,
+      "dribbling": 53,
+      "defending": 80,
+      "physical": 81,
+      "stamina": 71
+     }
+    },
+    {
+     "name": "Fabian Sch\u00e4r",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 74,
+      "shooting": 56,
+      "passing": 74,
+      "dribbling": 69,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Sven Botman",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 73,
+      "shooting": 55,
+      "passing": 73,
+      "dribbling": 68,
+      "defending": 87,
+      "physical": 88,
+      "stamina": 79
+     }
+    },
+    {
+     "name": "Lewis Hall",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 86,
+      "shooting": 63,
+      "passing": 79,
+      "dribbling": 81,
+      "defending": 83,
+      "physical": 78,
+      "stamina": 86
+     }
+    },
+    {
+     "name": "Tino Livramento",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 85,
+      "shooting": 62,
+      "passing": 78,
+      "dribbling": 80,
+      "defending": 82,
+      "physical": 77,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Bruno Guimar\u00e3es",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 84,
+      "shooting": 80,
+      "passing": 91,
+      "dribbling": 88,
+      "defending": 84,
+      "physical": 84,
+      "stamina": 90
+     }
+    },
+    {
+     "name": "Sandro Tonali",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 80,
+      "shooting": 73,
+      "passing": 87,
+      "dribbling": 82,
+      "defending": 90,
+      "physical": 88,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Joelinton",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 79,
+      "shooting": 75,
+      "passing": 86,
+      "dribbling": 83,
+      "defending": 79,
+      "physical": 79,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Anthony Gordon",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 90,
+      "shooting": 80,
+      "passing": 82,
+      "dribbling": 89,
+      "defending": 64,
+      "physical": 72,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Harvey Barnes",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 88,
+      "shooting": 78,
+      "passing": 80,
+      "dribbling": 87,
+      "defending": 62,
+      "physical": 70,
+      "stamina": 82
+     }
+    },
+    {
+     "name": "Yoane Wissa",
+     "shirt": 11,
+     "role": "FW",
+     "stats": {
+      "pace": 86,
+      "shooting": 89,
+      "passing": 75,
+      "dribbling": 84,
+      "defending": 55,
+      "physical": 83,
+      "stamina": 79
+     }
+    }
+   ]
+  },
+  {
+   "id": "manchester-united",
+   "name": "Manchester United",
+   "shortName": "MUN",
+   "formation": "4-3-3",
+   "rating": 81,
+   "kit": {
+    "primary": "#DA291C",
+    "secondary": "#FBE122",
+    "shorts": "#FFFFFF",
+    "keeper": "#2fbf71"
+   },
+   "players": [
+    {
+     "name": "Senne Lammens",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 61,
+      "shooting": 43,
+      "passing": 69,
+      "dribbling": 55,
+      "defending": 82,
+      "physical": 83,
+      "stamina": 73
+     }
+    },
+    {
+     "name": "Matthijs de Ligt",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 74,
+      "shooting": 56,
+      "passing": 74,
+      "dribbling": 69,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Harry Maguire",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 73,
+      "shooting": 55,
+      "passing": 73,
+      "dribbling": 68,
+      "defending": 87,
+      "physical": 88,
+      "stamina": 79
+     }
+    },
+    {
+     "name": "Noussair Mazraoui",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 85,
+      "shooting": 62,
+      "passing": 78,
+      "dribbling": 80,
+      "defending": 82,
+      "physical": 77,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Luke Shaw",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 84,
+      "shooting": 61,
+      "passing": 77,
+      "dribbling": 79,
+      "defending": 81,
+      "physical": 76,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Casemiro",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 77,
+      "shooting": 70,
+      "passing": 84,
+      "dribbling": 79,
+      "defending": 87,
+      "physical": 85,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Kobbie Mainoo",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 74,
+      "shooting": 67,
+      "passing": 81,
+      "dribbling": 76,
+      "defending": 84,
+      "physical": 82,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "Manuel Ugarte",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 73,
+      "shooting": 66,
+      "passing": 80,
+      "dribbling": 75,
+      "defending": 83,
+      "physical": 81,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Matheus Cunha",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 91,
+      "shooting": 81,
+      "passing": 83,
+      "dribbling": 90,
+      "defending": 65,
+      "physical": 73,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Amad",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 88,
+      "shooting": 78,
+      "passing": 80,
+      "dribbling": 87,
+      "defending": 62,
+      "physical": 70,
+      "stamina": 82
+     }
+    },
+    {
+     "name": "Bruno Fernandes",
+     "shirt": 11,
+     "role": "MF",
+     "stats": {
+      "pace": 89,
+      "shooting": 90,
+      "passing": 94,
+      "dribbling": 94,
+      "defending": 70,
+      "physical": 80,
+      "stamina": 88
+     }
+    }
+   ]
+  },
+  {
+   "id": "tottenham-hotspur",
+   "name": "Tottenham Hotspur",
+   "shortName": "TOT",
+   "formation": "4-3-3",
+   "rating": 81,
+   "kit": {
+    "primary": "#FFFFFF",
+    "secondary": "#132257",
+    "shorts": "#132257",
+    "keeper": "#f2b544"
+   },
+   "players": [
+    {
+     "name": "Guglielmo Vicario",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 61,
+      "shooting": 43,
+      "passing": 69,
+      "dribbling": 55,
+      "defending": 82,
+      "physical": 83,
+      "stamina": 73
+     }
+    },
+    {
+     "name": "Cristian Romero",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 74,
+      "shooting": 56,
+      "passing": 74,
+      "dribbling": 69,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Micky van de Ven",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 74,
+      "shooting": 56,
+      "passing": 74,
+      "dribbling": 69,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Pedro Porro",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 87,
+      "shooting": 64,
+      "passing": 80,
+      "dribbling": 82,
+      "defending": 84,
+      "physical": 79,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Djed Spence",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 84,
+      "shooting": 61,
+      "passing": 77,
+      "dribbling": 79,
+      "defending": 81,
+      "physical": 76,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "James Maddison",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 81,
+      "shooting": 77,
+      "passing": 88,
+      "dribbling": 85,
+      "defending": 81,
+      "physical": 81,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Dejan Kulusevski",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 81,
+      "shooting": 77,
+      "passing": 88,
+      "dribbling": 85,
+      "defending": 81,
+      "physical": 81,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Palhinha",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 77,
+      "shooting": 70,
+      "passing": 84,
+      "dribbling": 79,
+      "defending": 87,
+      "physical": 85,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Mohammed Kudus",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 89,
+      "shooting": 79,
+      "passing": 81,
+      "dribbling": 88,
+      "defending": 63,
+      "physical": 71,
+      "stamina": 83
+     }
+    },
+    {
+     "name": "Randal Kolo Muani",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 87,
+      "shooting": 77,
+      "passing": 79,
+      "dribbling": 86,
+      "defending": 61,
+      "physical": 69,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "Xavi Simons",
+     "shirt": 11,
+     "role": "MF",
+     "stats": {
+      "pace": 83,
+      "shooting": 84,
+      "passing": 88,
+      "dribbling": 88,
+      "defending": 64,
+      "physical": 74,
+      "stamina": 82
+     }
+    }
+   ]
+  },
+  {
+   "id": "nottingham-forest",
+   "name": "Nottingham Forest",
+   "shortName": "NFO",
+   "formation": "4-3-3",
+   "rating": 80,
+   "kit": {
+    "primary": "#DD0000",
+    "secondary": "#FFFFFF",
+    "shorts": "#FFFFFF",
+    "keeper": "#4ecdc4"
+   },
+   "players": [
+    {
+     "name": "Matz Sels",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 61,
+      "shooting": 43,
+      "passing": 69,
+      "dribbling": 55,
+      "defending": 82,
+      "physical": 83,
+      "stamina": 73
+     }
+    },
+    {
+     "name": "Murillo",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 74,
+      "shooting": 56,
+      "passing": 74,
+      "dribbling": 69,
+      "defending": 88,
+      "physical": 89,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Nikola Milenkovi\u0107",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 72,
+      "shooting": 54,
+      "passing": 72,
+      "dribbling": 67,
+      "defending": 86,
+      "physical": 87,
+      "stamina": 78
+     }
+    },
+    {
+     "name": "Ola Aina",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 85,
+      "shooting": 62,
+      "passing": 78,
+      "dribbling": 80,
+      "defending": 82,
+      "physical": 77,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Neco Williams",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 85,
+      "shooting": 62,
+      "passing": 78,
+      "dribbling": 80,
+      "defending": 82,
+      "physical": 77,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Elliot Anderson",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 77,
+      "shooting": 70,
+      "passing": 84,
+      "dribbling": 79,
+      "defending": 87,
+      "physical": 85,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Ibrahim Sangar\u00e9",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 73,
+      "shooting": 66,
+      "passing": 80,
+      "dribbling": 75,
+      "defending": 83,
+      "physical": 81,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Nicol\u00e1s Dom\u00ednguez",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 73,
+      "shooting": 66,
+      "passing": 80,
+      "dribbling": 75,
+      "defending": 83,
+      "physical": 81,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Callum Hudson-Odoi",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 86,
+      "shooting": 76,
+      "passing": 78,
+      "dribbling": 85,
+      "defending": 60,
+      "physical": 68,
+      "stamina": 80
+     }
+    },
+    {
+     "name": "Dan Ndoye",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 85,
+      "shooting": 75,
+      "passing": 77,
+      "dribbling": 84,
+      "defending": 59,
+      "physical": 67,
+      "stamina": 79
+     }
+    },
+    {
+     "name": "Morgan Gibbs-White",
+     "shirt": 11,
+     "role": "MF",
+     "stats": {
+      "pace": 82,
+      "shooting": 83,
+      "passing": 87,
+      "dribbling": 87,
+      "defending": 63,
+      "physical": 73,
+      "stamina": 81
+     }
+    }
+   ]
+  },
+  {
+   "id": "crystal-palace",
+   "name": "Crystal Palace",
+   "shortName": "CRY",
+   "formation": "4-3-3",
+   "rating": 80,
+   "kit": {
+    "primary": "#1B458F",
+    "secondary": "#C4122E",
+    "shorts": "#1B458F",
+    "keeper": "#f7e733"
+   },
+   "players": [
+    {
+     "name": "Dean Henderson",
+     "shirt": 1,
+     "role": "GK",
+     "stats": {
+      "pace": 62,
+      "shooting": 44,
+      "passing": 70,
+      "dribbling": 56,
+      "defending": 83,
+      "physical": 84,
+      "stamina": 74
+     }
+    },
+    {
+     "name": "Maxence Lacroix",
+     "shirt": 2,
+     "role": "DF",
+     "stats": {
+      "pace": 73,
+      "shooting": 55,
+      "passing": 73,
+      "dribbling": 68,
+      "defending": 87,
+      "physical": 88,
+      "stamina": 79
+     }
+    },
+    {
+     "name": "Chris Richards",
+     "shirt": 3,
+     "role": "DF",
+     "stats": {
+      "pace": 71,
+      "shooting": 53,
+      "passing": 71,
+      "dribbling": 66,
+      "defending": 85,
+      "physical": 86,
+      "stamina": 77
+     }
+    },
+    {
+     "name": "Daniel Mu\u00f1oz",
+     "shirt": 4,
+     "role": "DF",
+     "stats": {
+      "pace": 87,
+      "shooting": 64,
+      "passing": 80,
+      "dribbling": 82,
+      "defending": 84,
+      "physical": 79,
+      "stamina": 87
+     }
+    },
+    {
+     "name": "Tyrick Mitchell",
+     "shirt": 5,
+     "role": "DF",
+     "stats": {
+      "pace": 84,
+      "shooting": 61,
+      "passing": 77,
+      "dribbling": 79,
+      "defending": 81,
+      "physical": 76,
+      "stamina": 84
+     }
+    },
+    {
+     "name": "Adam Wharton",
+     "shirt": 6,
+     "role": "MF",
+     "stats": {
+      "pace": 79,
+      "shooting": 75,
+      "passing": 86,
+      "dribbling": 83,
+      "defending": 79,
+      "physical": 79,
+      "stamina": 85
+     }
+    },
+    {
+     "name": "Daichi Kamada",
+     "shirt": 7,
+     "role": "MF",
+     "stats": {
+      "pace": 76,
+      "shooting": 72,
+      "passing": 83,
+      "dribbling": 80,
+      "defending": 76,
+      "physical": 76,
+      "stamina": 82
+     }
+    },
+    {
+     "name": "Will Hughes",
+     "shirt": 8,
+     "role": "MF",
+     "stats": {
+      "pace": 75,
+      "shooting": 71,
+      "passing": 82,
+      "dribbling": 79,
+      "defending": 75,
+      "physical": 75,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "Isma\u00efla Sarr",
+     "shirt": 9,
+     "role": "FW",
+     "stats": {
+      "pace": 89,
+      "shooting": 79,
+      "passing": 81,
+      "dribbling": 88,
+      "defending": 63,
+      "physical": 71,
+      "stamina": 83
+     }
+    },
+    {
+     "name": "Yeremy Pino",
+     "shirt": 10,
+     "role": "FW",
+     "stats": {
+      "pace": 87,
+      "shooting": 77,
+      "passing": 79,
+      "dribbling": 86,
+      "defending": 61,
+      "physical": 69,
+      "stamina": 81
+     }
+    },
+    {
+     "name": "Jean-Philippe Mateta",
+     "shirt": 11,
+     "role": "FW",
+     "stats": {
+      "pace": 87,
+      "shooting": 90,
+      "passing": 76,
+      "dribbling": 85,
+      "defending": 56,
+      "physical": 84,
+      "stamina": 80
+     }
+    }
+   ]
+  }
+ ]
 }

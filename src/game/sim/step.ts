@@ -1215,6 +1215,35 @@ function playCross(
     speed: v * Math.cos(theta),
     receiverId: option?.target.id,
   });
+  switchToBox(world, active, spot);
+}
+
+/**
+ * Hand the player whoever is actually going to attack the cross.
+ *
+ * Control used to stay with the man who had just crossed it, so you stood on the wing watching
+ * the ball drop into the six-yard box with nobody under your command. The receiver is only known
+ * once the ball lands, and by then the header has happened — so the switch has to happen at the
+ * moment the ball is struck, to whoever is best placed to meet it.
+ */
+function switchToBox(world: SimWorld, crosser: SimPlayer, spot: Vec2): void {
+  if (crosser.side !== world.config.humanSide) return;
+  let best: SimPlayer | null = null;
+  let bestScore = Infinity;
+  for (const p of world.players) {
+    if (p.side !== crosser.side || p.id === crosser.id || p.role === 'GK' || p.sentOff) continue;
+    // Who can get to where it is going, preferring men already in the danger area.
+    const score = dist(p.pos, spot) - (dist(p.pos, goalCenter(world, p.side)) < 20 ? 4 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  }
+  if (best && bestScore < 26) {
+    world.activeId = best.id;
+    // Treat it as the player's own choice so the auto-switcher does not immediately undo it.
+    world.switching.sinceManual = 0;
+  }
 }
 
 function playGroundPass(

@@ -886,6 +886,8 @@ function checkBodyFeints(): void {
  */
 function checkCrossing(): void {
   const rows: string[] = [];
+  let switched = 0;
+  let crosses = 0;
   for (const charge of [0.2, 0.6, 1]) {
     let inBox = 0;
     let peakSum = 0;
@@ -923,6 +925,8 @@ function checkCrossing(): void {
       stepBall(world, TICK_DT, before);
       world.events.length = 0;
       trials++;
+      crosses++;
+      if (world.activeId !== me.id) switched++;
 
       let peak = 0;
       let reached = false;
@@ -952,6 +956,11 @@ function checkCrossing(): void {
     if (peak < 1.5) throw new Error(`crosses are not aerial: peak height ${peak}m`);
   }
   console.log(`crossing: ${rows.join(' | ')}`);
+  console.log(`  control handed to a man in the box on ${switched}/${crosses} crosses`);
+  // Standing on the wing watching it drop is not playing football.
+  if (switched < crosses * 0.8) {
+    throw new Error(`control stayed with the crosser on ${crosses - switched}/${crosses} crosses`);
+  }
 }
 
 /**
@@ -972,8 +981,10 @@ function checkKickoffProtection(): void {
       tick(world, idleInput, 0, TICK_DT, mgr);
       stepBall(world, TICK_DT, before);
       world.events.length = 0;
+      // Only while the kickoff is actually protected. Once it has been played the opposition are
+      // entitled to win the ball, and counting those frames made this assert normal football.
       const holder = world.players.find((p) => p.id === world.controllerId);
-      if (holder && holder.side === 'away') stolen++;
+      if (world.kickoffProtected && holder && holder.side === 'away') stolen++;
       if (
         world.kickoffProtected &&
         world.players.some(
