@@ -675,6 +675,13 @@ function updateControl(world: SimWorld, dt: number): void {
     blocker.kickCooldown = KICK_COOLDOWN * 0.8;
     world.events.push({ type: 'tackle', side: blocker.side, intensity: clamp(speed / 30, 0.2, 1) });
     world.controllerId = null;
+    /*
+     * A deflection is *nobody's* ball. Possession used to stay with the shooting side, so their
+     * team kept running attacking support shapes, the defenders kept their block, and the
+     * rebound died untouched — measured as 15 of 15 rebounds falling to no one. With possession
+     * open, both teams' AI treats it as a ball to be won.
+     */
+    world.possession = null;
     return;
   }
 

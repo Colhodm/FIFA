@@ -213,6 +213,68 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
   const wantsSprint =
     (recovering && p.stamina > 0.12) || (p.stamina > 0.25 && world.rand() < profile.sprintBias);
 
+  /*
+   * Follow the shot in. Real strikers start moving the moment it is struck, gambling on the
+   * rebound — nobody in this game did, which is half of why rebounds died. Applies while the
+   * ball is in flight at their goal, to the two attackers best placed to profit.
+   */
+  if (teamHasBall && world.shotAge < 1.4 && world.controllerId === null) {
+    const target = goalCenter(world, p.side);
+    const struck = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+    const atGoal = (target.x - world.ball.pos.x) * world.ball.vel.x > 0;
+    if (struck > 13 && atGoal && dist(p.pos, target) < 30 && p.role !== 'DF') {
+      const gamblers = world.players
+        .filter((q) => q.side === p.side && q.role !== 'GK' && q.role !== 'DF' && !q.sentOff)
+        .sort((x, y) => dist(x.pos, target) - dist(y.pos, target))
+        .slice(0, 2);
+      if (gamblers.some((q) => q.id === p.id)) {
+        // Attack the space in front of the keeper, where parries and blocks fall.
+        const dir = world.attackDir[p.side];
+        setIntent(p, clampToPitch({ x: target.x - dir * 7, z: clamp(p.pos.z, -8, 8) }), true);
+        return;
+      }
+    }
+  }
+
+  /*
+   * Forwards move when their team has the ball. They used to stand on their formation anchor
+   * waiting to be found, which starved the carrier of options and funnelled every attack into
+   * a dribble. Two behaviours, alternating on the AI's own cadence: pin the last defender's
+   * shoulder holding an onside buffer, and break in behind when the carrier is set to play it.
+   */
+  if (
+    teamHasBall &&
+    p.role === 'FW' &&
+    world.controllerId !== p.id &&
+    world.controllerId !== null
+  ) {
+    const carrier = world.players.find((q) => q.id === world.controllerId);
+    if (carrier && carrier.side === p.side) {
+      const attack = world.attackDir[p.side];
+      const line = world.players
+        .filter((q) => q.side !== p.side && q.role !== 'GK' && !q.sentOff)
+        .reduce(
+          (deepest, q) => (q.pos.x * attack > deepest ? q.pos.x * attack : deepest),
+          -HALF_LENGTH,
+        );
+      const carrierSet = nearestOpponentDistance(world, carrier) > 2.5;
+      const inRange = dist(carrier.pos, p.pos) < 32;
+      const upfield = carrier.pos.x * attack > -5;
+      // Episodic, not permanent: a striker who is *always* breaking is unmarkable and the game
+      // becomes a shooting gallery — measured at 7 goals and up to 63 shots a match. Roughly one
+      // decision in three commits to the run; the rest of the time he pins the line.
+      if (carrierSet && inRange && upfield && p.stamina > 0.2 && world.rand() < 0.32) {
+        // Break: flat-out beyond the line, bending to stay a stride onside until it is played.
+        const holdX = (line - 0.8) * attack;
+        setIntent(p, clampToPitch({ x: holdX + attack * 6, z: clamp(p.pos.z, -18, 18) }), true);
+        return;
+      }
+      // Pin: sit on the last defender's shoulder so the line cannot step up in comfort.
+      setIntent(p, clampToPitch({ x: (line - 1.2) * attack, z: clamp(p.pos.z, -20, 20) }), false);
+      return;
+    }
+  }
+
   if (!teamHasBall) {
     /*
      * Ten yards. At a free kick or a corner the defending side has to retreat 9.15m from the
@@ -348,6 +410,31 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
       }
     }
     if (chaser?.id === p.id) {
+      /*
+       * Contain, do not charge. When the opponent has the ball under control, running straight
+       * at it takes the defender *through* the carrier and out of the game the instant he cuts.
+       * The nearest man instead holds a point on the carrier-goal line just off him, matching
+       * his pace — the existing challenge logic wins the ball when it is actually loose or the
+       * carrier's touch strays. A genuinely loose ball is still chased flat out.
+       */
+      const carrier = world.players.find((q) => q.id === world.controllerId);
+      if (carrier && carrier.side !== p.side) {
+        const own = ownGoalCenter(world, p.side);
+        // Anchor on the ball, not the man: the ball is what he actually pokes, and the touch
+        // scheduler leaves it rolling in front of the carrier where it can genuinely be won.
+        const goalSide = normalize(sub(own, ball));
+        setIntent(
+          p,
+          clampToPitch({
+            // Inside challenge range: containing from beyond it produced a stand-off where
+            // neither man could ever win the ball. He shows the carrier one way and still bites.
+            x: ball.x + world.ball.vel.x * 0.25 + goalSide.x * 0.8,
+            z: ball.z + world.ball.vel.z * 0.25 + goalSide.z * 0.8,
+          }),
+          p.stamina > 0.15,
+        );
+        return;
+      }
       setIntent(p, clampToPitch(interceptPoint(world)), p.stamina > 0.15);
       return;
     }
@@ -453,7 +540,8 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   }
 
   const quality = shotQuality(world, p.pos, p.side);
-  const shootBar = 0.34 + (1 - profile.shotAccuracy) * 0.2;
+  // High enough that half-chances get worked rather than leathered from anywhere.
+  const shootBar = 0.45 + (1 - profile.shotAccuracy) * 0.2;
   // Inside the box with any sort of angle, take the shot rather than walking it in.
   const goalDist = dist(p.pos, goal);
   // Nobody dribbles it over the line: from the six-yard box he simply hits it.

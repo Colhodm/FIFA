@@ -623,6 +623,7 @@ function checkBlockRate(): void {
     const struckAt = Math.hypot(world.ball.vel.x, world.ball.vel.z);
 
     let wasBlocked = false;
+    let blockerId = -1;
     let reboundSpeed = 0;
     let settled = 'nobody';
     for (let i = 0; i < 60 * 4; i++) {
@@ -642,6 +643,7 @@ function checkBlockRate(): void {
         // a controlled ball is by definition stopped.
         if (man && man.role !== 'GK' && world.controllerId !== man.id) {
           wasBlocked = true;
+          blockerId = man.id;
           blocked++;
           reboundSpeed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
         } else if (man && man.role !== 'GK') {
@@ -655,9 +657,19 @@ function checkBlockRate(): void {
           settled = 'outOfPlay';
           break;
         }
+        /*
+         * Compare against the *blocker*, not the last toucher: whoever controls the ball is by
+         * definition also its most recent toucher, so the old `owner !== lastTouch` condition
+         * could never be true and every rebound was reported as falling to nobody — a
+         * measurement artifact, not a fact about the game.
+         */
         const owner = world.players.find((p) => p.id === world.controllerId);
-        if (owner && owner.id !== t?.playerId) {
+        if (owner && owner.id !== blockerId) {
           settled = owner.side === 'home' ? 'attacker' : 'defender';
+          break;
+        }
+        if (owner && owner.id === blockerId) {
+          settled = 'defender';
           break;
         }
       } else if (world.phase !== 'in-play') {
@@ -683,6 +695,12 @@ function checkBlockRate(): void {
   // A block that reliably kills the ball dead is the bug this telemetry exists to catch.
   if (blocked >= 5 && pace < 12) {
     throw new Error(`blocked shots retain only ${pace}% of their pace — deflections are dead`);
+  }
+  // A rebound nobody ever picks up means second-phase play is dead again.
+  if (blocked >= 5 && fell.nobody > blocked * 0.3) {
+    throw new Error(
+      `${fell.nobody}/${blocked} rebounds fell to nobody — the loose ball is not being contested`,
+    );
   }
 }
 
