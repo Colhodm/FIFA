@@ -24,6 +24,8 @@ export const CORNER_ARC_RADIUS = 1;
 
 export const BALL_RADIUS = 0.11;
 export const BALL_MASS = 0.43;
+/** Linear damping on the ball rigid body. Kept here so the sim can predict its own physics. */
+export const BALL_DAMPING = 0.32;
 
 export const PLAYER_RADIUS = 0.38;
 export const PLAYER_HEIGHT = 1.8;
@@ -38,6 +40,15 @@ export const TICK_DT = 1 / TICK_RATE;
  * motion on any machine that dips below `TICK_RATE / MAX_TICKS_PER_FRAME` fps.
  */
 export const MAX_TICKS_PER_FRAME = 12;
+
+/**
+ * Rigid-body step for the ball. Deliberately faster than the gameplay tick: at 60 Hz the body
+ * only moves on every other rendered frame on a 120 Hz display, so a struck ball advances in
+ * visible jumps — measured as roughly one frame in three with *zero* displacement, then double
+ * on the next. Stepping at 120 Hz also halves how far a 30 m/s shot travels per step, which is
+ * what goal-line and keeper-hand contacts depend on.
+ */
+export const PHYSICS_DT = 1 / 120;
 
 /** Distance at which a player can take a touch on the ball. */
 export const CONTROL_RADIUS = 1.25;

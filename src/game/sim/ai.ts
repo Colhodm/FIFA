@@ -17,7 +17,8 @@ import {
   ownGoalCenter,
   shotQuality,
 } from './kick';
-import { clamp, dist, normalize, sub, type Vec2 } from './math';
+import { strike, type ShotStyle } from './finishing';
+import { distToSegment, clamp, dist, normalize, sub, type Vec2 } from './math';
 import { slotToPitch, type DifficultyProfile, type SimPlayer, type SimWorld } from './state';
 
 const EDGE = 1.5;
@@ -122,6 +123,46 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
   const wantsSprint = p.stamina > 0.25 && world.rand() < profile.sprintBias;
 
   if (!teamHasBall) {
+    /*
+     * A ball has been struck at our goal. Anyone close to its line throws himself in front of
+     * it rather than carrying on marking a runner — previously a shot simply flew past
+     * defenders who were still holding their shape, which is the thing that reads as nobody
+     * caring that a shot is happening.
+     */
+    const struck = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+    /*
+     * A defender does not know where a shot is going the instant it leaves the boot. Reading the
+     * ball's velocity on the tick it was struck gave every defender perfect knowledge with zero
+     * latency, which is what produces blocks that look impossible. He reacts only after his own
+     * perception delay — quicker if he is a good defender, slower if the ball is behind him.
+     */
+    const facing = { x: Math.sin(p.heading), z: Math.cos(p.heading) };
+    const toBall = normalize(sub(ball, p.pos));
+    const seesIt = facing.x * toBall.x + facing.z * toBall.z > 0.1;
+    const reaction =
+      (seesIt ? 0.2 : 0.42) + (1 - profile.marking) * 0.12 + (1 - p.defending / 100) * 0.16;
+    if (
+      world.shotAge >= reaction &&
+      struck > 13 &&
+      world.ball.pos.y < 1.8 &&
+      dist(ball, ownGoalCenter(world, p.side)) < 30
+    ) {
+      const own = ownGoalCenter(world, p.side);
+      const goingAtGoal = (own.x - world.ball.pos.x) * world.ball.vel.x > 0;
+      if (goingAtGoal) {
+        // Where the ball will be in a moment, and how far he is off that line.
+        const lead = 0.35;
+        const ahead = {
+          x: world.ball.pos.x + world.ball.vel.x * lead,
+          z: world.ball.pos.z + world.ball.vel.z * lead,
+        };
+        const offLine = distToSegment(p.pos, ball, ahead);
+        if (offLine < 2.2) {
+          setIntent(p, clampToPitch(ahead), true);
+          return;
+        }
+      }
+    }
     if (chaser?.id === p.id) {
       setIntent(p, clampToPitch(interceptPoint(world)), p.stamina > 0.15);
       return;
@@ -282,33 +323,33 @@ export function shoot(
 ): void {
   const goal = goalCenter(world, p.side);
   const d = dist(p.pos, goal);
-  // Aim for the corner the keeper has left open.
-  const keeper = world.players.find((o) => o.side !== p.side && o.role === 'GK');
-  const away = keeper && Math.abs(keeper.pos.z) > 0.15 ? -Math.sign(keeper.pos.z) : 0;
-  // Aim near the post. Placing it only halfway to the corner put the ball inside a keeper's
-  // standing reach, so well-struck shots were being saved without him having to move.
-  const placement =
-    (away || (world.rand() < 0.5 ? -1 : 1)) *
-    (HALF_GOAL_WIDTH - 0.4) *
-    (0.75 + world.rand() * 0.25);
-  // Finishing ability shrinks the spread as much as the difficulty profile does.
-  const errorScale =
-    (1 - profile.shotAccuracy) * (1 - quality * 0.5) * (2 + d * 0.12) * (1.5 - p.shooting / 130);
-  const aim: Vec2 = {
-    x: goal.x,
-    z: placement * profile.shotAccuracy + (world.rand() * 2 - 1) * errorScale,
+  // The CPU finishes through the same solver as the player: pick a target, then solve the
+  // launch that reaches it. Difficulty rides on the spread, not on a different mechanism.
+  const charge = clamp(
+    (speed ?? clamp(MIN_SHOT_POWER + d * 0.62, MIN_SHOT_POWER, MAX_SHOT_POWER) * powerScale) /
+      world.tuning.shot.maxSpeed,
+    0.35,
+    1,
+  );
+  const tuning = {
+    ...world.tuning.shot,
+    // A weaker profile, or a snatched chance, simply misses by more.
+    baseSpread:
+      world.tuning.shot.baseSpread * (2.1 - profile.shotAccuracy * 1.6) * (1.3 - quality * 0.3),
   };
-  const dir = normalize(sub(aim, p.pos));
-  const power =
-    speed ??
-    clamp(MIN_SHOT_POWER + d * 0.62, MIN_SHOT_POWER, MAX_SHOT_POWER) *
-      (0.74 + p.shooting / 260) *
-      powerScale;
-  // Good finishers wrap their foot around it, bending the shot back towards the corner.
-  const curl = curlToward(p.pos, dir, aim, (p.shooting / 100) * 0.5);
-  applyKick(world, p, dir, power, clamp(d * 0.075, 0.35, 2.6), curl, 'shot');
-  registerShot(world, p, aim);
-  world.events.push({ type: 'shot', side: p.side, intensity: clamp(power / MAX_SHOT_POWER, 0, 1) });
+  const style: ShotStyle = d > 24 && world.rand() < 0.5 ? 'driven' : 'finesse';
+  const result = strike(
+    world,
+    p,
+    { style, charge, aim: null, pressure: nearestOpponentDistance(world, p) },
+    tuning,
+  );
+  registerShot(world, p, { x: goal.x, z: result.targetZ });
+  world.events.push({
+    type: 'shot',
+    side: p.side,
+    intensity: clamp(result.speed / world.tuning.shot.maxSpeed, 0, 1),
+  });
 }
 
 export interface PassOptions {

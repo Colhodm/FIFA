@@ -92,6 +92,8 @@ export interface SimPlayer {
   offside: boolean;
   /** Seconds a skill move keeps the player committed (and a beaten defender off balance). */
   skillTimer: number;
+  /** Seconds until this carrier's next touch on the ball. See the touch scheduler in step.ts. */
+  touchTimer: number;
   /** Seconds a keeper holds the ball before distributing it. */
   holdTimer: number;
   tally: PlayerTally;
@@ -279,6 +281,8 @@ export interface SimWorld {
    * is never the intended receiver — so defenders, who do attack the ball, win most of them.
    */
   passTarget: { playerId: number; spot: Vec2 } | null;
+  /** Seconds since the ball was last struck. Defenders may not react inside their own latency. */
+  shotAge: number;
   /** Player id the human is currently controlling. */
   activeId: number;
   kickoffSide: TeamSide;
@@ -363,6 +367,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         offside: false,
         diveTargetZ: 0,
         skillTimer: 0,
+        touchTimer: 0,
         holdTimer: 0,
         tally: emptyTally(),
       });
@@ -394,6 +399,7 @@ export function createWorld(config: MatchConfig): SimWorld {
     lastScorerId: null,
     controllerId: null,
     passTarget: null,
+    shotAge: 99,
     activeId: 0,
     kickoffSide: config.humanSide,
     restart: null,

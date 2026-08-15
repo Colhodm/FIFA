@@ -1,6 +1,6 @@
 import { BALL_MASS, BALL_RADIUS, HALF_LENGTH, KICK_COOLDOWN } from '../constants';
 import type { TeamSide } from '../types';
-import { clamp, dist, distToSegment, dot, normalize, sub, type Vec2 } from './math';
+import { clamp, dist, distToSegment, dot, normalize, sub, type Vec2, type Vec3 } from './math';
 import type { SimPlayer, SimWorld } from './state';
 
 export const goalCenter = (world: SimWorld, side: TeamSide): Vec2 => ({
@@ -27,6 +27,45 @@ export const ballPos2 = (world: SimWorld): Vec2 => ({
 export type KickClip = 'kick' | 'shot' | 'pass';
 
 const CLIP_HOLD: Record<KickClip, number> = { kick: 0.3, shot: 0.45, pass: 0.28 };
+
+/**
+ * Strikes the ball with an exact launch velocity. Used by the shot solver, which has already
+ * worked out the vector that reaches its target — adding the kicker's momentum on top (as
+ * `applyKick` does) would move the ball off the solution it just computed.
+ */
+export function applyKickVelocity(
+  world: SimWorld,
+  player: SimPlayer,
+  vel: Vec3,
+  curl = 0,
+  clip: KickClip = 'kick',
+): void {
+  const ball = world.ball;
+  const d = normalize({ x: vel.x, z: vel.z });
+  world.commands.push({
+    type: 'impulse',
+    impulse: {
+      x: (vel.x - ball.vel.x) * BALL_MASS,
+      y: (vel.y - ball.vel.y) * BALL_MASS,
+      z: (vel.z - ball.vel.z) * BALL_MASS,
+    },
+    point: {
+      x: ball.pos.x - d.x * BALL_RADIUS,
+      y: ball.pos.y - (vel.y > 0 ? BALL_RADIUS * 0.6 : 0),
+      z: ball.pos.z - d.z * BALL_RADIUS,
+    },
+  });
+  ball.vel = { ...vel };
+  ball.spin = { x: 0, y: curl, z: 0 };
+  player.kickCooldown = KICK_COOLDOWN;
+  player.anim = clip;
+  player.animTimer = CLIP_HOLD[clip];
+  world.controllerId = null;
+  world.lastTouch = { side: player.side, playerId: player.id };
+  world.possession = player.side;
+  world.pendingKickId = player.id;
+  world.shotAge = 0;
+}
 
 export function applyKick(
   world: SimWorld,
@@ -65,6 +104,7 @@ export function applyKick(
   world.controllerId = null;
   world.lastTouch = { side: player.side, playerId: player.id };
   world.possession = player.side;
+  world.shotAge = 0;
   // Resolved at the end of the tick so the offside law never has to import the rules here.
   world.pendingKickId = player.id;
 }

@@ -1,11 +1,4 @@
-import {
-  BALL_RADIUS,
-  CONTROL_RADIUS,
-  HALF_GOAL_WIDTH,
-  HALF_WIDTH,
-  HEADER_HEIGHT,
-  JUMP_HEIGHT,
-} from '../constants';
+import { CONTROL_RADIUS, HALF_GOAL_WIDTH, HEADER_HEIGHT, JUMP_HEIGHT } from '../constants';
 import { registerShot } from './ai';
 import { applyKick, ballPos2, goalCenter, ownGoalCenter } from './kick';
 import { clamp, dist, distToSegment, normalize, sub, type Vec2 } from './math';
@@ -177,7 +170,7 @@ export function updateKeepers(world: SimWorld, dt: number): void {
 
     if (keeper.anim === 'dive') {
       // Stretch across goal towards where the ball is actually going, and stop there.
-      const stretch = 4.2 + keeper.defending / 40;
+      const stretch = 3.4 + keeper.defending / 55;
       const remaining = keeper.diveTargetZ - keeper.pos.z;
       const move = clamp(remaining, -stretch * dt, stretch * dt);
       keeper.vel = { x: keeper.vel.x * 0.5, z: move / dt };
@@ -185,39 +178,50 @@ export function updateKeepers(world: SimWorld, dt: number): void {
     }
 
     // Full stretch is an arm's length beyond where he actually got to, not a third of the goal.
-    const reach = CONTROL_RADIUS + 0.55 + (keeper.anim === 'dive' ? 0.4 : 0);
+    const reach = CONTROL_RADIUS + 0.55 + (keeper.anim === 'dive' ? 0.15 : 0);
     // A struck ball can cross the whole reach inside one tick, so test the path it swept.
     const swept = { x: ball.x + world.ball.vel.x * dt, z: ball.z + world.ball.vel.z * dt };
     const d = Math.min(dist(keeper.pos, ball), distToSegment(keeper.pos, ball, swept));
     if (keeper.kickCooldown > 0 || d > reach || world.ball.pos.y > 2.7) continue;
     if (speed < 9) continue;
 
-    // Hard, high shots get pushed away; anything he can get two hands to is claimed.
-    const control = clamp(0.95 - speed / 45 + keeper.defending / 260, 0.1, 0.95);
+    // Hard, high shots get pushed away; anything he can get two hands to is claimed. He can
+    // only *claim* a ball already at his body — reaching out and having it snap into his gloves
+    // from two metres away is the teleport that reads so badly.
+    const atHands = dist(keeper.pos, ball) < CONTROL_RADIUS + 0.15;
+    const control = atHands ? clamp(0.95 - speed / 45 + keeper.defending / 260, 0.1, 0.95) : 0;
     world.stats[keeper.side].saves += 1;
     keeper.tally.saves += 1;
     world.events.push({ type: 'save', side: keeper.side, intensity: clamp(speed / 26, 0.2, 1) });
     if (world.rand() < control) {
+      // Smothered: the ball stops where it is, at his body. No jump across the six-yard box.
       world.ball.vel = { x: 0, y: 0, z: 0 };
       world.ball.spin = { x: 0, y: 0, z: 0 };
       world.commands.push({ type: 'velocity', vel: { x: 0, y: 0, z: 0 } });
-      world.commands.push({
-        type: 'teleport',
-        pos: { x: keeper.pos.x, y: BALL_RADIUS + 0.4, z: keeper.pos.z },
-      });
       world.controllerId = keeper.id;
       world.possession = keeper.side;
       world.lastTouch = { side: keeper.side, playerId: keeper.id };
       // He gets up, looks for the counter, then distributes.
       keeper.holdTimer = 1.6 + world.rand() * 0.9;
     } else {
-      const away = normalize(sub(keeper.pos, ball));
+      // Reflect off the hands about the contact normal, the way any other deflection resolves.
+      // The keeper steers it a little — strong hands push it wide rather than back into play —
+      // but the pace and line come from the ball that arrived, not from a fixed vector.
+      const n = normalize(sub(ball, keeper.pos));
+      const nx = n.x || Math.sign(ball.x - keeper.pos.x) || 1;
+      const nz = n.z;
+      const v = world.ball.vel;
+      const along = v.x * nx + v.z * nz;
+      const HANDS = 0.55;
+      // Velocity reflected about the normal, damped by the hands absorbing the strike.
+      let rx = (v.x - 2 * along * nx) * HANDS;
+      let rz = (v.z - 2 * along * nz) * HANDS;
+      // A good keeper pushes it away from the danger area rather than straight back out.
+      const steer = 0.35 + keeper.defending / 200;
       const outwards = Math.sign(ball.z - keeper.pos.z || 1);
-      const vel = {
-        x: -world.ball.vel.x * 0.35 - away.x * 3,
-        y: 2.4,
-        z: world.ball.vel.z * 0.2 + outwards * clamp(HALF_WIDTH - Math.abs(ball.z), 4, 9),
-      };
+      rx += nx * speed * 0.12;
+      rz += outwards * speed * 0.12 * steer;
+      const vel = { x: rx, y: Math.max(1.2, Math.abs(v.y) * 0.5 + speed * 0.06), z: rz };
       world.ball.vel = vel;
       world.ball.spin = { x: 0, y: 0, z: 0 };
       world.commands.push({ type: 'velocity', vel });

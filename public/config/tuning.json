@@ -11,9 +11,16 @@
   "shot": {
     "maxChargeSeconds": 1.2,
     "minPowerFraction": 0.3,
-    "maxSpeed": 30,
+    "//maxSpeed": "44.7 m/s = 100 mph, a clean full-power strike.",
+    "maxSpeed": 44.7,
     "overchargeThreshold": 0.85,
-    "overchargeConeDegrees": 8
+    "//spread": "Metres of scatter at the goal plane. Raise baseSpread to make finishing wilder.",
+    "baseSpread": 0.42,
+    "distanceSpreadMetres": 26,
+    "angleSpread": 0.9,
+    "overchargeSpread": 2.2,
+    "pressureSpread": 1.1,
+    "curlSpin": 1.0
   },
   "switching": {
     "predictedDistance": 1.0,

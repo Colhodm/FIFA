@@ -13,6 +13,31 @@ export interface PowerTuning {
   maxSpeed: number;
 }
 
+/**
+ * Finishing is tuned here rather than in the integrator. Every "shooting feels wrong" report
+ * should be answerable by these numbers: they set where the ball is *aimed* and how wide of that
+ * a miss goes, and the solver then makes the physics agree.
+ */
+export interface ShotTuning extends PowerTuning {
+  /** Charge above this buys power at the cost of placement. */
+  overchargeThreshold: number;
+  /** Metres of scatter at the goal plane for an unpressured, central, close-range shot. */
+  baseSpread: number;
+  /** Scatter doubles roughly every this many metres of range. */
+  distanceSpreadMetres: number;
+  /** Extra scatter per radian of angle away from a central position. */
+  angleSpread: number;
+  /** Extra scatter at full overcharge. */
+  overchargeSpread: number;
+  /** Extra scatter with a defender right on top of you. */
+  pressureSpread: number;
+  /**
+   * Sidespin applied to a finesse shot. Lateral acceleration is `MAGNUS * spin * speed`, so 1.0
+   * bends a 25 m/s strike about two metres over eighteen yards.
+   */
+  curlSpin: number;
+}
+
 export interface Tuning {
   pass: {
     ground: PowerTuning;
@@ -25,11 +50,7 @@ export interface Tuning {
     /** Half-angle of the cone searched for a receiver, degrees. */
     coneDegrees: number;
   };
-  shot: PowerTuning & {
-    /** Charge above this starts to spray, up to `overchargeConeDegrees`. */
-    overchargeThreshold: number;
-    overchargeConeDegrees: number;
-  };
+  shot: ShotTuning;
   /** Weights for the player-switch scoring function. */
   switching: {
     predictedDistance: number;
@@ -56,9 +77,16 @@ export const DEFAULT_TUNING: Tuning = {
   shot: {
     maxChargeSeconds: 1.2,
     minPowerFraction: 0.3,
-    maxSpeed: 30,
+    // A cleanly struck shot at full charge leaves the boot at 100 mph. The curve means only a
+    // full charge from a settled body gets near it; a tap is 30% of this.
+    maxSpeed: 44.7,
     overchargeThreshold: 0.85,
-    overchargeConeDegrees: 8,
+    baseSpread: 0.42,
+    distanceSpreadMetres: 26,
+    angleSpread: 0.9,
+    overchargeSpread: 2.2,
+    pressureSpread: 1.1,
+    curlSpin: 1,
   },
   switching: {
     predictedDistance: 1,

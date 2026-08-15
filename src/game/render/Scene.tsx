@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { Environment, Lightformer, Sky } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import { ACESFilmicToneMapping, PCFSoftShadowMap } from 'three';
-import { TICK_DT } from '../constants';
+import { PHYSICS_DT } from '../constants';
 import type { SimWorld } from '../sim/state';
 import { useGameStore } from '../store';
 import { Ball } from './Ball';
@@ -84,7 +84,7 @@ export function Scene({ world }: { world: SimWorld }) {
       {/* Cool bounce from the opposite stand, so shadowed sides are not solid black. */}
       <directionalLight position={[-40, 30, 40]} intensity={0.5} color="#bfd8ff" />
 
-      <Physics timeStep={TICK_DT} paused={paused} gravity={[0, -9.81, 0]}>
+      <Physics timeStep={PHYSICS_DT} interpolate paused={paused} gravity={[0, -9.81, 0]}>
         <Pitch shadows={tier.shadows} />
         <Goals shadows={tier.shadows} />
         <Ball shadows={tier.shadows} />

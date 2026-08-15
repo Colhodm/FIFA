@@ -256,6 +256,8 @@ interface ControlCase {
   lofted?: boolean;
   /** Normalised 0..1 hold. Defaults to a half charge. */
   charge?: number;
+  /** Where the striker stands, in attacking coordinates. Shots need a shooting position. */
+  fromX?: number;
 }
 
 const CONTROL_CASES: ControlCase[] = [
@@ -266,8 +268,9 @@ const CONTROL_CASES: ControlCase[] = [
   { name: 'lobbed through ball', action: 'through', mods: ['modL1'], minSpeed: 8, lofted: true },
   { name: 'cross', action: 'cross', minSpeed: 10, lofted: true },
   { name: 'driven cross', action: 'cross', mods: ['modR1'], minSpeed: 12, lofted: true },
-  { name: 'shot', action: 'shoot', minSpeed: 14 },
-  { name: 'chip shot', action: 'shoot', mods: ['modL1'], minSpeed: 8, lofted: true },
+  // From a real shooting position: a shot from the halfway line has to be lofted to reach.
+  { name: 'shot', action: 'shoot', minSpeed: 14, charge: 1, fromX: 34 },
+  { name: 'chip shot', action: 'shoot', mods: ['modL1'], minSpeed: 8, lofted: true, fromX: 34 },
 ];
 
 /**
@@ -290,7 +293,7 @@ function checkHumanControls(): void {
     world.phase = 'in-play';
     const active = world.players.find((p) => p.id === world.activeId);
     if (!active) throw new Error('no active player');
-    active.pos = { x: -6, z: 0 };
+    active.pos = { x: test.fromX ?? -6, z: 0 };
     active.heading = Math.PI / 2;
     world.ball.pos = { x: active.pos.x + 0.4, y: BALL_RADIUS, z: active.pos.z };
     world.ball.vel = { x: 0, y: 0, z: 0 };
@@ -325,7 +328,10 @@ function checkHumanControls(): void {
     if (test.lofted && vy < 2) {
       throw new Error(`${test.name}: expected loft, got vy ${vy.toFixed(1)}`);
     }
-    if (!test.lofted && vy > 2.5) {
+    // A shot now flies a solved arc rather than skidding along the grass, so it has to be
+    // launched high enough to beat the drop over its flight. Passes stay genuinely flat.
+    const lowBallLimit = test.action === 'shoot' ? 6.5 : 2.5;
+    if (!test.lofted && vy > lowBallLimit) {
       throw new Error(`${test.name}: expected a low ball, got vy ${vy.toFixed(1)}`);
     }
   }
@@ -543,6 +549,97 @@ function checkSwitchOnPass(): void {
   console.log(
     `switch-on-pass check passed (${followed}/${received} passes handed you the receiver)`,
   );
+}
+
+/**
+ * Block rate telemetry. Real block rates on shots from open play run about 25-30%; much higher
+ * than that means defenders are reading the trajectory with superhuman latency, or are packed
+ * into the shooting lane, and shots stop feeling earned. This measures it instead of arguing.
+ */
+function checkBlockRate(): void {
+  let shots = 0;
+  let blocked = 0;
+  let reboundRatio = 0;
+  const fell: Record<string, number> = { attacker: 0, defender: 0, outOfPlay: 0, nobody: 0 };
+
+  for (let s = 0; s < 40; s++) {
+    const world = newWorld(s * 29 + 11);
+    world.phase = 'in-play';
+    world.offsideActive = false;
+    const dir = world.attackDir.home;
+    const me = world.players.find((p) => p.id === world.activeId);
+    if (!me) throw new Error('no shooter');
+    me.pos = { x: (52.5 - 17) * dir, z: (s % 7) - 3 };
+    me.vel = { x: 0, z: 0 };
+    me.kickCooldown = 0;
+    world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: me.pos.z };
+    world.ball.vel = { x: 0, y: 0, z: 0 };
+    world.controllerId = me.id;
+    world.possession = 'home';
+    world.commands.length = 0;
+
+    const mgr = manager();
+    const actions = idleActions();
+    actions.shoot = { ...actions.shoot, released: true, fired: true, charge: 1, heldTime: 1.2 };
+    let before = { ...world.ball.vel };
+    tick(world, { move: { x: -dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+    stepBall(world, TICK_DT, before);
+    world.events.length = 0;
+    shots++;
+    const struckAt = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+
+    let wasBlocked = false;
+    let reboundSpeed = 0;
+    let settled = 'nobody';
+    for (let i = 0; i < 60 * 4; i++) {
+      before = { ...world.ball.vel };
+      tick(world, idleInput, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      const t = world.lastTouch;
+      if (!wasBlocked && t && t.side === 'away') {
+        const man = world.players.find((p) => p.id === t.playerId);
+        if (man && man.role !== 'GK') {
+          wasBlocked = true;
+          blocked++;
+          reboundSpeed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+        }
+      }
+      if (wasBlocked) {
+        // Who ends up with the rebound?
+        if (world.phase !== 'in-play') {
+          settled = 'outOfPlay';
+          break;
+        }
+        const owner = world.players.find((p) => p.id === world.controllerId);
+        if (owner && owner.id !== t?.playerId) {
+          settled = owner.side === 'home' ? 'attacker' : 'defender';
+          break;
+        }
+      } else if (world.phase !== 'in-play') {
+        break;
+      }
+    }
+    if (wasBlocked) {
+      reboundRatio += struckAt > 0 ? reboundSpeed / struckAt : 0;
+      fell[settled] += 1;
+    }
+  }
+
+  const pct = Math.round((blocked / shots) * 100);
+  const pace = blocked ? Math.round((reboundRatio / blocked) * 100) : 0;
+  console.log(
+    `block rate: ${pct}% of ${shots} shots from the edge of the box (real: 25-30%)\n` +
+      `  rebound keeps ${pace}% of the shot's pace | falls to ` +
+      Object.entries(fell)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(', '),
+  );
+  if (pct > 55) throw new Error(`defenders block ${pct}% of shots, which is not football`);
+  // A block that reliably kills the ball dead is the bug this telemetry exists to catch.
+  if (blocked >= 5 && pace < 12) {
+    throw new Error(`blocked shots retain only ${pace}% of their pace — deflections are dead`);
+  }
 }
 
 /**
@@ -799,6 +896,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkBlockRate();
 checkSwitching();
 checkRestarts();
 checkPenalty();

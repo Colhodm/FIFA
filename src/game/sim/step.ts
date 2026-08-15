@@ -1,5 +1,6 @@
 import {
   ACCELERATION,
+  BALL_DAMPING,
   BASE_SPEED,
   CONTROL_RADIUS,
   HALF_LENGTH,
@@ -20,14 +21,13 @@ import {
 } from '../input/input';
 import type { TeamSide } from '../types';
 import { resolveAerials, updateBodies, updateKeepers, type HeaderIntent } from './aerial';
-import { decideOffBall, decideOnBall, kickPass, registerShot, shoot } from './ai';
+import { decideOffBall, decideOnBall, kickPass, nearestOpponentDistance, registerShot } from './ai';
 import {
   applyKick,
   ballPos2,
   bestCross,
   bestPass,
   bestThroughBall,
-  curlToward,
   goalCenter,
   ownGoalCenter,
 } from './kick';
@@ -43,6 +43,7 @@ import {
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
 import { groundSpeedFor, liftFor, lobAngle, speedFor } from './power';
+import { strike, type ShotStyle } from './finishing';
 import { firstTouchError, performSkill, skillFromDirection } from './skills';
 import {
   advanceSwitchTimers,
@@ -84,6 +85,7 @@ export function tick(
   manager: InputManager,
 ): void {
   world.pendingKickId = null;
+  world.shotAge += dt;
   advanceSwitchTimers(world, dt);
   // The face buttons mean different things with and without the ball; publish which it is so
   // the input layer can resolve a press against the state it was made in.
@@ -313,10 +315,18 @@ function integrate(
   const target = { x: dir.x * maxSpeed * throttle, z: dir.z * maxSpeed * throttle };
 
   // Sprinting trades agility for speed; dribbling buys it back.
-  const accel = ACCELERATION * (0.82 + p.dribbling / 320) * (sprint ? 0.72 : 1);
+  let accel = ACCELERATION * (0.82 + p.dribbling / 320) * (sprint ? 0.72 : 1);
   const dvx = target.x - p.vel.x;
   const dvz = target.z - p.vel.z;
   const dv = Math.hypot(dvx, dvz);
+  // Footballers are not RTS units: they drive hard forwards, shuffle sideways and back-pedal
+  // weakly. Accelerating equally in every direction is a large part of why movement reads wrong.
+  if (dv > 1e-5) {
+    const fx = Math.sin(p.heading);
+    const fz = Math.cos(p.heading);
+    const along = (dvx / dv) * fx + (dvz / dv) * fz;
+    accel *= along > 0 ? 1 : 0.55 + 0.45 * (1 + along);
+  }
   const step = Math.min(dv, accel * dt);
   if (dv > 1e-5) {
     p.vel.x += (dvx / dv) * step;
@@ -332,7 +342,11 @@ function integrate(
   const facing = face && Math.hypot(face.x, face.z) > 0.01 ? face : speed > 0.35 ? p.vel : null;
   if (facing) {
     const want = Math.atan2(facing.x, facing.z);
-    const rate = TURN_RATE * (0.8 + p.dribbling / 400) * (sprint ? 0.6 : 1);
+    // Turning is inversely coupled to how fast he is actually going. At a walk he can pivot on
+    // the spot; at full sprint the turning circle is metres wide, which is what stops players
+    // changing direction like cursors.
+    const pace = clamp(speed / (BASE_SPEED * SPRINT_MULTIPLIER), 0, 1);
+    const rate = TURN_RATE * (0.85 + p.dribbling / 400) * (1 - pace * 0.68);
     p.heading += clamp(angleDelta(p.heading, want), -rate * dt, rate * dt);
   }
 
@@ -343,28 +357,40 @@ function integrate(
   p.stamina = clamp(p.stamina, 0, 1);
 }
 
-/** Players are kinematic bodies, so they need a cheap separation pass of their own. */
+/**
+ * Players are kinematic bodies, so they need a cheap separation pass of their own.
+ *
+ * Two things were wrong here. The separation distance was the *collider* radius, which is
+ * narrower than the shoulders that actually get drawn, so players visibly stood inside one
+ * another. And a single pass cannot resolve a cluster — pushing A off B shoves it into C — so
+ * knots of players around the six-yard box never came apart. A few relaxation iterations fix
+ * that for a handful of microseconds.
+ */
+const SEPARATION = PLAYER_RADIUS * 2.5;
+
 function resolveOverlaps(world: SimWorld): void {
-  const min = PLAYER_RADIUS * 2;
+  const min = SEPARATION;
   const players = world.players.filter((p) => !p.sentOff);
-  for (let i = 0; i < players.length; i++) {
-    for (let j = i + 1; j < players.length; j++) {
-      const a = players[i];
-      const b = players[j];
-      const dx = b.pos.x - a.pos.x;
-      const dz = b.pos.z - a.pos.z;
-      const d2 = dx * dx + dz * dz;
-      if (d2 > min * min || d2 < 1e-8) continue;
-      const d = Math.sqrt(d2);
-      const push = min - d;
-      const nx = dx / d;
-      const nz = dz / d;
-      // The stronger man holds his ground in a shoulder-to-shoulder.
-      const share = clamp(0.5 + (b.physical - a.physical) / 200, 0.2, 0.8);
-      a.pos.x -= nx * push * share;
-      a.pos.z -= nz * push * share;
-      b.pos.x += nx * push * (1 - share);
-      b.pos.z += nz * push * (1 - share);
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        const a = players[i];
+        const b = players[j];
+        const dx = b.pos.x - a.pos.x;
+        const dz = b.pos.z - a.pos.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > min * min || d2 < 1e-8) continue;
+        const d = Math.sqrt(d2);
+        const push = min - d;
+        const nx = dx / d;
+        const nz = dz / d;
+        // The stronger man holds his ground in a shoulder-to-shoulder.
+        const share = clamp(0.5 + (b.physical - a.physical) / 200, 0.2, 0.8);
+        a.pos.x -= nx * push * share;
+        a.pos.z -= nz * push * share;
+        b.pos.x += nx * push * (1 - share);
+        b.pos.z += nz * push * (1 - share);
+      }
     }
   }
 }
@@ -466,7 +492,11 @@ function updateControl(world: SimWorld, dt: number): void {
     // A man whose own team played the ball is expecting it, so he stretches for it and
     // takes it at pace; an opponent has to read it, and can only nick a firmly struck ball.
     const expecting = p.side === world.possession;
-    const reach = CONTROL_RADIUS + (keeper ? 0.55 : expecting ? 0.25 : 0);
+    // A carrier still owns the ball he has just knocked ahead: possession is "can I get there
+    // first", not "is it inside arm's length". Without this the touch scheduler loses the ball
+    // to nobody every time it pushes it in front.
+    const carrying = p.id === previous && p.kickCooldown <= 0;
+    const reach = CONTROL_RADIUS + (keeper ? 0.55 : expecting ? 0.25 : 0) + (carrying ? 1.15 : 0);
     const height = keeper ? 2.6 : 1.5;
     if (world.ball.pos.y > height) continue;
     const d = dist(p.pos, ball);
@@ -501,17 +531,59 @@ function updateControl(world: SimWorld, dt: number): void {
   }
 
   if (!holder && blocker) {
-    const away = normalize(sub(blocker.pos, ball));
-    const vel = {
-      x: (world.ball.vel.x * -0.25 + away.x * 3) * 0.9,
-      y: world.ball.vel.y * 0.4,
-      z: (world.ball.vel.z * -0.25 + away.z * 3) * 0.9,
-    };
+    /*
+     * A block is a collision, not an event with an authored outcome.
+     *
+     * This used to reverse a quarter of the incoming velocity and add a flat 3 m/s along a
+     * vector that — despite its name — pointed *into* the man who had just blocked it. The
+     * rebound barely depended on the shot: a 45 m/s strike came back at 7 m/s and a 15 m/s one
+     * resolved to 0.7 m/s and died at his feet. It could never pop up, carried no spin, and was
+     * identical every time. Second-phase play simply did not exist.
+     *
+     * Now it reflects about the contact normal with a restitution that depends on which part of
+     * him it hit, so pace off the block scales with pace onto it.
+     */
+    const contactY = world.ball.pos.y;
+    // Lower contacts are boot and shin — hard surfaces that spring the ball away. Higher up it
+    // is thigh and midriff, which absorb it.
+    const restitution =
+      contactY < 0.35 ? 0.55 : contactY < 0.9 ? 0.5 : contactY < 1.35 ? 0.42 : 0.32;
+
+    // The ball meets a moving limb, not a plane. Jitter the normal so ricochets are chaotic —
+    // lawfully so, rather than the same rebound every time.
+    const base = normalize(sub(ball, blocker.pos));
+    const jitter = (world.rand() * 2 - 1) * 0.3;
+    const cj = Math.cos(jitter);
+    const sj = Math.sin(jitter);
+    const n = { x: base.x * cj - base.z * sj, z: base.x * sj + base.z * cj };
+
+    const v = world.ball.vel;
+    const along = v.x * n.x + v.z * n.z;
+    const speed = Math.hypot(v.x, v.z);
+    // Split the impact: only the component *into* the defender is absorbed by him. The component
+    // sliding across him is barely slowed. Damping the whole reflected vector by the restitution
+    // — as though he absorbed the sideways motion too — is what leaves rebounds limp.
+    const nx = v.x - along * n.x;
+    const nz = v.z - along * n.z;
+    let rx = nx * 0.82 - along * n.x * restitution;
+    let rz = nz * 0.82 - along * n.z * restitution;
+    // A defender braced against the shot pushes it back a little; his own momentum counts too.
+    rx += n.x * speed * 0.08 + blocker.vel.x * 0.25;
+    rz += n.z * speed * 0.08 + blocker.vel.z * 0.25;
+
+    // Struck low into a boot or shin, the ball balloons. Off the body it stays down.
+    const lowness = clamp(1 - contactY / 1.4, 0, 1);
+    const lift = Math.abs(v.y) * 0.35 + speed * 0.13 * lowness * (0.6 + world.rand() * 0.8);
+
+    const vel = { x: rx, y: lift, z: rz };
     world.ball.vel = vel;
+    // Tangential contact puts spin on it, so a deflection can curl away awkwardly.
+    const tangential = v.x * -n.z + v.z * n.x;
+    world.ball.spin = { x: 0, y: clamp(tangential * 0.04, -1.5, 1.5), z: 0 };
     world.commands.push({ type: 'velocity', vel });
     world.lastTouch = { side: blocker.side, playerId: blocker.id };
     blocker.kickCooldown = KICK_COOLDOWN * 0.8;
-    world.events.push({ type: 'tackle', side: blocker.side, intensity: 0.5 });
+    world.events.push({ type: 'tackle', side: blocker.side, intensity: clamp(speed / 30, 0.2, 1) });
     world.controllerId = null;
     return;
   }
@@ -552,25 +624,78 @@ function updateControl(world: SimWorld, dt: number): void {
   world.lastTouch = { side: holder.side, playerId: holder.id };
   for (const p of world.players) p.offside = false;
 
-  // Nudge the ball to a dribbling position just ahead of the player: good close control keeps
-  // it tight, while pace on the ball knocks it further in front.
-  const knock =
-    0.5 + (1 - holder.dribbling / 100) * 0.45 + Math.hypot(holder.vel.x, holder.vel.z) * 0.03;
-  const ahead = {
-    x: holder.pos.x + Math.sin(holder.heading) * knock + touch.x,
-    z: holder.pos.z + Math.cos(holder.heading) * knock + touch.z,
+  dribbleTouch(world, holder, ball, touch, dt);
+}
+
+/**
+ * The touch scheduler.
+ *
+ * The ball used to be *kinematically attached* to the carrier: its velocity was overwritten
+ * every single tick to hold it at a spot in front of him. That is why it never looked like it
+ * was being played — it moved as a staircase of commanded velocities rather than rolling, it
+ * could not be tackled between touches because it was glued, and a shot was a discontinuous
+ * hand-off from "driven by code" to "driven by physics" that read as the ball teleporting up to
+ * speed.
+ *
+ * Now the ball is only ever a rigid body. Possession means the carrier gets to *touch* it: a
+ * discrete impulse, timed, that sends it to where his next touch expects it. Between touches it
+ * rolls free under friction — genuinely loose, genuinely tackleable — which is what makes a
+ * knock-on at sprint a real risk rather than a scripted one.
+ */
+function dribbleTouch(
+  world: SimWorld,
+  holder: SimPlayer,
+  ball: Vec2,
+  touch: Vec2,
+  dt: number,
+): void {
+  holder.touchTimer -= dt;
+  const speed = Math.hypot(holder.vel.x, holder.vel.z);
+  const sprinting = speed > BASE_SPEED * 1.05;
+
+  // Where he intends to go, not where he currently is: this is what makes control responsive.
+  const heading = { x: Math.sin(holder.heading), z: Math.cos(holder.heading) };
+  const control = 0.42 + (1 - holder.dribbling / 100) * 0.28;
+  // Close control at a walk, a bigger knock at a sprint. That gap is the risk/reward — but it
+  // has to stay inside the distance at which he can still claim the ball, or he simply loses it.
+  const knock = Math.min(sprinting ? 1.5 : 1.05, control + speed * (sprinting ? 0.14 : 0.07));
+  // How long until the next contact. Sprinting strides are longer, so touches are rarer.
+  const interval = clamp(knock / Math.max(2.5, speed), 0.18, 0.55);
+
+  const offset = sub(ball, holder.pos);
+  const gap = Math.hypot(offset.x, offset.z);
+  const alongHeading = offset.x * heading.x + offset.z * heading.z;
+  // Out of the envelope, behind him, or the ball is rolling somewhere he is not going.
+  const strayed = gap > knock * 1.9 || alongHeading < -0.15 || gap < 0.18;
+  if (holder.touchTimer > 0 && !strayed) return;
+
+  // Where the next touch expects to meet it, and the speed that gets it there under friction.
+  const next = {
+    x: holder.pos.x + holder.vel.x * interval + heading.x * knock + touch.x,
+    z: holder.pos.z + holder.vel.z * interval + heading.z * knock + touch.z,
   };
-  // The ball travels *with* the carrier, plus a correction that closes the gap to the spot in
-  // front of him. Driving the ball at the correction alone made it chase a target that was
-  // running away at 7 m/s, so it settled into equilibrium half a metre *behind* his feet — the
-  // carrier appeared to drag the ball along between his heels instead of knocking it ahead.
-  const toAhead = sub(ahead, ball);
-  const correction = 5;
-  const cap = 6;
-  const vx = holder.vel.x + clamp(toAhead.x * correction, -cap, cap);
-  const vz = holder.vel.z + clamp(toAhead.z * correction, -cap, cap);
-  world.ball.vel = { x: vx, y: world.ball.vel.y, z: vz };
-  world.commands.push({ type: 'velocity', vel: { x: vx, y: world.ball.vel.y, z: vz } });
+  const to = sub(next, ball);
+  // Rapier's damping bleeds a little pace off over the interval; ask for enough to arrive.
+  const carry = 1 + BALL_DAMPING * interval;
+  const want = { x: (to.x / interval) * carry, z: (to.z / interval) * carry };
+
+  // A touch can only do so much. Trying to redirect a fast ball through a sharp angle exceeds
+  // what a foot can impart, the clamp bites, and the ball runs away from him — the heavy touch
+  // falls out of the physics instead of being rolled for.
+  const dvx = want.x - world.ball.vel.x;
+  const dvz = want.z - world.ball.vel.z;
+  const dv = Math.hypot(dvx, dvz);
+  const maxTouch = 6 + (holder.dribbling / 100) * 7;
+  const scale = dv > maxTouch ? maxTouch / dv : 1;
+
+  const vel = {
+    x: world.ball.vel.x + dvx * scale,
+    y: world.ball.vel.y,
+    z: world.ball.vel.z + dvz * scale,
+  };
+  world.ball.vel = vel;
+  world.commands.push({ type: 'velocity', vel });
+  holder.touchTimer = interval;
 }
 
 /**
@@ -788,6 +913,11 @@ function playBuffered(
   }
 }
 
+/**
+ * Shooting picks where the ball should end up and then solves the launch that puts it there
+ * under the real flight model, rather than firing a noisy vector and hoping. R1 is a driven
+ * strike, L1 a chip, and neither is a finesse shot — that is the plain button.
+ */
 function playShot(
   world: SimWorld,
   active: SimPlayer,
@@ -796,45 +926,23 @@ function playShot(
   r1: boolean,
   l1: boolean,
 ): void {
-  const t = world.tuning.shot;
   const goal = goalCenter(world, active.side);
-  const d = dist(active.pos, goal);
-  const speed = speedFor(charge, t);
+  // The plain button is a normal, full-blooded strike — that is the one that reaches 100 mph
+  // off a clean full charge. Finesse and the chip are the *modified* shots, and both trade pace
+  // for placement or loft, so hiding the driven shot behind a modifier meant the headline power
+  // was unreachable without knowing an obscure key.
+  const style: ShotStyle = l1 ? 'chip' : r1 ? 'finesse' : 'driven';
+  const pressure = nearestOpponentDistance(world, active);
+  // A centred stick means "at goal"; a held direction is a genuine aim.
+  const aim = Math.hypot(aimDir.x, aimDir.z) > 0.2 ? aimDir : null;
 
-  if (l1) {
-    // Chip: little power, plenty of loft, aimed over the keeper.
-    const dir = d < 40 ? normalize(sub(goal, active.pos)) : aimDir;
-    applyKick(world, active, dir, speed * 0.55, 4.2, 0, 'shot');
-    world.events.push({ type: 'shot', side: active.side, intensity: charge * 0.6 });
-    registerShot(world, active, goal);
-    return;
-  }
-
-  // Leaning on the ball past the overcharge point sprays it: power at the cost of placement.
-  const over =
-    Math.max(0, charge - t.overchargeThreshold) / Math.max(1e-6, 1 - t.overchargeThreshold);
-  const spray = ((over * t.overchargeConeDegrees * Math.PI) / 180) * (world.rand() * 2 - 1);
-  const cos = Math.cos(spray);
-  const sin = Math.sin(spray);
-
-  if (d < 40) {
-    // Finesse trades power for placement, and bends the ball towards the corner. The charge
-    // sets the pace outright; `shoot` only picks where it goes.
-    const profile = r1 ? { ...HUMAN_PROFILE, shotAccuracy: 0.99 } : HUMAN_PROFILE;
-    shoot(world, active, profile, 1, 1, speed * (r1 ? 0.85 : 1));
-    return;
-  }
-  const dir = { x: aimDir.x * cos - aimDir.z * sin, z: aimDir.x * sin + aimDir.z * cos };
-  applyKick(
-    world,
-    active,
-    dir,
-    speed,
-    r1 ? 0.6 : 1.8,
-    r1 ? 0 : curlToward(active.pos, dir, goal, 0.4),
-    'shot',
-  );
-  world.events.push({ type: 'kick', side: active.side, intensity: charge });
+  const result = strike(world, active, { style, charge, aim, pressure }, world.tuning.shot);
+  registerShot(world, active, { x: goal.x, z: result.targetZ });
+  world.events.push({
+    type: 'shot',
+    side: active.side,
+    intensity: clamp(result.speed / world.tuning.shot.maxSpeed, 0, 1),
+  });
 }
 
 function playThroughBall(
