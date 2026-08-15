@@ -447,6 +447,20 @@ export function createWorld(config: MatchConfig): SimWorld {
 
 /** Places both teams in their formation shape for a kickoff and centres the ball. */
 export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
+  /*
+   * Hand the human a sensible player. `activeId` starts at 0, and the Premier League rosters
+   * list the goalkeeper first — so every kickoff put you in control of Alisson, forty metres
+   * from the ball, and the auto-switcher took seconds to rescue you. Nearest outfield man to
+   * the centre spot instead.
+   */
+  const human = world.config.humanSide;
+  const active = world.players.find((q) => q.id === world.activeId);
+  const outfield = world.players
+    .filter((q) => q.side === human && q.role !== 'GK' && !q.sentOff)
+    .sort((a, b) => Math.hypot(a.pos.x, a.pos.z) - Math.hypot(b.pos.x, b.pos.z));
+  if ((!active || active.role === 'GK' || active.side !== human) && outfield[0]) {
+    world.activeId = outfield[0].id;
+  }
   // Opponents may not challenge until the ball has been played. See `kickoffProtected`.
   world.kickoffProtected = true;
   world.kickoffSide = kickoffSide;
