@@ -121,6 +121,12 @@ export function solveLaunch(
   spinY: number,
   model: FlightModel = DEFAULT_FLIGHT,
   iterations = 12,
+  /**
+   * Take the *high* root instead. A chip is defined by clearing the keeper, so forcing it onto
+   * the low arc — which is right for every other shot — turned it into a flat drive at waist
+   * height and the mechanic did nothing.
+   */
+  preferHigh = false,
 ): LaunchSolution | null {
   const dx = planeX - from.x;
   const dz = targetZ - from.z;
@@ -143,8 +149,10 @@ export function solveLaunch(
   const v2 = speed * speed;
   const disc = v2 * v2 - g * (g * flat * flat + 2 * dy * v2);
   const lowArc = disc >= 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * flat)) : Math.PI / 4;
-  let elevation = lowArc;
-  const maxElevation = Math.min(1.1, lowArc + 0.4);
+  const highArc = disc >= 0 ? Math.atan((v2 + Math.sqrt(disc)) / (g * flat)) : Math.PI / 3;
+  let elevation = preferHigh ? highArc : lowArc;
+  const maxElevation = preferHigh ? Math.min(1.45, highArc + 0.3) : Math.min(1.1, lowArc + 0.4);
+  const minElevation = preferHigh ? Math.max(0.35, highArc - 0.45) : -0.2;
   // A strike is never launched wildly off the line to its target — the curl needs a few degrees,
   // not forty. Without this the solver can walk the azimuth away and fire square across goal.
   const MAX_OFF_BEARING = 0.42;
@@ -191,7 +199,7 @@ export function solveLaunch(
     azimuth -= Math.max(-0.12, Math.min(0.12, stepAz));
     elevation -= Math.max(-0.12, Math.min(0.12, stepEl));
     azimuth = Math.max(bearing - MAX_OFF_BEARING, Math.min(bearing + MAX_OFF_BEARING, azimuth));
-    elevation = Math.max(-0.2, Math.min(maxElevation, elevation));
+    elevation = Math.max(minElevation, Math.min(maxElevation, elevation));
   }
 
   // A solution that still misses by more than a goal's width is not a solution. Say so, and let

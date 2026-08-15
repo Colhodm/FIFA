@@ -98,7 +98,7 @@ export function performSkill(
   world.ball.vel = vel;
   world.commands.push({ type: 'velocity', vel });
   player.skillTimer = commit;
-  player.anim = 'skill';
+  player.anim = feinting ? 'feint' : 'skill';
   player.animTimer = commit;
   player.stamina = clamp(player.stamina - COST[move], 0, 1);
   // The dribbler carries his own momentum into the space he has just made.

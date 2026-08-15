@@ -687,6 +687,71 @@ function checkBlockRate(): void {
 }
 
 /**
+ * Driven, finesse and chip must be three genuinely different shots. The chip in particular was
+ * broken: the solver had been forced onto the low arc to stop it lobbing ordinary shots, but a
+ * chip is *defined* by looping the keeper, so it came out as a flat drive at waist height.
+ */
+function checkShotStyles(): void {
+  const run = (mods: ('modR1' | 'modL1')[]) => {
+    let peakSum = 0;
+    let speedSum = 0;
+    let n = 0;
+    for (let seed = 0; seed < 10; seed++) {
+      const world = newWorld(seed * 59 + 3);
+      world.phase = 'in-play';
+      world.offsideActive = false;
+      const dir = world.attackDir.home;
+      const me = world.players.find((p) => p.id === world.activeId);
+      if (!me) throw new Error('no shooter');
+      me.pos = { x: (52.5 - 18) * dir, z: 0 };
+      me.vel = { x: 0, z: 0 };
+      me.kickCooldown = 0;
+      world.ball.pos = { x: me.pos.x + 0.4 * dir, y: BALL_RADIUS, z: 0 };
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.controllerId = me.id;
+      world.possession = 'home';
+
+      const mgr = manager();
+      const actions = idleActions();
+      actions.shoot = { ...actions.shoot, released: true, fired: true, charge: 1, heldTime: 1.2 };
+      for (const m of mods) actions[m] = { ...actions[m], down: true };
+      let before = { ...world.ball.vel };
+      tick(world, { move: { x: dir, z: 0 }, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+      speedSum += Math.hypot(world.ball.vel.x, world.ball.vel.y, world.ball.vel.z);
+      n++;
+
+      let peak = 0;
+      for (let i = 0; i < 60 * 3; i++) {
+        before = { ...world.ball.vel };
+        tick(world, idleInput, 0, TICK_DT, mgr);
+        stepBall(world, TICK_DT, before);
+        world.events.length = 0;
+        peak = Math.max(peak, world.ball.pos.y);
+        if (world.phase !== 'in-play') break;
+      }
+      peakSum += peak;
+    }
+    return { peak: +(peakSum / n).toFixed(1), speed: +(speedSum / n).toFixed(1) };
+  };
+
+  const driven = run([]);
+  const finesse = run(['modR1']);
+  const chip = run(['modL1']);
+  console.log(
+    `shot styles: driven ${driven.speed}m/s peak ${driven.peak}m | ` +
+      `finesse ${finesse.speed}m/s peak ${finesse.peak}m | chip ${chip.speed}m/s peak ${chip.peak}m`,
+  );
+  if (finesse.speed >= driven.speed * 0.95) {
+    throw new Error(`finesse (${finesse.speed}) is not slower than driven (${driven.speed})`);
+  }
+  if (chip.peak <= driven.peak * 1.6) {
+    throw new Error(`a chip only reached ${chip.peak}m against a driven shot's ${driven.peak}m`);
+  }
+}
+
+/**
  * Stamina has to come back. Recovery only happened when a player was standing perfectly still and
  * *jogging drained it*, so across ninety minutes stamina fell monotonically and anyone who had
  * sprinted was finished for the rest of the match.
@@ -1371,6 +1436,7 @@ checkPassPower();
 checkPassCompletion();
 checkSwitchOnPass();
 checkDefensiveSwitch();
+checkShotStyles();
 checkStaminaRecovery();
 checkBodyFeints();
 checkCrossing();

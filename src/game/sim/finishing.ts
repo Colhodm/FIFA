@@ -61,7 +61,7 @@ export function pickTarget(
   // Height: driven shots stay down, chips are lifted over the keeper.
   const wantY =
     ctx.style === 'chip'
-      ? GOAL_HEIGHT * 0.72
+      ? GOAL_HEIGHT * 0.82
       : ctx.style === 'finesse'
         ? 0.35 + world.rand() * 0.75
         : 0.25 + world.rand() * 0.5;
@@ -134,14 +134,26 @@ export function strike(
     tuning.maxSpeed *
     (tuning.minPowerFraction +
       (1 - tuning.minPowerFraction) * Math.pow(clamp(ctx.charge, 0, 1), 1.1));
-  const speed = base * (ctx.style === 'chip' ? 0.55 : ctx.style === 'finesse' ? 0.85 : 1);
+  // A chip is struck softly, but not so softly it cannot loop the distance.
+  const speed = base * (ctx.style === 'chip' ? 0.72 : ctx.style === 'finesse' ? 0.85 : 1);
 
   const from: Vec3 = {
     x: world.ball.pos.x,
     y: Math.max(world.ball.pos.y, BALL_RADIUS),
     z: world.ball.pos.z,
   };
-  const solution = solveLaunch(from, target.z, target.y, goalX, speed, spin, DEFAULT_FLIGHT);
+  // A chip has to loop over the keeper, so it takes the high root; everything else the low one.
+  const solution = solveLaunch(
+    from,
+    target.z,
+    target.y,
+    goalX,
+    speed,
+    spin,
+    DEFAULT_FLIGHT,
+    12,
+    ctx.style === 'chip',
+  );
 
   if (solution) {
     applyKickVelocity(world, p, solution.vel, spin, 'shot');

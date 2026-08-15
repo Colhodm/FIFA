@@ -81,7 +81,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   quality: 'auto',
   tier: TIERS[defaultTier()],
-  camera: 'broadcast',
+  camera: 'player',
   audioEnabled: true,
   matchKey: 0,
   debug: false,

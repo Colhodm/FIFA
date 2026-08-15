@@ -19,6 +19,8 @@ export type AnimState =
   | 'dive'
   | 'jump'
   | 'skill'
+  | 'feint'
+  | 'throw'
   | 'celebrate'
   | 'down';
 
@@ -140,6 +142,8 @@ export type SimEventType =
   | 'save'
   | 'tackle'
   | 'skill'
+  | 'feint'
+  | 'throw'
   | 'foul'
   | 'card'
   | 'offside'

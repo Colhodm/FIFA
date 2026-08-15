@@ -13,6 +13,8 @@ const CLIP_LENGTH: Record<string, number> = {
   dive: 0.9,
   jump: 0.7,
   skill: 0.45,
+  feint: 0.26,
+  throw: 0.5,
   celebrate: 1,
   down: 1.6,
 };
@@ -86,6 +88,30 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
       armR = -0.5 * contact;
       lean = 0.2 * contact;
       twist = -0.25 * contact;
+      break;
+    }
+    case 'feint': {
+      // Drop the shoulder and sell it: a hard lateral lean and a counter-swing of the arms, with
+      // the feet barely leaving the ground. The heading has already been swung by the sim.
+      const sell = Math.sin(t * Math.PI);
+      lean = -0.12 * sell;
+      twist = 0.55 * sell;
+      armL = -0.9 * sell;
+      armR = 0.7 * sell;
+      legL = 0.3 * sell;
+      legR = -0.22 * sell;
+      bob = -0.05 * sell;
+      break;
+    }
+    case 'throw': {
+      // Two hands from behind the head, feet planted, body arching then snapping forward.
+      const wind = Math.sin(clamp01(t / 0.45) * Math.PI * 0.5);
+      const release = clamp01((t - 0.45) / 0.55);
+      armL = -2.5 * wind + 1.9 * release;
+      armR = -2.5 * wind + 1.9 * release;
+      lean = -0.35 * wind + 0.45 * release;
+      legL = 0.18 * wind;
+      legR = -0.18 * wind;
       break;
     }
     case 'tackle': {
