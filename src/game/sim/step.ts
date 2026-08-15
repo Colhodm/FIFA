@@ -397,6 +397,11 @@ function resolveOverlaps(world: SimWorld): void {
   }
 }
 
+/** Pace a ground pass should still carry when it reaches its man, m/s. */
+const PASS_ARRIVAL_SPEED = 4.5;
+/** How much pace a rolling ball sheds per metre travelled. */
+const PASS_DECAY_PER_METRE = 0.62;
+
 const CHALLENGE_RADIUS = 1.4;
 
 /**
@@ -1071,14 +1076,43 @@ function playGroundPass(
   lofted: boolean,
 ): void {
   const t = lofted ? world.tuning.pass.lob : world.tuning.pass.ground;
-  const speed = speedFor(charge, t) * (r1 ? 1.1 : 1);
-  const option = bestPass(world, active, aimDir, speed);
+  /*
+   * Pick the receiver first, at the pace the passer *could* manage, then weight the pass to
+   * actually reach him.
+   *
+   * Charge used to set the raw launch speed and the receiver was whoever that speed happened to
+   * reach — so a light press to a man fifteen metres away simply died halfway, and the only way
+   * to find a team-mate was to hold the button. That is backwards: a footballer decides who he
+   * is passing to and then hits it hard enough. Charge should say *how* he hits it, not whether
+   * it gets there.
+   */
+  const option = bestPass(world, active, aimDir, speedFor(1, t));
   if (!option) {
     // Nobody in the cone: strike it into space rather than swallowing the press.
-    applyKick(world, active, aimDir, speed, lofted ? 3 : 0, 0, 'pass');
+    const loose = speedFor(charge, t) * (r1 ? 1.1 : 1);
+    applyKick(world, active, aimDir, loose, lofted ? 3 : 0, 0, 'pass');
     world.events.push({ type: 'kick', side: active.side, intensity: charge });
     return;
   }
+  // A rolling ball sheds pace roughly linearly with distance, so the speed needed to arrive with
+  // something on it is close to `arrival + k * distance`.
+  const range = dist(active.pos, option.spot);
+  const weighted = PASS_ARRIVAL_SPEED + range * PASS_DECAY_PER_METRE;
+  // A tap is a properly weighted ball to feet; leaning on it drives the same pass through him,
+  // which is what you want when you are trying to beat a man to it.
+  /*
+   * Weight error. Solving the pass to arrive exactly removed the *overhit* failure mode, and with
+   * it every failure mode — completion went to 100%, which is not football. A passer under
+   * pressure, or simply not a good one, mis-weights it: short into a defender's path, or heavy
+   * through his man. Scaled by the passing attribute and by how tight he is being closed down.
+   */
+  const pressure = nearestOpponentDistance(world, active);
+  const rushed = clamp(1 - pressure / 5, 0, 1);
+  const sloppiness = (1 - active.passing / 100) * (0.5 + rushed * 0.9);
+  const misweight = 1 + (world.rand() + world.rand() - 1) * sloppiness * 0.42;
+  const speed =
+    clamp(weighted * (0.95 + charge * 0.5) * misweight, speedFor(0, t), speedFor(1, t)) *
+    (r1 ? 1.1 : 1);
   const angle = lobAngle(charge, world.tuning.pass.lobAngleDegrees);
   kickPass(world, active, option.spot, HUMAN_PROFILE, 1, {
     lift: lofted ? liftFor(speed, angle) : 0,

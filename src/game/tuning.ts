@@ -67,7 +67,9 @@ export interface Tuning {
 
 export const DEFAULT_TUNING: Tuning = {
   pass: {
-    ground: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 22 },
+    // A driven ground pass is 25-30 m/s in real football. The old 22 cap made a firm pass to a
+    // man sixteen metres away saturate, so leaning on the button bought nothing.
+    ground: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 28 },
     lob: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 18 },
     through: { maxChargeSeconds: 1, minPowerFraction: 0.3, maxSpeed: 20 },
     lobAngleDegrees: [30, 45],

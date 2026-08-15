@@ -424,6 +424,10 @@ function checkPassPower(): void {
  */
 function checkPassCompletion(): void {
   let completed = 0;
+  let open = 0;
+  let contested = 0;
+  let openDone = 0;
+  let contestedDone = 0;
   let total = 0;
   for (const gap of [8, 15, 22, 30]) {
     for (const charge of [0.4, 0.7, 1]) {
@@ -449,7 +453,17 @@ function checkPassCompletion(): void {
         me.kickCooldown = 0;
         mate.pos = { x: gap * dir, z: 0 };
         mate.vel = { x: 0, z: 0 };
-        marker.pos = { x: gap * dir, z: 4 };
+        /*
+         * Half the trials put the marker squarely in the passing lane rather than four metres
+         * off it. With him only ever beside the receiver this was an unopposed drill, so it
+         * scored ~99% no matter how good or bad interception was — the completion figure was
+         * really measuring whether passes were correctly weighted, not whether they could be
+         * cut out.
+         */
+        const inLane = s % 2 === 1;
+        if (inLane) contested++;
+        else open++;
+        marker.pos = inLane ? { x: gap * dir * 0.55, z: 0.9 } : { x: gap * dir, z: 4 };
         marker.vel = { x: 0, z: 0 };
         world.ball.pos = { x: 0.4 * dir, y: BALL_RADIUS, z: 0 };
         world.ball.vel = { x: 0, y: 0, z: 0 };
@@ -472,7 +486,11 @@ function checkPassCompletion(): void {
           world.events.length = 0;
           const holder = world.players.find((p) => p.id === world.controllerId);
           if (holder && holder.id !== me.id) {
-            if (holder.side === 'home') completed++;
+            if (holder.side === 'home') {
+              completed++;
+              if (inLane) contestedDone++;
+              else openDone++;
+            }
             break;
           }
           if (world.phase !== 'in-play') break;
@@ -481,16 +499,23 @@ function checkPassCompletion(): void {
     }
   }
   const pct = Math.round((completed / total) * 100);
+  const openPct = Math.round((openDone / Math.max(1, open)) * 100);
+  const contestedPct = Math.round((contestedDone / Math.max(1, contested)) * 100);
+  console.log(
+    `pass completion: ${openPct}% with a clear lane, ${contestedPct}% through a defender ` +
+      `(${pct}% overall of ${total})`,
+  );
+  // Two different things, and averaging them hides both. A clear lane should nearly always find
+  // its man now that passes are weighted to arrive; a ball played straight through a defender
+  // should usually not.
+  if (openPct < 85) throw new Error(`only ${openPct}% completed with a clear lane`);
+  if (contestedPct > 45) {
+    throw new Error(`${contestedPct}% completed straight through a defender — not interceptable`);
+  }
   // Real completion from open play is 70-85%. The old floor of 80% with no ceiling quietly
   // enshrined a bug: completion had reached 100% because opponents could not physically touch a
   // firm pass, and a test that only checks for "high enough" will never catch that.
-  if (pct < 62) {
-    throw new Error(`pass completion is only ${pct}% across ${total} passes, expected >= 62%`);
-  }
-  if (pct > 92) {
-    throw new Error(`pass completion is ${pct}% — defenders are not able to intercept`);
-  }
-  console.log(`pass completion check passed (${pct}% of ${total} passes found a team-mate)`);
+  console.log('pass completion check passed');
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "//": "Gameplay tunables. Anything omitted falls back to the built-in defaults in src/game/config.ts.",
   "pass": {
-    "ground": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 22 },
+    "ground": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 28 },
     "lob": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 18 },
     "through": { "maxChargeSeconds": 1.0, "minPowerFraction": 0.3, "maxSpeed": 20 },
     "lobAngleDegrees": [30, 45],
