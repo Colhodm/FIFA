@@ -369,6 +369,36 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
     const seesIt = facing.x * toBall.x + facing.z * toBall.z > 0.1;
     const reaction =
       (seesIt ? 0.2 : 0.42) + (1 - profile.marking) * 0.12 + (1 - p.defending / 100) * 0.16;
+
+    /*
+     * Reading the backswing. A defender does not wait for the ball to be travelling before he
+     * throws himself at the line — he reacts to the wound-up leg. Any nearby opponent deep in a
+     * wind-up (a charging human or an AI's planned strike) pulls the close defender onto the
+     * shooting lane *before* contact. This is also, deliberately, what the charge-feint baits:
+     * winding up and cancelling drags a block out of position, exactly as it should.
+     */
+    if (seesIt) {
+      const winder = world.players.find(
+        (q) =>
+          q.side !== p.side &&
+          !q.sentOff &&
+          q.windup > 0.55 &&
+          world.controllerId === q.id &&
+          dist(q.pos, p.pos) < 6 &&
+          dist(q.pos, ownGoalCenter(world, p.side)) < 28,
+      );
+      if (winder) {
+        const own = ownGoalCenter(world, p.side);
+        const lane = normalize(sub(own, winder.pos));
+        setIntent(
+          p,
+          clampToPitch({ x: winder.pos.x + lane.x * 1.6, z: winder.pos.z + lane.z * 1.6 }),
+          true,
+          sub(winder.pos, p.pos),
+        );
+        return;
+      }
+    }
     if (
       world.shotAge >= reaction &&
       struck > 13 &&
@@ -508,7 +538,12 @@ function decideKeeper(world: SimWorld, p: SimPlayer, profile: DifficultyProfile)
    * moment. Triggered when an opponent has the ball inside ~20m with no team-mate goal-side.
    */
   const carrier = world.players.find((q) => q.id === world.controllerId);
-  if (carrier && carrier.side !== p.side && dist(carrier.pos, own) < 20) {
+  /*
+   * 14m and 5m out, not 20m and 8m: the deeper rush left an empty net behind him for the whole
+   * of an attacker's wind-up, and the AI learned to simply square the ball past him — ten goals
+   * a match, a third of them passes rolling in untouched.
+   */
+  if (carrier && carrier.side !== p.side && dist(carrier.pos, own) < 14) {
     const cover = world.players.some(
       (q) =>
         q.side === p.side &&
@@ -519,11 +554,30 @@ function decideKeeper(world: SimWorld, p: SimPlayer, profile: DifficultyProfile)
     );
     if (!cover) {
       const line = normalize(sub(carrier.pos, own));
-      const out = clamp(dist(carrier.pos, own) * 0.45, 2, 8);
+      const out = clamp(dist(carrier.pos, own) * 0.4, 1.5, 5);
       setIntent(p, { x: own.x + line.x * out, z: own.z + line.z * out }, true);
       return;
     }
   }
+  /*
+   * Balls rolling *across* the goalmouth. The dive logic keys on velocity towards the goal, so a
+   * square ball or cutback — vel.x near zero — was literally invisible to him and rolled through
+   * the six-yard box untouched; a third of all goals had become passes into an empty corner.
+   * The trajectory cache sees it: if the flight passes through the strip in front of goal, he
+   * attacks the crossing point.
+   */
+  if (world.flight && world.controllerId === null) {
+    for (const f of world.flight) {
+      if (Math.abs(f.x - own.x) < 4.5 && Math.abs(f.z - own.z) < 7 && f.y < 1.7) {
+        const reach = dist(p.pos, { x: f.x, z: f.z }) / Math.max(4.5, f.t + 0.01);
+        if (reach < 9 || f.t > 0.35) {
+          setIntent(p, { x: f.x, z: f.z }, true, sub(ballPos2(world), p.pos));
+          return;
+        }
+      }
+    }
+  }
+
   const advance = clamp(ballDist * 0.14, 0.5, 3.5) * (0.7 + profile.marking * 0.4);
   const target = {
     x: own.x + toBall.x * advance,
@@ -574,6 +628,8 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
     return true;
   }
 
+  // Mid-backswing: the decision is made, let the swing finish.
+  if (p.plannedShot) return true;
   const quality = shotQuality(world, p.pos, p.side);
   // High enough that half-chances get worked rather than leathered from anywhere.
   const shootBar = 0.45 + (1 - profile.shotAccuracy) * 0.2;
@@ -582,7 +638,12 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   // Nobody dribbles it over the line: from the six-yard box he simply hits it.
   const pointBlank = goalDist < 16 && Math.abs(p.pos.z) < 14 && (pressure > 1.6 || goalDist < 7);
   if (pointBlank || quality > shootBar) {
-    shoot(world, p, profile, quality);
+    /*
+     * Not yet — wind up first. The AI used to strike instantly off an unwound leg, which both
+     * looked wrong and gave defenders nothing to read: a shot existed only after the ball was
+     * already travelling. The backswing is ~a third of a second, snap finishes shorter.
+     */
+    p.plannedShot = { at: pointBlank ? 0.22 : 0.34, quality };
     return true;
   }
 
@@ -689,7 +750,19 @@ export function kickPass(
     z: spot.z + (world.rand() * 2 - 1) * spread,
   };
   const dir = normalize(sub(aim, p.pos));
-  const power = options.speed ?? clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
+  let power = options.speed ?? clamp(5 + d * 0.82, MIN_PASS_POWER, MAX_PASS_POWER) * powerScale;
+  /*
+   * A pass whose lane crosses the goal mouth is one missed touch from being a shot, and the AI
+   * was scoring four or five a match this way — ordinary thirteen-metre balls at 15 m/s squared
+   * across the box, missing their man and rolling in. Nobody deliberately blasts a ball through
+   * the frame at a teammate: take the pace off so a miss dies at the line, gatherable.
+   */
+  const gx = dir.x > 0 ? HALF_LENGTH : -HALF_LENGTH;
+  const tLine = (gx - p.pos.x) / (dir.x || 1e-9);
+  if (tLine > 0 && tLine < d + 8) {
+    const zAt = p.pos.z + dir.z * tLine;
+    if (Math.abs(zAt) < HALF_GOAL_WIDTH + 0.8) power = Math.min(power, Math.max(7, tLine * 0.7));
+  }
   const lift = options.lift ?? (d > 24 ? 2.4 : 0);
   // A whipped cross bends away from the keeper; a ground pass is struck flat.
   const curl = options.curl ?? (lift > 2.5 ? curlToward(p.pos, dir, aim, 0.35) : 0);

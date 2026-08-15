@@ -143,7 +143,15 @@ function crossingOnLine(
     if (Math.sign(lineX - a.x) !== Math.sign(lineX - b.x)) {
       const span = b.x - a.x;
       const f = Math.abs(span) < 1e-9 ? 0 : (lineX - a.x) / span;
-      return { z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f, t: a.t + (b.t - a.t) * f };
+      /*
+       * Sample times are measured from launch; the caller wants time from *now*. Without this
+       * subtraction the keeper's eta never counted down, so a ball played across him from just
+       * outside his dive window stayed outside it forever and he stood stock still while a
+       * fifteen-metre-a-second pass rolled in two metres away — the pass-into-the-net plague.
+       */
+      const t = a.t + (b.t - a.t) * f - world.flightAge;
+      if (t < 0) return null;
+      return { z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f, t };
     }
   }
   return null;
@@ -160,12 +168,19 @@ export function updateKeepers(world: SimWorld, dt: number): void {
     const closing = Math.abs(world.ball.vel.x);
 
     // Commit to a dive when a struck ball is about to arrive within reach of a full stretch.
+    /*
+     * The old gate demanded goalward velocity (`closing > 4`), so a square ball or cutback —
+     * nearly pure z-velocity — was invisible and he stood on his spot while it rolled in two
+     * metres away. The flight cache already knows whether the ball crosses his line; that *is*
+     * the question, so it is the gate. The velocity test survives only as a fallback for balls
+     * with no cached flight.
+     */
+    const lineRead = crossingOnLine(world, own.x);
     if (
       keeper.diveDir === 0 &&
       keeper.kickCooldown <= 0 &&
-      towardsGoal &&
-      speed > 9 &&
-      closing > 4
+      speed > 8 &&
+      (lineRead !== null || (towardsGoal && closing > 4))
     ) {
       /*
        * Read the real flight, not a straight line. The keeper used to extrapolate linearly with
@@ -173,8 +188,8 @@ export function updateKeepers(world: SimWorld, dt: number): void {
        * body and the shot solver, so he dived to where a different physics engine thought the
        * ball was going. Curl beat him for free; now it has to actually beat him.
        */
-      const read = crossingOnLine(world, own.x);
-      const eta = read ? read.t : Math.abs(own.x - world.ball.pos.x) / closing;
+      const read = lineRead;
+      const eta = read ? read.t : Math.abs(own.x - world.ball.pos.x) / Math.max(closing, 0.1);
       const crossZ = read ? read.z : world.ball.pos.z + world.ball.vel.z * eta;
       const crossY = read
         ? read.y

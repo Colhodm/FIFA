@@ -186,6 +186,38 @@ function playMatch(seed: number, difficulty: Difficulty, halfLength: number): Re
         lastKick = { tick: ticks, type: event.type };
       } else if (event.type === 'goal') {
         const kind = ticks - lastKick.tick > 40 ? 'walked-in' : lastKick.type;
+        if (kind === 'pass' && process.env.GOALDBG) {
+          const gx = world.ball.pos.x > 0 ? 52.5 : -52.5;
+          const gk = world.players.find(
+            (q) => q.role === 'GK' && Math.sign(q.pos.x) === Math.sign(gx),
+          );
+          const bs = Math.hypot(world.ball.vel.x, world.ball.vel.z);
+          console.log(
+            '  PASSGOAL',
+            'ballZ',
+            world.ball.pos.z.toFixed(1),
+            'ballY',
+            world.ball.pos.y.toFixed(1),
+            'speed',
+            bs.toFixed(1),
+            'gkDist',
+            gk ? Math.hypot(gk.pos.x - gx, gk.pos.z).toFixed(1) : '?',
+            'gkZ',
+            gk ? gk.pos.z.toFixed(1) : '?',
+            'dive',
+            gk?.diveDir,
+            'anim',
+            gk?.anim,
+            'flight',
+            world.flight ? world.flight.length : null,
+            'age',
+            world.flightAge.toFixed(2),
+            'vx',
+            world.ball.vel.x.toFixed(1),
+            'vz',
+            world.ball.vel.z.toFixed(1),
+          );
+        }
         goalKinds[kind] = (goalKinds[kind] ?? 0) + 1;
       }
     }
