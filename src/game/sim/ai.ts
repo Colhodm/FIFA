@@ -560,6 +560,29 @@ function decideKeeper(world: SimWorld, p: SimPlayer, profile: DifficultyProfile)
     }
   }
   /*
+   * Sweeper-keeper. A through ball rolling into the space behind the back line is his, not the
+   * striker's — provided he genuinely gets there first. He races the nearest opponent to the
+   * intercept point and only commits when he wins that race with a stride to spare; a keeper
+   * who loses it has left an empty net.
+   */
+  if (world.controllerId === null && world.ball.pos.y < 1.2) {
+    const target = interceptPoint(world, 0.5);
+    const range = dist(target, own);
+    if (range < 24 && (target.x - own.x) * world.attackDir[p.side] > 0) {
+      const mine = dist(p.pos, target);
+      const opp = nearestOf(world, target, p.side === 'home' ? 'away' : 'home');
+      const mate = nearestOf(world, target, p.side);
+      const oppD = opp ? dist(opp.pos, target) : Infinity;
+      const mateD = mate ? dist(mate.pos, target) : Infinity;
+      // Sharper difficulties read the race earlier and gamble on tighter margins.
+      const margin = 3.2 - profile.marking * 1.6;
+      if (mine + margin < oppD && mine < mateD && oppD < 18) {
+        setIntent(p, clampToPitch(target), true);
+        return;
+      }
+    }
+  }
+  /*
    * Balls rolling *across* the goalmouth. The dive logic keys on velocity towards the goal, so a
    * square ball or cutback — vel.x near zero — was literally invisible to him and rolled through
    * the six-yard box untouched; a third of all goals had become passes into an empty corner.
@@ -617,10 +640,29 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   const pressure = nearestOpponentDistance(world, p);
 
   if (p.role === 'GK') {
+    /*
+     * Distribution is a decision, not a clearance. A short option under no pressure gets the
+     * ball rolled to his feet; a man further out gets it clipped to him; and only when nothing
+     * is on does the keeper put his laces through it. He never rolls it to a marked defender —
+     * that is how keepers concede to the press.
+     */
     const pass = bestPass(world, p, sub(goal, p.pos));
     const upfield = normalize(sub(goal, p.pos));
     if (pass && pass.score > 0.7) {
-      kickPass(world, p, pass.spot, profile, 1, { receiverId: pass.target.id });
+      const d = dist(p.pos, pass.spot);
+      const targetPressure = nearestOpponentDistance(world, pass.target);
+      if (d < 18 && targetPressure > 6) {
+        // Rolled out along the ground, weighted to be taken in stride.
+        kickPass(world, p, pass.spot, profile, 0.8, { receiverId: pass.target.id, lift: 0 });
+      } else if (targetPressure > 3.5) {
+        kickPass(world, p, pass.spot, profile, 1, {
+          receiverId: pass.target.id,
+          lift: d > 26 ? 3.5 : 0,
+        });
+      } else {
+        applyKick(world, p, upfield, 24, 5.5);
+        world.events.push({ type: 'kick', side: p.side, intensity: 0.9 });
+      }
     } else {
       applyKick(world, p, upfield, 22, 5);
       world.events.push({ type: 'kick', side: p.side, intensity: 0.9 });

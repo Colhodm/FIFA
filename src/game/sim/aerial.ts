@@ -1,4 +1,11 @@
-import { CONTROL_RADIUS, HALF_GOAL_WIDTH, HEADER_HEIGHT, JUMP_HEIGHT } from '../constants';
+import {
+  CONTROL_RADIUS,
+  HALF_GOAL_WIDTH,
+  HEADER_HEIGHT,
+  JUMP_HEIGHT,
+  PENALTY_BOX_DEPTH,
+  PENALTY_BOX_WIDTH,
+} from '../constants';
 import { registerShot } from './ai';
 import { applyKick, ballPos2, goalCenter, ownGoalCenter } from './kick';
 import { clamp, dist, distToSegment, normalize, sub, type Vec2 } from './math';
@@ -71,6 +78,8 @@ export function resolveAerials(world: SimWorld, intent: HeaderIntent | null): bo
   const ball = ballPos2(world);
   const speed = Math.hypot(world.ball.vel.x, world.ball.vel.z);
 
+  if (claimCross(world, ball, speed)) return true;
+
   let winner: SimPlayer | null = null;
   let bestScore = 0;
   const contenders: SimPlayer[] = [];
@@ -141,6 +150,49 @@ export function resolveAerials(world: SimWorld, intent: HeaderIntent | null): bo
   applyKick(world, winner, normalize(clear), power + 4, 4.5);
   world.events.push({ type: 'header', side: winner.side, intensity: 0.6 });
   return true;
+}
+
+/**
+ * The keeper attacks a high ball in his own box: catch it clean or punch it clear. Crowded
+ * six-yard boxes and fast crosses favour the punch; a clean catch kills the attack dead.
+ */
+function claimCross(world: SimWorld, ball: Vec2, speed: number): boolean {
+  for (const keeper of onPitch(world)) {
+    if (keeper.role !== 'GK' || keeper.kickCooldown > 0 || keeper.anim === 'dive') continue;
+    const own = ownGoalCenter(world, keeper.side);
+    const inBox =
+      Math.abs(ball.x - own.x) < PENALTY_BOX_DEPTH && Math.abs(ball.z) < PENALTY_BOX_WIDTH / 2;
+    if (!inBox || dist(keeper.pos, ball) > HEADER_REACH + 0.4) continue;
+    // Only balls dropping into his zone: a rising clearance out of the box is not his.
+    if (world.ball.vel.y > 1.5) continue;
+    const crowd = onPitch(world).filter(
+      (o) => o.side !== keeper.side && dist(o.pos, ball) < HEADER_REACH + 0.6,
+    ).length;
+    startJump(keeper);
+    const odds = clamp(0.55 + keeper.defending / 250 - crowd * 0.16 - speed / 70, 0.15, 0.92);
+    world.stats[keeper.side].saves += 1;
+    keeper.tally.saves += 1;
+    world.events.push({ type: 'save', side: keeper.side, intensity: 0.55 });
+    if (world.rand() < odds) {
+      // Claimed: dead in the gloves, then he looks up and distributes.
+      world.ball.vel = { x: 0, y: 0, z: 0 };
+      world.ball.spin = { x: 0, y: 0, z: 0 };
+      world.commands.push({ type: 'velocity', vel: { x: 0, y: 0, z: 0 } });
+      world.controllerId = keeper.id;
+      world.possession = keeper.side;
+      world.lastTouch = { side: keeper.side, playerId: keeper.id };
+      keeper.holdTimer = 1.4 + world.rand() * 0.8;
+      keeper.kickCooldown = 0.4;
+      return true;
+    }
+    // Punched: high and away from the goalmouth, a loose ball but a defused one.
+    const away = normalize(sub(ball, own));
+    applyKick(world, keeper, away, 8 + speed * 0.35, 5);
+    world.possession = null;
+    world.controllerId = null;
+    return true;
+  }
+  return false;
 }
 
 /**
