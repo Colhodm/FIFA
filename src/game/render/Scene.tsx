@@ -5,6 +5,8 @@ import { ACESFilmicToneMapping, PCFSoftShadowMap } from 'three';
 import { PHYSICS_DT } from '../constants';
 import type { SimWorld } from '../sim/state';
 import { useGameStore } from '../store';
+import { atmosphere } from './atmosphere';
+import { Rain } from './Rain';
 import { Ball } from './Ball';
 import { DebugGizmos } from './DebugGizmos';
 import { MatchCamera } from './MatchCamera';
@@ -20,6 +22,9 @@ export function Scene({ world }: { world: SimWorld }) {
   const paused = useGameStore((s) => s.paused);
   const camera = useGameStore((s) => s.camera);
   const debug = useGameStore((s) => s.debug);
+  const timeOfDay = useGameStore((s) => s.setup.timeOfDay);
+  const weather = useGameStore((s) => s.setup.weather);
+  const atmos = atmosphere(timeOfDay, weather);
 
   return (
     <Canvas
@@ -34,9 +39,14 @@ export function Scene({ world }: { world: SimWorld }) {
       }}
       camera={{ position: [0, 26, -46], fov: 50, near: 0.4, far: 700 }}
     >
-      <color attach="background" args={['#9ec6e8']} />
-      <fog attach="fog" args={['#c3d9ec', 200, 620]} />
-      <Sky sunPosition={[60, 40, -30]} turbidity={4} rayleigh={0.9} mieCoefficient={0.006} />
+      <color attach="background" args={[atmos.background]} />
+      <fog attach="fog" args={[atmos.fog.color, atmos.fog.near, atmos.fog.far]} />
+      <Sky
+        sunPosition={atmos.sunPosition}
+        turbidity={weather === 'rain' ? 12 : 4}
+        rayleigh={timeOfDay === 'evening' ? 2.4 : 0.9}
+        mieCoefficient={0.006}
+      />
 
       {/*
         A hand-built environment map: sky dome, warm sun card and four floodlight cards.
@@ -62,12 +72,19 @@ export function Scene({ world }: { world: SimWorld }) {
         />
       </Environment>
 
-      <hemisphereLight args={['#dbeafe', '#274d21', 0.55]} />
+      <hemisphereLight args={[atmos.hemiSky, '#274d21', atmos.hemiIntensity]} />
       <directionalLight
         key={`${tier.shadowMapSize}-${tier.shadows}`}
-        position={[48, 62, -34]}
-        intensity={2.1}
-        color="#fff4e0"
+        // The night "sun" is the combined glare of the floodlight banks, so it stays overhead.
+        position={
+          timeOfDay === 'day'
+            ? [48, 62, -34]
+            : timeOfDay === 'evening'
+              ? [60, 26, -34]
+              : [10, 70, -20]
+        }
+        intensity={atmos.sunIntensity}
+        color={atmos.sunColor}
         castShadow={tier.shadows}
         shadow-mapSize={[tier.shadowMapSize, tier.shadowMapSize]}
         shadow-bias={-0.0004}
@@ -85,7 +102,7 @@ export function Scene({ world }: { world: SimWorld }) {
       <directionalLight position={[-40, 30, 40]} intensity={0.5} color="#bfd8ff" />
 
       <Physics timeStep={PHYSICS_DT} interpolate paused={paused} gravity={[0, -9.81, 0]}>
-        <Pitch shadows={tier.shadows} />
+        <Pitch shadows={tier.shadows} wet={atmos.wet} />
         <Goals shadows={tier.shadows} />
         <Ball shadows={tier.shadows} />
         <Players world={world} shadows={tier.shadows} />
@@ -93,7 +110,8 @@ export function Scene({ world }: { world: SimWorld }) {
         {import.meta.env.DEV && debug && <DebugGizmos world={world} />}
       </Physics>
 
-      <Stadium crowdDensity={tier.crowdDensity} />
+      <Stadium crowdDensity={tier.crowdDensity} floodIntensity={atmos.floodIntensity} />
+      {weather === 'rain' && <Rain />}
       <MatchCamera mode={camera} />
       <PostFx tier={tier} />
     </Canvas>

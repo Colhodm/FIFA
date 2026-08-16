@@ -331,7 +331,7 @@ function Roof() {
 }
 
 /** Floodlight rigs on the roof corners: a lamp bank plus the glow it throws. */
-function Floodlights() {
+function Floodlights({ intensity }: { intensity: number }) {
   const x = INNER_X + UPPER.depth;
   const z = INNER_Z + UPPER.depth;
   const corners: [number, number][] = [
@@ -357,7 +357,9 @@ function Floodlights() {
               <meshBasicMaterial color="#fffbeb" toneMapped={false} />
             </mesh>
           ))}
-          <pointLight intensity={40} distance={70} decay={2} color="#fff7e0" />
+          {intensity > 0 && (
+            <pointLight intensity={intensity} distance={160} decay={1} color="#fff7e0" />
+          )}
         </group>
       ))}
     </group>
@@ -411,7 +413,13 @@ function BigScreens() {
   );
 }
 
-export function Stadium({ crowdDensity }: { crowdDensity: number }) {
+export function Stadium({
+  crowdDensity,
+  floodIntensity,
+}: {
+  crowdDensity: number;
+  floodIntensity: number;
+}) {
   // Fictional club colours for the seat mosaic.
   // Red seats with a pale band, in the manner of Anfield, rather than anonymous navy.
   const palette: Palette = { primary: '#a41220', accent: '#e7e0d0' };
@@ -433,7 +441,7 @@ export function Stadium({ crowdDensity }: { crowdDensity: number }) {
       <Dugouts />
       <Roof />
       <BigScreens />
-      <Floodlights />
+      <Floodlights intensity={floodIntensity} />
     </group>
   );
 }

@@ -69,6 +69,10 @@ export type Difficulty = 'beginner' | 'normal' | 'hard' | 'legendary';
 
 /** A friendly can end in a draw; a knockout tie goes to extra time and penalties. */
 export type MatchMode = 'friendly' | 'knockout';
+
+/** Kick-off time, driving the sky, the sun and the floodlights. */
+export type TimeOfDay = 'day' | 'evening' | 'night';
+export type Weather = 'clear' | 'rain';
 export type TeamSide = 'home' | 'away';
 
 /** Three-notch dial used by every sliding team instruction. */

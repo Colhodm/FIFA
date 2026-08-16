@@ -2,7 +2,14 @@ import { audio } from '../game/audio/audio';
 import { FORMATIONS, FORMATION_IDS } from '../game/formations';
 import { useGameStore } from '../game/store';
 import type { CameraMode } from '../game/store';
-import type { Difficulty, FormationId, MatchMode, TeamData } from '../game/types';
+import type {
+  Difficulty,
+  FormationId,
+  MatchMode,
+  TeamData,
+  TimeOfDay,
+  Weather,
+} from '../game/types';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'normal', 'hard', 'legendary'];
 const MODES: { id: MatchMode; label: string }[] = [
@@ -10,6 +17,8 @@ const MODES: { id: MatchMode; label: string }[] = [
   { id: 'knockout', label: 'knockout' },
 ];
 const HALF_LENGTHS = [120, 180, 300, 600];
+const TIMES: TimeOfDay[] = ['day', 'evening', 'night'];
+const WEATHERS: Weather[] = ['clear', 'rain'];
 const CAMERAS: { id: CameraMode; label: string }[] = [
   { id: 'broadcast', label: 'broadcast' },
   { id: 'tele', label: 'tele' },
@@ -205,6 +214,38 @@ export function MainMenu() {
                 onClick={() => updateSetup({ halfLength: seconds })}
               >
                 {seconds / 60} min
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
+          Kick-off
+          <div className="pill-row">
+            {TIMES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`pill${setup.timeOfDay === t ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ timeOfDay: t })}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
+          Weather
+          <div className="pill-row">
+            {WEATHERS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                className={`pill${setup.weather === w ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ weather: w })}
+              >
+                {w}
               </button>
             ))}
           </div>

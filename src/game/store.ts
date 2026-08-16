@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { defaultConfig, type GameConfig } from './config';
 import { applyConfig } from './runtime';
-import type { Difficulty, FormationId, MatchMode, TeamData, TeamSide } from './types';
+import type {
+  Difficulty,
+  FormationId,
+  MatchMode,
+  TeamData,
+  TeamSide,
+  TimeOfDay,
+  Weather,
+} from './types';
 import {
   emptyStats,
   type FeedEntry,
@@ -32,6 +40,8 @@ export interface MatchSetup {
   /** Real seconds per half. */
   halfLength: number;
   mode: MatchMode;
+  timeOfDay: TimeOfDay;
+  weather: Weather;
 }
 
 interface GameState {
@@ -80,6 +90,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     difficulty: 'normal',
     halfLength: 180,
     mode: 'friendly',
+    timeOfDay: 'day',
+    weather: 'clear',
   },
   quality: 'auto',
   tier: TIERS[defaultTier()],

@@ -18,7 +18,7 @@ const CORNERS: [number, number][] = [
   [-HALF_LENGTH, -HALF_WIDTH],
 ];
 
-export function Pitch({ shadows }: { shadows: boolean }) {
+export function Pitch({ shadows, wet }: { shadows: boolean; wet: boolean }) {
   const texture = useMemo(() => createPitchTexture(4096), []);
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -47,9 +47,9 @@ export function Pitch({ shadows }: { shadows: boolean }) {
           map={texture}
           normalMap={normal}
           normalScale={[0.55, 0.55]}
-          roughness={0.82}
+          roughness={wet ? 0.45 : 0.82}
           metalness={0}
-          envMapIntensity={0.35}
+          envMapIntensity={wet ? 0.9 : 0.35}
         />
       </mesh>
 
