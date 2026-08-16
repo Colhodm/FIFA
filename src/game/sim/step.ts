@@ -50,6 +50,7 @@ import {
   whistleOffside,
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
+import { applyPendingSubs, maybeAutoSub, subWindowOpen } from './subs';
 import { speedFor } from './power';
 import { predictFlight } from './ballistics';
 import { strike, type ShotStyle, type ShotTake } from './finishing';
@@ -150,6 +151,12 @@ export function tick(
       return;
     default:
       break;
+  }
+
+  // Substitutions happen while the ball is dead, never in open play.
+  if (subWindowOpen(world)) {
+    maybeAutoSub(world);
+    applyPendingSubs(world);
   }
 
   if (isLive(world)) advanceClock(world, dt);

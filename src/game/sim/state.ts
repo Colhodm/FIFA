@@ -351,8 +351,23 @@ export interface SimWorld {
   pendingKickId: number | null;
   /** Seconds of stoppage added to the current half. */
   stoppage: number;
+  /** Substitutions made so far, per side. */
+  subsUsed: Record<TeamSide, number>;
+  /** Squad indices already brought on, so nobody comes on twice. */
+  benchUsed: Record<TeamSide, number[]>;
+  /** Substitutions waiting for the next dead ball. */
+  pendingSubs: PendingSub[];
   rand: () => number;
   banner: string;
+}
+
+/** A substitution queued to happen at the next dead ball. */
+export interface PendingSub {
+  side: TeamSide;
+  /** Player id coming off. */
+  outId: number;
+  /** Index into the team's players array of the man coming on. */
+  benchIndex: number;
 }
 
 export interface SetPiece {
@@ -480,6 +495,9 @@ export function createWorld(config: MatchConfig): SimWorld {
     offsideActive: false,
     pendingKickId: null,
     stoppage: 0,
+    subsUsed: { home: 0, away: 0 },
+    benchUsed: { home: [], away: [] },
+    pendingSubs: [],
     rand: mulberry32(config.seed),
     banner: 'Kick off',
   };
