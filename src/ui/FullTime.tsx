@@ -1,5 +1,6 @@
 import { runtime } from '../game/runtime';
 import { teamById, useGameStore, useHudStore } from '../game/store';
+import { loadCup } from '../game/tournament';
 import { Ratings, StatsPanel } from './StatsPanel';
 
 export function FullTime() {
@@ -12,8 +13,11 @@ export function FullTime() {
   const setup = useGameStore((s) => s.setup);
   const restartMatch = useGameStore((s) => s.restartMatch);
   const quitToMenu = useGameStore((s) => s.quitToMenu);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   if (phase !== 'end') return null;
+
+  const cupPending = typeof loadCup()?.pendingAt === 'number';
 
   const home = teamById(teams, setup.homeTeamId);
   const away = teamById(teams, setup.awayTeamId);
@@ -58,9 +62,15 @@ export function FullTime() {
             ))}
           </ul>
         )}
-        <button type="button" onClick={restartMatch}>
-          Rematch
-        </button>
+        {cupPending ? (
+          <button type="button" onClick={() => setScreen('tournament')}>
+            Back to cup
+          </button>
+        ) : (
+          <button type="button" onClick={restartMatch}>
+            Rematch
+          </button>
+        )}
         <button type="button" onClick={quitToMenu}>
           Main menu
         </button>

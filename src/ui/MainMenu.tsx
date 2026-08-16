@@ -65,6 +65,7 @@ export function MainMenu() {
   const setCamera = useGameStore((s) => s.setCamera);
   const toggleAudio = useGameStore((s) => s.toggleAudio);
   const startMatch = useGameStore((s) => s.startMatch);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   const ready = teams.length >= 2 && setup.homeTeamId && setup.awayTeamId;
 
@@ -303,6 +304,15 @@ export function MainMenu() {
       <button type="button" className="kickoff" disabled={!ready} onClick={kickOff}>
         Kick off
       </button>
+
+      <div className="pill-row menu-links">
+        <button type="button" onClick={() => setScreen('tournament')}>
+          Cup mode
+        </button>
+        <button type="button" onClick={() => setScreen('records')}>
+          Records
+        </button>
+      </div>
 
       <footer className="controls-help">
         <span>

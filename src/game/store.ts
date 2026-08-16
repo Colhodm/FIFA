@@ -25,7 +25,7 @@ import {
   type QualityTier,
 } from './perf/quality';
 
-export type Screen = 'menu' | 'match';
+export type Screen = 'menu' | 'match' | 'records' | 'tournament';
 
 /** Side-on rigs plus the third-person chase cam, mirroring FIFA's camera presets. */
 export type CameraMode = 'broadcast' | 'tele' | 'player';
@@ -69,6 +69,7 @@ interface GameState {
   setTier: (id: number) => void;
   setCamera: (mode: CameraMode) => void;
   toggleAudio: () => void;
+  setScreen: (screen: Screen) => void;
   startMatch: () => void;
   setPaused: (paused: boolean) => void;
   restartMatch: () => void;
@@ -122,6 +123,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setTier: (id) => set({ tier: TIERS[Math.max(0, Math.min(TIERS.length - 1, id))] }),
   setCamera: (mode) => set({ camera: mode }),
   toggleAudio: () => set((state) => ({ audioEnabled: !state.audioEnabled })),
+  setScreen: (screen) => set({ screen }),
   startMatch: () =>
     set((state) => ({ screen: 'match', paused: false, matchKey: state.matchKey + 1 })),
   setPaused: (paused) => set({ paused }),

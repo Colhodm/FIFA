@@ -14,6 +14,7 @@ import {
 import { CHARGED_ACTIONS } from '../input/input';
 import { FrameSampler } from '../perf/quality';
 import { padConnected, runtime, type ReplayFrame } from '../runtime';
+import { recordMatch } from '../records';
 import { cameraRelative, clamp } from '../sim/math';
 import { speedFor } from '../sim/power';
 import { matchMinute, stoppageMinutes } from '../sim/rules';
@@ -248,6 +249,7 @@ export function Simulation({ world }: { world: SimWorld }) {
           break;
         case 'fulltime':
           audio.whistle(1.5);
+          recordMatch(world);
           break;
         default:
           break;

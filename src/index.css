@@ -675,3 +675,55 @@ select {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Records and cup screens: simple stat cards laid out over the menu chrome. */
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  width: min(960px, 100%);
+  text-align: left;
+}
+
+.records-grid section {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.records-grid h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.records-table td {
+  padding: 3px 0;
+}
+
+.records-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-links {
+  justify-content: center;
+}
+
+.result-win {
+  color: #22c55e;
+}
+
+.result-draw {
+  color: var(--muted);
+}
+
+.result-loss {
+  color: #ef4444;
+}
