@@ -1,7 +1,15 @@
 import { DEFAULT_TUNING, type Tuning } from '../tuning';
 import { BALL_RADIUS, PITCH_LENGTH, PITCH_WIDTH } from '../constants';
 import { FORMATIONS } from '../formations';
-import type { Difficulty, FormationId, Role, TeamData, TeamSide } from '../types';
+import {
+  DEFAULT_TACTICS,
+  type Difficulty,
+  type FormationId,
+  type Role,
+  type Tactics,
+  type TeamData,
+  type TeamSide,
+} from '../types';
 import { mulberry32, type Vec2, type Vec3 } from './math';
 
 export type MatchPhase = 'kickoff' | 'in-play' | 'restart' | 'goal' | 'halftime' | 'end';
@@ -267,6 +275,9 @@ export interface MatchConfig {
   seed: number;
   /** Gameplay tunables; falls back to the built-in defaults when omitted. */
   tuning?: Tuning;
+  /** Team instructions; both default to balanced. */
+  homeTactics?: Tactics;
+  awayTactics?: Tactics;
 }
 
 /** State backing manual player switching: the ranking to cycle and the debounce timers. */
@@ -357,6 +368,10 @@ export interface SimWorld {
   benchUsed: Record<TeamSide, number[]>;
   /** Substitutions waiting for the next dead ball. */
   pendingSubs: PendingSub[];
+  /** Live team instructions, changeable from the pause menu. */
+  tactics: Record<TeamSide, Tactics>;
+  /** Formation changes waiting for the next dead ball. */
+  pendingFormations: Partial<Record<TeamSide, FormationId>>;
   rand: () => number;
   banner: string;
 }
@@ -498,6 +513,11 @@ export function createWorld(config: MatchConfig): SimWorld {
     subsUsed: { home: 0, away: 0 },
     benchUsed: { home: [], away: [] },
     pendingSubs: [],
+    tactics: {
+      home: config.homeTactics ?? { ...DEFAULT_TACTICS },
+      away: config.awayTactics ?? { ...DEFAULT_TACTICS },
+    },
+    pendingFormations: {},
     rand: mulberry32(config.seed),
     banner: 'Kick off',
   };

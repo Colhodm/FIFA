@@ -2,9 +2,88 @@ import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../game/store';
 import type { CameraMode } from '../game/store';
 import { runtime } from '../game/runtime';
-import { benchFor, canSub, MAX_SUBS, requestSub } from '../game/sim/subs';
+import { benchFor, canSub, MAX_SUBS, requestFormation, requestSub } from '../game/sim/subs';
+import type { FormationId, TacticLevel, Tactics as TacticsData } from '../game/types';
 
 const CAMERAS: CameraMode[] = ['broadcast', 'tele', 'player'];
+const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '3-5-2', '5-3-2'];
+const LEVELS: TacticLevel[] = ['low', 'balanced', 'high'];
+const DIALS: { key: 'pressing' | 'line' | 'width'; label: string }[] = [
+  { key: 'pressing', label: 'Pressing' },
+  { key: 'line', label: 'Defensive line' },
+  { key: 'width', label: 'Width' },
+];
+
+function Tactics() {
+  const world = runtime.world;
+  const [, setVersion] = useState(0);
+  if (!world) return null;
+  const side = world.config.humanSide;
+  const tactics = world.tactics[side];
+  const formation = side === 'home' ? world.config.homeFormation : world.config.awayFormation;
+  const pendingFormation = world.pendingFormations[side];
+  const set = (patch: Partial<TacticsData>) => {
+    Object.assign(tactics, patch);
+    setVersion((v) => v + 1);
+  };
+  return (
+    <div className="tactics">
+      <h3>Tactics</h3>
+      {DIALS.map(({ key, label }) => (
+        <label key={key}>
+          {label}
+          <div className="pill-row">
+            {LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`pill${tactics[key] === level ? ' is-active' : ''}`}
+                onClick={() => set({ [key]: level })}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+        </label>
+      ))}
+      <div className="pill-row">
+        <button
+          type="button"
+          className={`pill${tactics.counter ? ' is-active' : ''}`}
+          onClick={() => set({ counter: !tactics.counter })}
+        >
+          Counter attack
+        </button>
+        <button
+          type="button"
+          className={`pill${tactics.offsideTrap ? ' is-active' : ''}`}
+          onClick={() => set({ offsideTrap: !tactics.offsideTrap })}
+        >
+          Offside trap
+        </button>
+      </div>
+      <label>
+        Formation
+        <div className="pill-row">
+          {FORMATION_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={`pill${(pendingFormation ?? formation) === id ? ' is-active' : ''}`}
+              onClick={() => {
+                requestFormation(world, side, id);
+                setVersion((v) => v + 1);
+              }}
+            >
+              {id}
+            </button>
+          ))}
+        </div>
+      </label>
+      {pendingFormation && <p className="hint">Changed at the next stoppage.</p>}
+    </div>
+  );
+}
 
 function Substitutions() {
   const world = runtime.world;
@@ -122,6 +201,7 @@ export function PauseMenu() {
             ))}
           </div>
         </label>
+        <Tactics />
         <Substitutions />
         <button type="button" onClick={() => setPaused(false)}>
           Resume

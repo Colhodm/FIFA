@@ -50,7 +50,7 @@ import {
   whistleOffside,
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
-import { applyPendingSubs, maybeAutoSub, subWindowOpen } from './subs';
+import { applyPendingFormations, applyPendingSubs, maybeAutoSub, subWindowOpen } from './subs';
 import { speedFor } from './power';
 import { predictFlight } from './ballistics';
 import { strike, type ShotStyle, type ShotTake } from './finishing';
@@ -157,6 +157,7 @@ export function tick(
   if (subWindowOpen(world)) {
     maybeAutoSub(world);
     applyPendingSubs(world);
+    applyPendingFormations(world);
   }
 
   if (isLive(world)) advanceClock(world, dt);

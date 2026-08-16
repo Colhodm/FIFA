@@ -1,4 +1,5 @@
-import type { PlayerData, TeamSide } from '../types';
+import { FORMATIONS } from '../formations';
+import type { FormationId, PlayerData, TeamSide } from '../types';
 import { pushFeed } from './rules';
 import { emptyTally, teamOf, type SimWorld } from './state';
 
@@ -121,6 +122,32 @@ export function maybeAutoSub(world: SimWorld): void {
   const bench = benchFor(world, cpu).filter((b) => b.data.role !== 'GK');
   const like = bench.find((b) => b.data.role === tired.slotRole) ?? bench[0];
   if (like) requestSub(world, cpu, tired.id, like.index);
+}
+
+/** Queues a formation change; the shape is redrawn at the next dead ball. */
+export function requestFormation(world: SimWorld, side: TeamSide, id: FormationId): void {
+  const current = side === 'home' ? world.config.homeFormation : world.config.awayFormation;
+  if (id === current && !world.pendingFormations[side]) return;
+  world.pendingFormations[side] = id;
+}
+
+/** Reassigns every player's formation slot, in squad order, to the new shape. */
+export function applyPendingFormations(world: SimWorld): void {
+  for (const side of ['home', 'away'] as TeamSide[]) {
+    const id = world.pendingFormations[side];
+    if (!id) continue;
+    const slots = FORMATIONS[id].slots;
+    const players = world.players.filter((p) => p.side === side).sort((a, b) => a.id - b.id);
+    players.forEach((p, i) => {
+      const slot = slots[i] ?? slots[slots.length - 1];
+      p.slot = { x: slot.x, z: slot.z };
+      p.slotRole = slot.role;
+    });
+    if (side === 'home') world.config.homeFormation = id;
+    else world.config.awayFormation = id;
+    pushFeed(world, { kind: 'note', side, text: `Formation change: ${id}` });
+    delete world.pendingFormations[side];
+  }
 }
 
 /** A substitution may only be made while the ball is dead. */
