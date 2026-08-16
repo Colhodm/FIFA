@@ -5,6 +5,7 @@ import {
   DEFAULT_TACTICS,
   type Difficulty,
   type FormationId,
+  type MatchMode,
   type Role,
   type Tactics,
   type TeamData,
@@ -272,6 +273,8 @@ export interface MatchConfig {
   difficulty: Difficulty;
   /** Real seconds per half. */
   halfLength: number;
+  /** Friendly by default; knockout ties go to extra time and penalties. */
+  mode?: MatchMode;
   seed: number;
   /** Gameplay tunables; falls back to the built-in defaults when omitted. */
   tuning?: Tuning;
@@ -294,6 +297,17 @@ export interface SwitchState {
   sinceAuto: number;
 }
 
+/** The bookkeeping of a penalty shootout: best of five, then sudden death. */
+export interface ShootoutState {
+  scores: Record<TeamSide, number>;
+  taken: Record<TeamSide, number>;
+  /** Side taking the current kick. */
+  shooter: TeamSide;
+  /** Seconds since the current kick was struck, or -1 while waiting for it. */
+  kickTimer: number;
+  winner: TeamSide | null;
+}
+
 export interface SimWorld {
   config: MatchConfig;
   /** Resolved gameplay tunables, never undefined once the world exists. */
@@ -307,7 +321,8 @@ export interface SimWorld {
   events: SimEvent[];
   phase: MatchPhase;
   phaseTimer: number;
-  half: 1 | 2;
+  /** 1-2 regulation, 3-4 extra time. */
+  half: 1 | 2 | 3 | 4;
   /** Seconds played in the current half. */
   clock: number;
   score: Record<TeamSide, number>;
@@ -372,6 +387,8 @@ export interface SimWorld {
   tactics: Record<TeamSide, Tactics>;
   /** Formation changes waiting for the next dead ball. */
   pendingFormations: Partial<Record<TeamSide, FormationId>>;
+  /** Live once a knockout tie reaches penalties. */
+  shootout: ShootoutState | null;
   rand: () => number;
   banner: string;
 }
@@ -518,6 +535,7 @@ export function createWorld(config: MatchConfig): SimWorld {
       away: config.awayTactics ?? { ...DEFAULT_TACTICS },
     },
     pendingFormations: {},
+    shootout: null,
     rand: mulberry32(config.seed),
     banner: 'Kick off',
   };
@@ -609,7 +627,7 @@ export const onPitch = (world: SimWorld): SimPlayer[] => world.players.filter((p
 export interface WorldSnapshot {
   tick: number;
   phase: MatchPhase;
-  half: 1 | 2;
+  half: 1 | 2 | 3 | 4;
   clock: number;
   score: Record<TeamSide, number>;
   ball: BallState;

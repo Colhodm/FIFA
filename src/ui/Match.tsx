@@ -32,6 +32,7 @@ export function Match() {
       humanSide: setup.humanSide,
       difficulty: setup.difficulty,
       halfLength: setup.halfLength,
+      mode: setup.mode,
       seed: matchKey * 7919 + 13,
       tuning,
     });

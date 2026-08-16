@@ -2,9 +2,13 @@ import { audio } from '../game/audio/audio';
 import { FORMATIONS, FORMATION_IDS } from '../game/formations';
 import { useGameStore } from '../game/store';
 import type { CameraMode } from '../game/store';
-import type { Difficulty, FormationId, TeamData } from '../game/types';
+import type { Difficulty, FormationId, MatchMode, TeamData } from '../game/types';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'normal', 'hard', 'legendary'];
+const MODES: { id: MatchMode; label: string }[] = [
+  { id: 'friendly', label: 'friendly' },
+  { id: 'knockout', label: 'knockout' },
+];
 const HALF_LENGTHS = [120, 180, 300, 600];
 const CAMERAS: { id: CameraMode; label: string }[] = [
   { id: 'broadcast', label: 'broadcast' },
@@ -158,6 +162,22 @@ export function MainMenu() {
       </div>
 
       <div className="options">
+        <label>
+          Match type
+          <div className="pill-row">
+            {MODES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`pill${setup.mode === id ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ mode: id })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </label>
+
         <label>
           Difficulty
           <div className="pill-row">

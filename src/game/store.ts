@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { defaultConfig, type GameConfig } from './config';
 import { applyConfig } from './runtime';
-import type { Difficulty, FormationId, TeamData, TeamSide } from './types';
+import type { Difficulty, FormationId, MatchMode, TeamData, TeamSide } from './types';
 import {
   emptyStats,
   type FeedEntry,
@@ -31,6 +31,7 @@ export interface MatchSetup {
   difficulty: Difficulty;
   /** Real seconds per half. */
   halfLength: number;
+  mode: MatchMode;
 }
 
 interface GameState {
@@ -78,6 +79,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     humanSide: 'home',
     difficulty: 'normal',
     halfLength: 180,
+    mode: 'friendly',
   },
   quality: 'auto',
   tier: TIERS[defaultTier()],
@@ -120,7 +122,7 @@ export const teamById = (teams: TeamData[], id: string): TeamData | undefined =>
 
 export interface HudState {
   phase: MatchPhase;
-  half: 1 | 2;
+  half: 1 | 2 | 3 | 4;
   minute: number;
   /** Added time at the end of the half, in minutes. */
   stoppage: number;

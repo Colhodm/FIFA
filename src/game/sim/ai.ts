@@ -210,6 +210,18 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
     return;
   }
 
+  // Shootout: only the taker and the keepers take part. Everyone else waits around the centre
+  // circle, out of the way of the kick and any rebound.
+  if (world.shootout) {
+    if (world.restart?.takerId !== p.id) {
+      const teammates = world.players.filter((q) => q.side === p.side && q.role !== 'GK');
+      const slot = teammates.findIndex((q) => q.id === p.id);
+      const dir = world.attackDir[p.side];
+      setIntent(p, clampToPitch({ x: -dir * 3, z: -18 + Math.max(0, slot) * 3.6 }), false);
+    }
+    return;
+  }
+
   const ball = ballPos2(world);
   const teamHasBall = world.possession === p.side;
   const chaser = nearestOf(world, ball, p.side);

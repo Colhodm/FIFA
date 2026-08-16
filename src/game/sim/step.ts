@@ -46,7 +46,8 @@ import {
   checkBallOut,
   flagOffsides,
   halfEndsAt,
-  startSecondHalf,
+  startNextPeriod,
+  tickShootout,
   whistleOffside,
 } from './rules';
 import { aiTakeSetPiece, canTake, findTaker, takePenalty, takerApproach } from './setpiece';
@@ -145,7 +146,7 @@ export function tick(
       break;
     case 'halftime':
       world.phaseTimer -= dt;
-      if (world.phaseTimer <= 0) startSecondHalf(world);
+      if (world.phaseTimer <= 0) startNextPeriod(world);
       break;
     case 'end':
       return;
@@ -153,14 +154,17 @@ export function tick(
       break;
   }
 
-  // Substitutions happen while the ball is dead, never in open play.
-  if (subWindowOpen(world)) {
+  // Substitutions happen while the ball is dead, never in open play or a shootout.
+  if (!world.shootout && subWindowOpen(world)) {
     maybeAutoSub(world);
     applyPendingSubs(world);
     applyPendingFormations(world);
   }
 
-  if (isLive(world)) advanceClock(world, dt);
+  // A shootout runs outside the match clock; kicks that die out get timed out here.
+  if (world.shootout) tickShootout(world, dt);
+
+  if (isLive(world) && !world.shootout) advanceClock(world, dt);
   if (world.phase === 'kickoff') freezeBall(world);
   /*
    * The kickoff is over the moment the ball is genuinely played — it has left the centre circle,

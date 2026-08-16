@@ -115,6 +115,17 @@ export function takePenalty(
   const dir = normalize(sub(aim, taker.pos));
   const speed = (18 + (taker.shooting / 100) * 8) * clamp(power, 0.5, 1.15);
   applyKick(world, taker, dir, speed, aimDir && aimDir.x > 0.6 ? 1.6 : 0.5);
+  // From twelve yards the keeper cannot react to the ball — he picks a corner and goes. This
+  // commits him before the flight-reading dive in updateKeepers can play the shot perfectly.
+  const keeper = onPitch(world).find((p) => p.role === 'GK' && p.side !== taker.side);
+  if (keeper && keeper.anim !== 'dive' && keeper.diveDir === 0) {
+    const guess = world.rand() < 0.5 ? -1 : 1;
+    keeper.diveDir = guess;
+    keeper.diveTargetZ = keeper.pos.z + guess * (1.4 + world.rand() * 1.8);
+    keeper.anim = 'dive';
+    keeper.animTimer = 0.9;
+    keeper.verticalVel = Math.sqrt(2 * 9.81 * 1.1) * 0.5;
+  }
   registerShot(world, taker, aim);
   world.events.push({ type: 'shot', side: taker.side, intensity: 1 });
 }

@@ -66,6 +66,9 @@ export interface TeamsFile {
 }
 
 export type Difficulty = 'beginner' | 'normal' | 'hard' | 'legendary';
+
+/** A friendly can end in a draw; a knockout tie goes to extra time and penalties. */
+export type MatchMode = 'friendly' | 'knockout';
 export type TeamSide = 'home' | 'away';
 
 /** Three-notch dial used by every sliding team instruction. */
