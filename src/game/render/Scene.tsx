@@ -24,6 +24,7 @@ export function Scene({ world }: { world: SimWorld }) {
   const debug = useGameStore((s) => s.debug);
   const timeOfDay = useGameStore((s) => s.setup.timeOfDay);
   const weather = useGameStore((s) => s.setup.weather);
+  const homeKit = useGameStore((s) => s.teams.find((t) => t.id === s.setup.homeTeamId))?.kit;
   const atmos = atmosphere(timeOfDay, weather);
 
   return (
@@ -110,7 +111,12 @@ export function Scene({ world }: { world: SimWorld }) {
         {import.meta.env.DEV && debug && <DebugGizmos world={world} />}
       </Physics>
 
-      <Stadium crowdDensity={tier.crowdDensity} floodIntensity={atmos.floodIntensity} />
+      <Stadium
+        crowdDensity={tier.crowdDensity}
+        floodIntensity={atmos.floodIntensity}
+        seatPrimary={homeKit?.primary}
+        seatAccent={homeKit?.secondary}
+      />
       {weather === 'rain' && <Rain />}
       <MatchCamera mode={camera} />
       <PostFx tier={tier} />

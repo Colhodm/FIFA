@@ -416,13 +416,20 @@ function BigScreens() {
 export function Stadium({
   crowdDensity,
   floodIntensity,
+  seatPrimary,
+  seatAccent,
 }: {
   crowdDensity: number;
   floodIntensity: number;
+  seatPrimary?: string;
+  seatAccent?: string;
 }) {
-  // Fictional club colours for the seat mosaic.
-  // Red seats with a pale band, in the manner of Anfield, rather than anonymous navy.
-  const palette: Palette = { primary: '#a41220', accent: '#e7e0d0' };
+  // Seat mosaic in the home club's colours, with an Anfield-red fallback: a coloured bowl
+  // with a pale band rather than anonymous navy.
+  const palette: Palette = {
+    primary: seatPrimary ?? '#a41220',
+    accent: seatAccent ?? '#e7e0d0',
+  };
   return (
     <group>
       <Hoardings />

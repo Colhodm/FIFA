@@ -19,8 +19,11 @@ export class AudioEngine {
   private master: GainNode | null = null;
   private crowdGain: GainNode | null = null;
   private crowdFilter: BiquadFilterNode | null = null;
+  private rainGain: GainNode | null = null;
+  private rainLevel = 0;
   private samples = new Map<SampleName, AudioBuffer>();
   private noise: AudioBuffer | null = null;
+  private white: AudioBuffer | null = null;
   enabled = true;
 
   /** Must be called from a user gesture (browsers block audio otherwise). */
@@ -35,6 +38,7 @@ export class AudioEngine {
       this.master.gain.value = 0.55;
       this.master.connect(this.ctx.destination);
       this.startCrowd();
+      this.startRain();
       void this.loadManifest();
     }
     if (this.ctx.state === 'suspended') await this.ctx.resume();
@@ -95,6 +99,17 @@ export class AudioEngine {
     return buffer;
   }
 
+  private whiteNoiseBuffer(): AudioBuffer {
+    const ctx = this.ctx as AudioContext;
+    if (this.white) return this.white;
+    const length = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    this.white = buffer;
+    return buffer;
+  }
+
   private playSample(name: SampleName, gain: number): boolean {
     const buffer = this.samples.get(name);
     if (!buffer || !this.ctx || !this.master) return false;
@@ -128,8 +143,89 @@ export class AudioEngine {
   setCrowdIntensity(intensity: number): void {
     if (!this.ctx || !this.crowdGain || !this.crowdFilter) return;
     const t = this.ctx.currentTime;
-    this.crowdGain.gain.setTargetAtTime(0.03 + intensity * 0.16, t, 0.8);
+    // Rain dampens the crowd a touch: fewer people, more of them under cover.
+    const damp = 1 - this.rainLevel * 0.25;
+    this.crowdGain.gain.setTargetAtTime((0.03 + intensity * 0.16) * damp, t, 0.8);
     this.crowdFilter.frequency.setTargetAtTime(500 + intensity * 900, t, 0.8);
+  }
+
+  private startRain(): void {
+    if (!this.ctx || !this.master) return;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.whiteNoiseBuffer();
+    source.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 2400;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(filter).connect(gain).connect(this.master);
+    source.start();
+    this.rainGain = gain;
+  }
+
+  /** 0 = dry, 1 = steady rain hiss over everything. */
+  setRain(level: number): void {
+    this.rainLevel = level;
+    if (!this.ctx || !this.rainGain) return;
+    this.rainGain.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 1.2);
+  }
+
+  /** Rhythmic terrace chant: pulses of crowd noise under a simple two-note hum. */
+  chant(): void {
+    if (!this.ctx || !this.master || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    const beat = 0.42;
+    const bus = this.ctx.createGain();
+    bus.gain.value = 1;
+    bus.connect(this.master);
+    for (let i = 0; i < 8; i++) {
+      const at = t + i * beat;
+      const source = this.ctx.createBufferSource();
+      source.buffer = this.noiseBuffer();
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 800;
+      filter.Q.value = 1.2;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.14, at + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + beat * 0.8);
+      source.connect(filter).connect(g).connect(bus);
+      source.start(at);
+      source.stop(at + beat);
+      const osc = this.ctx.createOscillator();
+      const og = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = i % 4 < 2 ? 220 : 175;
+      og.gain.setValueAtTime(0.0001, at);
+      og.gain.exponentialRampToValueAtTime(0.05, at + 0.08);
+      og.gain.exponentialRampToValueAtTime(0.0001, at + beat * 0.9);
+      osc.connect(og).connect(bus);
+      osc.start(at);
+      osc.stop(at + beat);
+    }
+  }
+
+  /** Descending low rumble: the ground turning on a bad tackle or a soft goal. */
+  boo(): void {
+    if (!this.ctx || !this.master || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.noiseBuffer();
+    source.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(420, t);
+    filter.frequency.linearRampToValueAtTime(240, t + 1.6);
+    filter.Q.value = 1.4;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.28, t + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+    source.connect(filter).connect(gain).connect(this.master);
+    source.start(t);
+    source.stop(t + 2.4);
   }
 
   kick(intensity = 0.6): void {
