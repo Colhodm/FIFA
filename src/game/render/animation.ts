@@ -2,6 +2,10 @@ import type { PlayerRig } from '../runtime';
 import type { SimPlayer } from '../sim/state';
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+const clamp1 = (v: number): number => (v < -1 ? -1 : v > 1 ? 1 : v);
+
+/** Acceleration that reads as a full-effort burst; leans are scaled against it. */
+const ACCEL_REF = 16;
 
 /** How long each clip runs, so `animTimer` can be turned into a 0..1 playhead. */
 const CLIP_LENGTH: Record<string, number> = {
@@ -63,6 +67,24 @@ export function poseRig(rig: PlayerRig, player: SimPlayer): void {
   let shinR = stride * (0.18 + 1.05 * Math.max(0, Math.sin(phase - 0.55)));
   // Sideways swing of the kicking leg: the finesse wrap and the volley need it; zero elsewhere.
   let legRz = shuffle * (0.18 + Math.abs(Math.sin(phase)) * 0.2) * Math.sign(lateral || 1);
+
+  /*
+   * The body follows the physics: lean into the burst, sit back on the brake, and dip the
+   * shoulder into a hard cut. Driven by the sim's smoothed acceleration so a plant-and-push
+   * change of direction reads as one — knees sink, the stance widens against the old momentum —
+   * instead of the velocity just bending under an upright run cycle.
+   */
+  const accFwd = clamp1(
+    (player.accelSmooth.x * facing.x + player.accelSmooth.z * facing.z) / ACCEL_REF,
+  );
+  const accLat = clamp1(
+    (player.accelSmooth.x * facing.z - player.accelSmooth.z * facing.x) / ACCEL_REF,
+  );
+  lean -= accFwd * 0.22;
+  roll -= accLat * 0.2;
+  const plant = Math.abs(accLat) * Math.min(1, speed / 4);
+  legRz += plant * 0.4 * Math.sign(accLat || 1);
+  bob -= plant * 0.07;
   const legLz = -legRz;
 
   const length = CLIP_LENGTH[player.anim] ?? 0;

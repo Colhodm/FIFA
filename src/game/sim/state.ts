@@ -79,6 +79,11 @@ export interface SimPlayer {
   kickCooldown: number;
   /** Run-cycle phase in radians, advanced by distance travelled so strides match the ground. */
   gait: number;
+  /**
+   * Smoothed horizontal acceleration, m/s². The renderer leans the body into it — forwards on
+   * the burst, back on the brake, dipped into a hard cut — so the momentum model is visible.
+   */
+  accelSmooth: Vec2;
   /** Seconds until the AI re-evaluates (models reaction time). */
   thinkTimer: number;
   /** Cached AI intent, refreshed on the reaction-time cadence. */
@@ -452,6 +457,7 @@ export function createWorld(config: MatchConfig): SimWorld {
         stamina: 1,
         kickCooldown: 0,
         gait: 0,
+        accelSmooth: { x: 0, z: 0 },
         thinkTimer: 0,
         intent: { x: 0, z: 0 },
         intentFace: null,
@@ -588,6 +594,7 @@ export function resetToKickoff(world: SimWorld, kickoffSide: TeamSide): void {
     const own = Math.min(base.x * dir, -1.5) * dir;
     p.pos = { x: own, z: base.z };
     p.vel = { x: 0, z: 0 };
+    p.accelSmooth = { x: 0, z: 0 };
     p.heading = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
     p.kickCooldown = 0;
     p.thinkTimer = 0;

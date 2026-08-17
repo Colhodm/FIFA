@@ -39,7 +39,17 @@ import {
   goalCenter,
   ownGoalCenter,
 } from './kick';
-import { angleDelta, cameraRelative, clamp, dist, normalize, sub, type Vec2 } from './math';
+import {
+  angleDelta,
+  cameraRelative,
+  clamp,
+  dist,
+  dot,
+  normalize,
+  smoothing,
+  sub,
+  type Vec2,
+} from './math';
 import {
   advanceClock,
   awardFoul,
@@ -232,6 +242,7 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
   const humanControlled = world.activeId;
   for (const p of world.players) {
     if (p.sentOff) continue;
+    const hasBall = world.controllerId === p.id;
     p.kickCooldown = Math.max(0, p.kickCooldown - dt);
 
     // A diving keeper and a player mid-skill are committed: no steering until they land.
@@ -256,7 +267,7 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
       desired = { x: n.x * clamp(d / 1.5, 0, 1), z: n.z * clamp(d / 1.5, 0, 1) };
       sprint = d > 8;
       face = sub(set.spot, p.pos);
-      integrate(p, desired, sprint, dt, face);
+      integrate(p, desired, sprint, dt, face, false);
       continue;
     }
 
@@ -295,7 +306,6 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
     }
 
     if (p.id === humanControlled) {
-      const hasBall = world.controllerId === p.id;
       // Out of possession the pass button jockeys and the shoot button closes the carrier down;
       // the pad's dedicated jockey trigger still works either way.
       const jockey = !hasBall && (input.actions.pass.down || input.actions.jockey.down);
@@ -330,7 +340,7 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
       face = p.intentFace;
     }
 
-    integrate(p, desired, sprint, dt, face);
+    integrate(p, desired, sprint, dt, face, hasBall);
   }
 }
 
@@ -338,7 +348,7 @@ function updatePlayers(world: SimWorld, input: InputFrame, cameraYaw: number, dt
 function celebrate(world: SimWorld, p: SimPlayer, dt: number): void {
   const scorer = world.players.find((s) => s.id === world.lastScorerId);
   if (p.side !== world.lastScorer || !scorer) {
-    integrate(p, { x: 0, z: 0 }, false, dt, null);
+    integrate(p, { x: 0, z: 0 }, false, dt, null, false);
     return;
   }
   if (p.id === scorer.id) {
@@ -352,7 +362,14 @@ function celebrate(world: SimWorld, p: SimPlayer, dt: number): void {
     const n = normalize(to);
     p.anim = 'celebrate';
     p.animTimer = 1;
-    integrate(p, { x: n.x * clamp(d / 3, 0, 1), z: n.z * clamp(d / 3, 0, 1) }, d > 6, dt, null);
+    integrate(
+      p,
+      { x: n.x * clamp(d / 3, 0, 1), z: n.z * clamp(d / 3, 0, 1) },
+      d > 6,
+      dt,
+      null,
+      false,
+    );
     return;
   }
   const to = sub(scorer.pos, p.pos);
@@ -364,6 +381,7 @@ function celebrate(world: SimWorld, p: SimPlayer, dt: number): void {
     d > 12,
     dt,
     null,
+    false,
   );
 }
 
@@ -385,6 +403,7 @@ function integrate(
   sprint: boolean,
   dt: number,
   face: Vec2 | null = null,
+  hasBall: boolean = false,
 ): void {
   const throttle = Math.min(1, Math.hypot(desired.x, desired.z));
   const dir = normalize(desired);
@@ -398,26 +417,60 @@ function integrate(
     (0.55 + 0.45 * p.balance) *
     staminaFactor *
     (p.shielding ? 0.72 : 1) *
-    (p.role === 'GK' ? 0.78 : 1);
+    (p.role === 'GK' ? 0.78 : 1) *
+    // Running with the ball costs top speed; clean technicians lose less of it.
+    (hasBall ? 0.84 + p.dribbling / 800 : 1);
   const target = { x: dir.x * maxSpeed * throttle, z: dir.z * maxSpeed * throttle };
 
-  // Sprinting trades agility for speed; dribbling buys it back.
-  let accel = ACCELERATION * (0.82 + p.dribbling / 320) * (sprint ? 0.72 : 1);
   const dvx = target.x - p.vel.x;
   const dvz = target.z - p.vel.z;
   const dv = Math.hypot(dvx, dvz);
-  // Footballers are not RTS units: they drive hard forwards, shuffle sideways and back-pedal
-  // weakly. Accelerating equally in every direction is a large part of why movement reads wrong.
-  if (dv > 1e-5) {
-    const fx = Math.sin(p.heading);
-    const fz = Math.cos(p.heading);
-    const along = (dvx / dv) * fx + (dvz / dv) * fz;
-    accel *= along > 0 ? 1 : 0.55 + 0.45 * (1 + along);
-  }
-  const step = Math.min(dv, accel * dt);
-  if (dv > 1e-5) {
+  const entryVel = { x: p.vel.x, z: p.vel.z };
+  const entrySpeed = Math.hypot(entryVel.x, entryVel.z);
+
+  // Base acceleration scaled by dribbling; forward thrust stays strong because
+  // sprinting is a straight-line commitment, not a sluggishness.
+  const accel = ACCELERATION * (0.82 + p.dribbling / 320);
+
+  if (entrySpeed > 0.3 && dv > 1e-5) {
+    // Resolve the velocity change in the player's moving frame so we can give
+    // different traction in each axis. At speed he cannot cut like a cursor:
+    // lateral force collapses as speed rises, and sprinting narrows it further.
+    const velDir = { x: p.vel.x / entrySpeed, z: p.vel.z / entrySpeed };
+    const side = { x: velDir.z, z: -velDir.x };
+    const dvDir = { x: dvx / dv, z: dvz / dv };
+
+    const along = dot(dvDir, velDir);
+    const lateral = dot(dvDir, side);
+
+    const sprintRatio = clamp(entrySpeed / (BASE_SPEED * SPRINT_MULTIPLIER), 0, 1);
+    const sprintPenalty = sprint ? 0.55 : 1;
+
+    // Base side-to-side traction, improved by dribbling.
+    const lateralBase = 0.35 + p.dribbling / 300;
+
+    const maxForward = accel * dt * (sprint ? 0.9 : 1);
+    const maxBrake = accel * dt * 1.25 * sprintPenalty;
+    const maxLateral = accel * dt * lateralBase * sprintPenalty * (1 - sprintRatio * 0.45);
+
+    const stepForward =
+      along >= 0 ? Math.min(along * dv, maxForward) : Math.max(along * dv, -maxBrake);
+    const stepLateral = clamp(lateral * dv, -maxLateral, maxLateral);
+
+    p.vel.x += velDir.x * stepForward + side.x * stepLateral;
+    p.vel.z += velDir.z * stepForward + side.z * stepLateral;
+  } else if (dv > 1e-5) {
+    // Standing or very slow: choose direction freely with full acceleration.
+    const step = Math.min(dv, accel * dt);
     p.vel.x += (dvx / dv) * step;
     p.vel.z += (dvz / dv) * step;
+  }
+
+  // The smoothed acceleration the renderer leans the body into.
+  if (dt > 0) {
+    const k = smoothing(dt, 0.12);
+    p.accelSmooth.x += ((p.vel.x - entryVel.x) / dt - p.accelSmooth.x) * k;
+    p.accelSmooth.z += ((p.vel.z - entryVel.z) / dt - p.accelSmooth.z) * k;
   }
 
   p.pos.x = clamp(p.pos.x + p.vel.x * dt, -HALF_LENGTH - 2.5, HALF_LENGTH + 2.5);
