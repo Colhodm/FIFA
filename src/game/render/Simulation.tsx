@@ -14,6 +14,7 @@ import {
 import { CHARGED_ACTIONS } from '../input/input';
 import { FrameSampler } from '../perf/quality';
 import { padConnected, runtime, type ReplayFrame } from '../runtime';
+import { recordMatch } from '../records';
 import { cameraRelative, clamp } from '../sim/math';
 import { speedFor } from '../sim/power';
 import { matchMinute, stoppageMinutes } from '../sim/rules';
@@ -33,6 +34,7 @@ const REPLAY_CAPACITY = REPLAY_SECONDS * REPLAY_FPS;
 export function Simulation({ world }: { world: SimWorld }) {
   const accumulator = useRef(0);
   const hudTimer = useRef(0);
+  const chantTimer = useRef(20);
   const replayTimer = useRef(0);
   const clock = useRef(0);
   const sampler = useMemo(() => new FrameSampler(), []);
@@ -217,6 +219,10 @@ export function Simulation({ world }: { world: SimWorld }) {
           break;
         case 'goal': {
           audio.goal();
+          // A goal is followed by a burst of song once the roar dies down; a goal against the
+          // human side gets the groan instead.
+          if (event.side === world.config.humanSide) chantTimer.current = 4;
+          else audio.boo();
           // Bulge the net where the ball crossed the line, and roll the replay.
           runtime.netHit = {
             dir: world.ball.pos.x > 0 ? 1 : -1,
@@ -233,6 +239,7 @@ export function Simulation({ world }: { world: SimWorld }) {
           break;
         case 'card':
           audio.whistle(0.9);
+          audio.boo();
           break;
         case 'whistle':
           audio.whistle(0.5);
@@ -242,6 +249,7 @@ export function Simulation({ world }: { world: SimWorld }) {
           break;
         case 'fulltime':
           audio.whistle(1.5);
+          recordMatch(world);
           break;
         default:
           break;
@@ -261,6 +269,14 @@ export function Simulation({ world }: { world: SimWorld }) {
     );
     // The crowd lifts as the ball gets near a goal and erupts when one goes in.
     audio.setCrowdIntensity(world.phase === 'goal' ? 1 : clamp(1 - goalDistance / 48, 0.05, 0.95));
+    audio.setRain(useGameStore.getState().setup.weather === 'rain' ? 1 : 0);
+
+    // Terrace songs roll around every half a minute or so while the game is being played.
+    chantTimer.current -= HUD_INTERVAL;
+    if (chantTimer.current <= 0) {
+      chantTimer.current = 30 + Math.random() * 25;
+      if (world.phase === 'in-play' || world.phase === 'goal') audio.chant();
+    }
 
     const total = world.possessionTicks.home + world.possessionTicks.away || 1;
     useHudStore.getState().set({

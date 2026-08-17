@@ -66,4 +66,40 @@ export interface TeamsFile {
 }
 
 export type Difficulty = 'beginner' | 'normal' | 'hard' | 'legendary';
+
+/** A friendly can end in a draw; a knockout tie goes to extra time and penalties. */
+export type MatchMode = 'friendly' | 'knockout';
+
+/** Kick-off time, driving the sky, the sun and the floodlights. */
+export type TimeOfDay = 'day' | 'evening' | 'night';
+export type Weather = 'clear' | 'rain';
 export type TeamSide = 'home' | 'away';
+
+/** Three-notch dial used by every sliding team instruction. */
+export type TacticLevel = 'low' | 'balanced' | 'high';
+
+/** Team instructions: how a side sets up out of and in possession. */
+export interface Tactics {
+  /** How aggressively players leave their shape to press the ball. */
+  pressing: TacticLevel;
+  /** Height of the defensive line. */
+  line: TacticLevel;
+  /** How far the shape stretches towards the touchlines. */
+  width: TacticLevel;
+  /** Break quickly when possession is won. */
+  counter: boolean;
+  /** The back line steps up together to catch runners offside. */
+  offsideTrap: boolean;
+}
+
+export const DEFAULT_TACTICS: Tactics = {
+  pressing: 'balanced',
+  line: 'balanced',
+  width: 'balanced',
+  counter: false,
+  offsideTrap: false,
+};
+
+/** Numeric weight of a tactic level: 0, 0.5 or 1. */
+export const tacticWeight = (level: TacticLevel): number =>
+  level === 'low' ? 0 : level === 'high' ? 1 : 0.5;

@@ -52,7 +52,7 @@ export function Hud() {
       <div className="scoreboard">
         <span className="sb-clock">
           {hud.minute}'{hud.stoppage > 0 && <em className="sb-added">+{hud.stoppage}</em>}
-          <small>{hud.half === 1 ? '1st' : '2nd'}</small>
+          <small>{['1st', '2nd', 'ET1', 'ET2'][hud.half - 1]}</small>
         </span>
         <span className="sb-side">
           <i style={{ background: home?.kit.primary }} />

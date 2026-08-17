@@ -1,4 +1,6 @@
+import { runtime } from '../game/runtime';
 import { teamById, useGameStore, useHudStore } from '../game/store';
+import { loadCup } from '../game/tournament';
 import { Ratings, StatsPanel } from './StatsPanel';
 
 export function FullTime() {
@@ -11,15 +13,25 @@ export function FullTime() {
   const setup = useGameStore((s) => s.setup);
   const restartMatch = useGameStore((s) => s.restartMatch);
   const quitToMenu = useGameStore((s) => s.quitToMenu);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   if (phase !== 'end') return null;
+
+  const cupPending = typeof loadCup()?.pendingAt === 'number';
 
   const home = teamById(teams, setup.homeTeamId);
   const away = teamById(teams, setup.awayTeamId);
   const human = setup.humanSide;
-  const humanScore = score[human];
-  const cpuScore = score[human === 'home' ? 'away' : 'home'];
-  const result = humanScore === cpuScore ? 'Draw' : humanScore > cpuScore ? 'You win!' : 'CPU wins';
+  const cpu = human === 'home' ? 'away' : 'home';
+  const shootout = runtime.world?.shootout ?? null;
+  const winner = shootout?.winner
+    ? shootout.winner
+    : score[human] === score[cpu]
+      ? null
+      : score[human] > score[cpu]
+        ? human
+        : cpu;
+  const result = winner === null ? 'Draw' : winner === human ? 'You win!' : 'CPU wins';
 
   return (
     <div className="overlay">
@@ -29,6 +41,13 @@ export function FullTime() {
         <p className="final-score">
           {home?.name ?? 'Home'} {score.home} – {score.away} {away?.name ?? 'Away'}
         </p>
+        {shootout?.winner && (
+          <p className="hint">
+            {teamById(teams, shootout.winner === 'home' ? setup.homeTeamId : setup.awayTeamId)
+              ?.name ?? 'Winners'}{' '}
+            win {shootout.scores.home}–{shootout.scores.away} on penalties
+          </p>
+        )}
         <StatsPanel stats={stats} possession={possession} home={home} away={away} />
         <div className="ratings-row">
           <Ratings side="home" title={home?.shortName ?? 'Home'} />
@@ -43,9 +62,15 @@ export function FullTime() {
             ))}
           </ul>
         )}
-        <button type="button" onClick={restartMatch}>
-          Rematch
-        </button>
+        {cupPending ? (
+          <button type="button" onClick={() => setScreen('tournament')}>
+            Back to cup
+          </button>
+        ) : (
+          <button type="button" onClick={restartMatch}>
+            Rematch
+          </button>
+        )}
         <button type="button" onClick={quitToMenu}>
           Main menu
         </button>

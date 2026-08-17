@@ -4,6 +4,8 @@ import { loadTeams } from './game/data/teams';
 import { useGameStore } from './game/store';
 import { MainMenu } from './ui/MainMenu';
 import { Match } from './ui/Match';
+import { Records } from './ui/Records';
+import { Tournament } from './ui/Tournament';
 
 export default function App() {
   const screen = useGameStore((s) => s.screen);
@@ -29,5 +31,7 @@ export default function App() {
     };
   }, [setTeams, setTeamsError, setConfig]);
 
+  if (screen === 'records') return <Records />;
+  if (screen === 'tournament') return <Tournament />;
   return screen === 'menu' ? <MainMenu /> : <Match />;
 }

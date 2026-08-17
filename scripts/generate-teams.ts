@@ -140,10 +140,15 @@ const SPECS: TeamSpec[] = [
 function buildTeam(spec: TeamSpec): TeamData {
   const rand = mulberry32(spec.seed);
   const slots = FORMATIONS[spec.formation].slots;
-  const players: PlayerData[] = slots.map((slot, i) => {
+  // Starters fill the formation; the rest of the squad is the bench.
+  const roles = [
+    ...slots.map((s) => s.role),
+    ...(['GK', 'DF', 'DF', 'MF', 'MF', 'FW', 'FW'] as const),
+  ];
+  const players: PlayerData[] = roles.map((role, i) => {
     const jitter = (spread: number) => Math.round((rand() - 0.5) * spread);
-    const base = spec.rating - 4 + jitter(7);
-    const role = slot.role;
+    // Bench players run a touch weaker than the XI.
+    const base = spec.rating - 4 + jitter(7) - (i >= slots.length ? 3 : 0);
     // Per-attribute role bias, so a centre back is not a winger with a different shirt.
     const by = (gk: number, df: number, mf: number, fw: number) =>
       ({ GK: gk, DF: df, MF: mf, FW: fw })[role];
@@ -162,11 +167,12 @@ function buildTeam(spec: TeamSpec): TeamData {
       },
     };
   });
+  const starters = players.slice(0, slots.length);
   const rating = Math.round(
-    players.reduce((sum, p) => {
+    starters.reduce((sum, p) => {
       const s = p.stats;
       return sum + (s.pace + s.shooting + s.passing + s.dribbling + s.defending + s.physical) / 6;
-    }, 0) / players.length,
+    }, 0) / starters.length,
   );
   return {
     id: spec.id,

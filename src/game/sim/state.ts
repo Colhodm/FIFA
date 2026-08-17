@@ -1,7 +1,16 @@
 import { DEFAULT_TUNING, type Tuning } from '../tuning';
 import { BALL_RADIUS, PITCH_LENGTH, PITCH_WIDTH } from '../constants';
 import { FORMATIONS } from '../formations';
-import type { Difficulty, FormationId, Role, TeamData, TeamSide } from '../types';
+import {
+  DEFAULT_TACTICS,
+  type Difficulty,
+  type FormationId,
+  type MatchMode,
+  type Role,
+  type Tactics,
+  type TeamData,
+  type TeamSide,
+} from '../types';
 import { mulberry32, type Vec2, type Vec3 } from './math';
 
 export type MatchPhase = 'kickoff' | 'in-play' | 'restart' | 'goal' | 'halftime' | 'end';
@@ -264,9 +273,14 @@ export interface MatchConfig {
   difficulty: Difficulty;
   /** Real seconds per half. */
   halfLength: number;
+  /** Friendly by default; knockout ties go to extra time and penalties. */
+  mode?: MatchMode;
   seed: number;
   /** Gameplay tunables; falls back to the built-in defaults when omitted. */
   tuning?: Tuning;
+  /** Team instructions; both default to balanced. */
+  homeTactics?: Tactics;
+  awayTactics?: Tactics;
 }
 
 /** State backing manual player switching: the ranking to cycle and the debounce timers. */
@@ -283,6 +297,17 @@ export interface SwitchState {
   sinceAuto: number;
 }
 
+/** The bookkeeping of a penalty shootout: best of five, then sudden death. */
+export interface ShootoutState {
+  scores: Record<TeamSide, number>;
+  taken: Record<TeamSide, number>;
+  /** Side taking the current kick. */
+  shooter: TeamSide;
+  /** Seconds since the current kick was struck, or -1 while waiting for it. */
+  kickTimer: number;
+  winner: TeamSide | null;
+}
+
 export interface SimWorld {
   config: MatchConfig;
   /** Resolved gameplay tunables, never undefined once the world exists. */
@@ -296,7 +321,8 @@ export interface SimWorld {
   events: SimEvent[];
   phase: MatchPhase;
   phaseTimer: number;
-  half: 1 | 2;
+  /** 1-2 regulation, 3-4 extra time. */
+  half: 1 | 2 | 3 | 4;
   /** Seconds played in the current half. */
   clock: number;
   score: Record<TeamSide, number>;
@@ -351,8 +377,29 @@ export interface SimWorld {
   pendingKickId: number | null;
   /** Seconds of stoppage added to the current half. */
   stoppage: number;
+  /** Substitutions made so far, per side. */
+  subsUsed: Record<TeamSide, number>;
+  /** Squad indices already brought on, so nobody comes on twice. */
+  benchUsed: Record<TeamSide, number[]>;
+  /** Substitutions waiting for the next dead ball. */
+  pendingSubs: PendingSub[];
+  /** Live team instructions, changeable from the pause menu. */
+  tactics: Record<TeamSide, Tactics>;
+  /** Formation changes waiting for the next dead ball. */
+  pendingFormations: Partial<Record<TeamSide, FormationId>>;
+  /** Live once a knockout tie reaches penalties. */
+  shootout: ShootoutState | null;
   rand: () => number;
   banner: string;
+}
+
+/** A substitution queued to happen at the next dead ball. */
+export interface PendingSub {
+  side: TeamSide;
+  /** Player id coming off. */
+  outId: number;
+  /** Index into the team's players array of the man coming on. */
+  benchIndex: number;
 }
 
 export interface SetPiece {
@@ -480,6 +527,15 @@ export function createWorld(config: MatchConfig): SimWorld {
     offsideActive: false,
     pendingKickId: null,
     stoppage: 0,
+    subsUsed: { home: 0, away: 0 },
+    benchUsed: { home: [], away: [] },
+    pendingSubs: [],
+    tactics: {
+      home: config.homeTactics ?? { ...DEFAULT_TACTICS },
+      away: config.awayTactics ?? { ...DEFAULT_TACTICS },
+    },
+    pendingFormations: {},
+    shootout: null,
     rand: mulberry32(config.seed),
     banner: 'Kick off',
   };
@@ -571,7 +627,7 @@ export const onPitch = (world: SimWorld): SimPlayer[] => world.players.filter((p
 export interface WorldSnapshot {
   tick: number;
   phase: MatchPhase;
-  half: 1 | 2;
+  half: 1 | 2 | 3 | 4;
   clock: number;
   score: Record<TeamSide, number>;
   ball: BallState;

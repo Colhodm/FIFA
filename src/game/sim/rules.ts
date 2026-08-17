@@ -156,6 +156,25 @@ export function checkBallOut(world: SimWorld): boolean {
   const { x, y, z } = world.ball.pos;
 
   if (Math.abs(x) > HALF_LENGTH + BALL_RADIUS) {
+    if (world.shootout) {
+      const dir: 1 | -1 = x > 0 ? 1 : -1;
+      const line = HALF_LENGTH * dir;
+      const back = {
+        x: x - world.ball.vel.x * TICK_DT,
+        y: y - world.ball.vel.y * TICK_DT,
+        z: z - world.ball.vel.z * TICK_DT,
+      };
+      const span = x - back.x;
+      const f = Math.abs(span) < 1e-6 ? 1 : clamp((line - back.x) / span, 0, 1);
+      const crossZ = back.z + (z - back.z) * f;
+      const crossY = back.y + (y - back.y) * f;
+      const scored =
+        sideAttacking(world, dir) === world.shootout.shooter &&
+        Math.abs(crossZ) < HALF_GOAL_WIDTH - BALL_RADIUS &&
+        crossY < GOAL_HEIGHT;
+      resolveShootoutKick(world, scored);
+      return true;
+    }
     const dir: 1 | -1 = x > 0 ? 1 : -1;
     const scorer = sideAttacking(world, dir);
     const defender = other(scorer);
@@ -200,6 +219,10 @@ export function checkBallOut(world: SimWorld): boolean {
   }
 
   if (Math.abs(z) > HALF_WIDTH + BALL_RADIUS) {
+    if (world.shootout) {
+      resolveShootoutKick(world, false);
+      return true;
+    }
     const lastSide = world.lastTouch?.side ?? 'home';
     setupRestart(world, 'throw-in', other(lastSide), {
       x: clamp(x, -HALF_LENGTH + 2, HALF_LENGTH - 2),
@@ -368,9 +391,31 @@ export function sendOff(world: SimWorld, player: SimPlayer, reason: string): voi
   }
 }
 
+/** Regulation halves run the configured length; extra-time halves at the 15/45 ratio. */
+export function periodLength(world: SimWorld): number {
+  return world.half >= 3 ? world.config.halfLength / 3 : world.config.halfLength;
+}
+
 /** When the current half ends: regulation time plus however much stoppage has accrued. */
 export function halfEndsAt(world: SimWorld): number {
-  return world.config.halfLength + Math.min(world.stoppage, world.config.halfLength * 0.15);
+  const length = periodLength(world);
+  return length + Math.min(world.stoppage, length * 0.15);
+}
+
+function breakToNextPeriod(world: SimWorld, banner: string): void {
+  world.phase = 'halftime';
+  world.phaseTimer = 6;
+  world.banner = banner;
+  world.events.push({ type: 'halftime' });
+  world.events.push({ type: 'whistle', intensity: 0.8 });
+}
+
+function fullTime(world: SimWorld): void {
+  world.phase = 'end';
+  world.phaseTimer = 0;
+  world.banner = 'Full time';
+  world.events.push({ type: 'fulltime' });
+  world.events.push({ type: 'whistle', intensity: 1 });
 }
 
 /** Advances the half clock and drives half-time / full-time transitions. */
@@ -379,40 +424,113 @@ export function advanceClock(world: SimWorld, dt: number): void {
   const full = halfEndsAt(world);
   if (world.clock < full) return;
   world.clock = full;
-  if (world.half === 1) {
-    world.phase = 'halftime';
-    world.phaseTimer = 6;
-    world.banner = 'Half time';
-    world.events.push({ type: 'halftime' });
-    world.events.push({ type: 'whistle', intensity: 0.8 });
-  } else {
-    world.phase = 'end';
-    world.phaseTimer = 0;
-    world.banner = 'Full time';
-    world.events.push({ type: 'fulltime' });
-    world.events.push({ type: 'whistle', intensity: 1 });
-  }
+  const knockout = world.config.mode === 'knockout';
+  const tied = world.score.home === world.score.away;
+  if (world.half === 1) breakToNextPeriod(world, 'Half time');
+  else if (world.half === 2 && knockout && tied) breakToNextPeriod(world, 'Full time — extra time');
+  else if (world.half === 3) breakToNextPeriod(world, 'Extra time: half time');
+  else if (world.half === 4 && knockout && tied) startShootout(world);
+  else fullTime(world);
 }
 
-export function startSecondHalf(world: SimWorld): void {
-  world.half = 2;
+/** Kicks off the next period: the second half, or either half of extra time. */
+export function startNextPeriod(world: SimWorld): void {
+  world.half = Math.min(4, world.half + 1) as SimWorld['half'];
   world.clock = 0;
   world.stoppage = 0;
   world.attackDir = { home: world.attackDir.away, away: world.attackDir.home };
   resetToKickoff(world, other(world.kickoffSide));
-  world.banner = 'Second half';
+  world.banner =
+    world.half === 2 ? 'Second half' : world.half === 3 ? 'Extra time' : 'Extra time: second half';
   world.events.push({ type: 'kickoff' });
 }
 
-/** Match minute shown on the HUD: each half maps onto 45 minutes. */
+/** Match minute shown on the HUD: halves map to 45 minutes, extra-time halves to 15. */
 export function matchMinute(world: SimWorld): number {
-  const progress = clamp(world.clock / world.config.halfLength, 0, 1);
-  return Math.floor((world.half - 1) * 45 + progress * 45);
+  const progress = clamp(world.clock / periodLength(world), 0, 1);
+  const base = [0, 45, 90, 105][world.half - 1];
+  return Math.floor(base + progress * (world.half >= 3 ? 15 : 45));
 }
 
 /** Minutes of added time being played, or 0 in normal time. */
 export function stoppageMinutes(world: SimWorld): number {
-  if (world.clock <= world.config.halfLength) return 0;
-  const extra = (world.clock - world.config.halfLength) / world.config.halfLength;
-  return Math.max(1, Math.ceil(extra * 45));
+  const length = periodLength(world);
+  if (world.clock <= length) return 0;
+  const extra = (world.clock - length) / length;
+  return Math.max(1, Math.ceil(extra * (world.half >= 3 ? 15 : 45)));
+}
+
+/** Sets up a penalty shootout at full time of a tied knockout match. */
+export function startShootout(world: SimWorld): void {
+  world.shootout = {
+    scores: { home: 0, away: 0 },
+    taken: { home: 0, away: 0 },
+    shooter: world.rand() < 0.5 ? 'home' : 'away',
+    kickTimer: -1,
+    winner: null,
+  };
+  world.stoppage = 0;
+  pushFeed(world, { kind: 'note', side: world.shootout.shooter, text: 'Penalty shootout' });
+  world.events.push({ type: 'whistle', intensity: 1 });
+  nextShootoutKick(world);
+}
+
+function nextShootoutKick(world: SimWorld): void {
+  const s = world.shootout;
+  if (!s) return;
+  const dir = world.attackDir[s.shooter];
+  setupRestart(world, 'penalty', s.shooter, {
+    x: goalCenter(world, s.shooter).x - dir * PENALTY_SPOT_DISTANCE,
+    z: 0,
+  });
+  s.kickTimer = -1;
+  world.banner = `Shootout: ${world.shootout ? teamOf(world, s.shooter).shortName : ''} ${s.scores.home}–${s.scores.away}`;
+}
+
+/** Books the result of the current shootout kick and either ends the tie or lines up the next. */
+export function resolveShootoutKick(world: SimWorld, scored: boolean): void {
+  const s = world.shootout;
+  if (!s || s.winner) return;
+  const shooter = s.shooter;
+  const defender = other(shooter);
+  s.taken[shooter] += 1;
+  if (scored) s.scores[shooter] += 1;
+  stopBall(world, { x: 0, z: 0 });
+  pushFeed(world, {
+    kind: 'note',
+    side: shooter,
+    text: `Penalty ${scored ? 'scored' : 'missed'}: ${s.scores.home}–${s.scores.away}`,
+  });
+  world.events.push(
+    scored ? { type: 'goal', side: shooter, intensity: 0.8 } : { type: 'save', side: defender },
+  );
+
+  const remShooter = Math.max(0, 5 - s.taken[shooter]);
+  const remDefender = Math.max(0, 5 - s.taken[defender]);
+  const settled =
+    s.scores[shooter] > s.scores[defender] + remDefender ||
+    s.scores[defender] > s.scores[shooter] + remShooter ||
+    (s.taken.home >= 5 && s.taken.home === s.taken.away && s.scores.home !== s.scores.away);
+  if (settled) {
+    s.winner = s.scores.home > s.scores.away ? 'home' : 'away';
+    world.phase = 'end';
+    world.phaseTimer = 0;
+    world.banner = `${teamOf(world, s.winner).name} win on penalties ${s.scores.home}–${s.scores.away}`;
+    pushFeed(world, { kind: 'note', side: s.winner, text: world.banner });
+    world.events.push({ type: 'fulltime' });
+    world.events.push({ type: 'whistle', intensity: 1 });
+    return;
+  }
+  s.shooter = defender;
+  nextShootoutKick(world);
+}
+
+/** Times out a shootout kick that ended saved, caught or dribbling to nothing. */
+export function tickShootout(world: SimWorld, dt: number): void {
+  const s = world.shootout;
+  if (!s || s.winner) return;
+  if (world.phase !== 'in-play') return;
+  if (s.kickTimer < 0) s.kickTimer = 0;
+  s.kickTimer += dt;
+  if (s.kickTimer > 4) resolveShootoutKick(world, false);
 }

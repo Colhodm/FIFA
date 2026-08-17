@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { defaultConfig, type GameConfig } from './config';
 import { applyConfig } from './runtime';
-import type { Difficulty, FormationId, TeamData, TeamSide } from './types';
+import type {
+  Difficulty,
+  FormationId,
+  MatchMode,
+  TeamData,
+  TeamSide,
+  TimeOfDay,
+  Weather,
+} from './types';
 import {
   emptyStats,
   type FeedEntry,
@@ -17,7 +25,7 @@ import {
   type QualityTier,
 } from './perf/quality';
 
-export type Screen = 'menu' | 'match';
+export type Screen = 'menu' | 'match' | 'records' | 'tournament';
 
 /** Side-on rigs plus the third-person chase cam, mirroring FIFA's camera presets. */
 export type CameraMode = 'broadcast' | 'tele' | 'player';
@@ -31,6 +39,9 @@ export interface MatchSetup {
   difficulty: Difficulty;
   /** Real seconds per half. */
   halfLength: number;
+  mode: MatchMode;
+  timeOfDay: TimeOfDay;
+  weather: Weather;
 }
 
 interface GameState {
@@ -58,6 +69,7 @@ interface GameState {
   setTier: (id: number) => void;
   setCamera: (mode: CameraMode) => void;
   toggleAudio: () => void;
+  setScreen: (screen: Screen) => void;
   startMatch: () => void;
   setPaused: (paused: boolean) => void;
   restartMatch: () => void;
@@ -78,6 +90,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     humanSide: 'home',
     difficulty: 'normal',
     halfLength: 180,
+    mode: 'friendly',
+    timeOfDay: 'day',
+    weather: 'clear',
   },
   quality: 'auto',
   tier: TIERS[defaultTier()],
@@ -108,6 +123,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setTier: (id) => set({ tier: TIERS[Math.max(0, Math.min(TIERS.length - 1, id))] }),
   setCamera: (mode) => set({ camera: mode }),
   toggleAudio: () => set((state) => ({ audioEnabled: !state.audioEnabled })),
+  setScreen: (screen) => set({ screen }),
   startMatch: () =>
     set((state) => ({ screen: 'match', paused: false, matchKey: state.matchKey + 1 })),
   setPaused: (paused) => set({ paused }),
@@ -120,7 +136,7 @@ export const teamById = (teams: TeamData[], id: string): TeamData | undefined =>
 
 export interface HudState {
   phase: MatchPhase;
-  half: 1 | 2;
+  half: 1 | 2 | 3 | 4;
   minute: number;
   /** Added time at the end of the half, in minutes. */
   stoppage: number;

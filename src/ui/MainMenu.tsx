@@ -2,10 +2,23 @@ import { audio } from '../game/audio/audio';
 import { FORMATIONS, FORMATION_IDS } from '../game/formations';
 import { useGameStore } from '../game/store';
 import type { CameraMode } from '../game/store';
-import type { Difficulty, FormationId, TeamData } from '../game/types';
+import type {
+  Difficulty,
+  FormationId,
+  MatchMode,
+  TeamData,
+  TimeOfDay,
+  Weather,
+} from '../game/types';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'normal', 'hard', 'legendary'];
+const MODES: { id: MatchMode; label: string }[] = [
+  { id: 'friendly', label: 'friendly' },
+  { id: 'knockout', label: 'knockout' },
+];
 const HALF_LENGTHS = [120, 180, 300, 600];
+const TIMES: TimeOfDay[] = ['day', 'evening', 'night'];
+const WEATHERS: Weather[] = ['clear', 'rain'];
 const CAMERAS: { id: CameraMode; label: string }[] = [
   { id: 'broadcast', label: 'broadcast' },
   { id: 'tele', label: 'tele' },
@@ -52,6 +65,7 @@ export function MainMenu() {
   const setCamera = useGameStore((s) => s.setCamera);
   const toggleAudio = useGameStore((s) => s.toggleAudio);
   const startMatch = useGameStore((s) => s.startMatch);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   const ready = teams.length >= 2 && setup.homeTeamId && setup.awayTeamId;
 
@@ -159,6 +173,22 @@ export function MainMenu() {
 
       <div className="options">
         <label>
+          Match type
+          <div className="pill-row">
+            {MODES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`pill${setup.mode === id ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ mode: id })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
           Difficulty
           <div className="pill-row">
             {DIFFICULTIES.map((d) => (
@@ -185,6 +215,38 @@ export function MainMenu() {
                 onClick={() => updateSetup({ halfLength: seconds })}
               >
                 {seconds / 60} min
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
+          Kick-off
+          <div className="pill-row">
+            {TIMES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`pill${setup.timeOfDay === t ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ timeOfDay: t })}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label>
+          Weather
+          <div className="pill-row">
+            {WEATHERS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                className={`pill${setup.weather === w ? ' is-active' : ''}`}
+                onClick={() => updateSetup({ weather: w })}
+              >
+                {w}
               </button>
             ))}
           </div>
@@ -242,6 +304,15 @@ export function MainMenu() {
       <button type="button" className="kickoff" disabled={!ready} onClick={kickOff}>
         Kick off
       </button>
+
+      <div className="pill-row menu-links">
+        <button type="button" onClick={() => setScreen('tournament')}>
+          Cup mode
+        </button>
+        <button type="button" onClick={() => setScreen('records')}>
+          Records
+        </button>
+      </div>
 
       <footer className="controls-help">
         <span>

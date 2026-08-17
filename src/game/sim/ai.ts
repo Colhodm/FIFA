@@ -20,6 +20,7 @@ import {
   shotQuality,
 } from './kick';
 import { strike, type ShotStyle } from './finishing';
+import { tacticWeight } from '../types';
 import { distToSegment, clamp, dist, normalize, sub, type Vec2 } from './math';
 import { slotToPitch, type DifficultyProfile, type SimPlayer, type SimWorld } from './state';
 
@@ -72,17 +73,24 @@ function interceptPoint(world: SimWorld, lead = 0.35): Vec2 {
   };
 }
 
-/** Formation shape position for a player, shifted by ball position and phase of play. */
+/** Formation shape position for a player, shifted by ball position, phase of play and tactics. */
 function shapeTarget(world: SimWorld, p: SimPlayer): Vec2 {
   const dir = world.attackDir[p.side];
   const base = slotToPitch(p.slot, dir);
   const ball = ballPos2(world);
   const attacking = world.possession === p.side;
+  const tactics = world.tactics[p.side];
+  // -0.5 (deep) .. +0.5 (high): shifts the whole shape up or down the pitch.
+  const lineShift = tacticWeight(tactics.line) - 0.5;
+  // 0.85 (narrow) .. 1.15 (stretched): scales the shape towards or away from the touchlines.
+  const widthMul = 0.85 + tacticWeight(tactics.width) * 0.3;
   const push = attacking ? 9 : -4;
   const line = p.slotRole === 'DF' ? 0.5 : p.slotRole === 'FW' ? 1.1 : 0.8;
+  // A back line playing the trap holds higher out of possession, squeezing the space in behind.
+  const trap = !attacking && tactics.offsideTrap && p.slotRole === 'DF' ? 3.5 : 0;
   return clampToPitch({
-    x: base.x + clamp(ball.x * 0.45, -20, 20) + push * dir * line,
-    z: base.z + clamp((ball.z - base.z) * 0.35, -13, 13),
+    x: base.x + clamp(ball.x * 0.45, -20, 20) + (push + trap) * dir * line + lineShift * 7 * dir,
+    z: base.z * widthMul + clamp((ball.z - base.z * widthMul) * 0.35, -13, 13),
   });
 }
 
@@ -164,7 +172,9 @@ function markTarget(world: SimWorld, p: SimPlayer, profile: DifficultyProfile): 
     0,
     1,
   );
-  const slack = (1 - profile.marking) * 2.6 * (1 - danger * 0.6);
+  // Heavy pressing shortens the leash; a passive block stands off and holds its shape.
+  const pressMul = 1.4 - tacticWeight(world.tactics[p.side].pressing) * 0.8;
+  const slack = (1 - profile.marking) * 2.6 * (1 - danger * 0.6) * pressMul;
   const gap = clamp(1.0 + slack - breaking * 0.5, 0.7, 4);
   return clampToPitch({ x: spot.x + goalSide.x * gap, z: spot.z + goalSide.z * gap });
 }
@@ -197,6 +207,18 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
       }
     }
     decideKeeper(world, p, profile);
+    return;
+  }
+
+  // Shootout: only the taker and the keepers take part. Everyone else waits around the centre
+  // circle, out of the way of the kick and any rebound.
+  if (world.shootout) {
+    if (world.restart?.takerId !== p.id) {
+      const teammates = world.players.filter((q) => q.side === p.side && q.role !== 'GK');
+      const slot = teammates.findIndex((q) => q.id === p.id);
+      const dir = world.attackDir[p.side];
+      setIntent(p, clampToPitch({ x: -dir * 3, z: -18 + Math.max(0, slot) * 3.6 }), false);
+    }
     return;
   }
 
@@ -264,7 +286,8 @@ export function decideOffBall(world: SimWorld, p: SimPlayer, profile: Difficulty
       // Episodic, not permanent: a striker who is *always* breaking is unmarkable and the game
       // becomes a shooting gallery — measured at 7 goals and up to 63 shots a match. Roughly one
       // decision in three commits to the run; the rest of the time he pins the line.
-      if (carrierSet && inRange && upfield && p.stamina > 0.2 && world.rand() < 0.32) {
+      const breakOdds = world.tactics[p.side].counter ? 0.48 : 0.32;
+      if (carrierSet && inRange && upfield && p.stamina > 0.2 && world.rand() < breakOdds) {
         // Break: flat-out beyond the line, bending to stay a stride onside until it is played.
         const holdX = (line - 0.8) * attack;
         setIntent(p, clampToPitch({ x: holdX + attack * 6, z: clamp(p.pos.z, -18, 18) }), true);
@@ -560,6 +583,29 @@ function decideKeeper(world: SimWorld, p: SimPlayer, profile: DifficultyProfile)
     }
   }
   /*
+   * Sweeper-keeper. A through ball rolling into the space behind the back line is his, not the
+   * striker's — provided he genuinely gets there first. He races the nearest opponent to the
+   * intercept point and only commits when he wins that race with a stride to spare; a keeper
+   * who loses it has left an empty net.
+   */
+  if (world.controllerId === null && world.ball.pos.y < 1.2) {
+    const target = interceptPoint(world, 0.5);
+    const range = dist(target, own);
+    if (range < 24 && (target.x - own.x) * world.attackDir[p.side] > 0) {
+      const mine = dist(p.pos, target);
+      const opp = nearestOf(world, target, p.side === 'home' ? 'away' : 'home');
+      const mate = nearestOf(world, target, p.side);
+      const oppD = opp ? dist(opp.pos, target) : Infinity;
+      const mateD = mate ? dist(mate.pos, target) : Infinity;
+      // Sharper difficulties read the race earlier and gamble on tighter margins.
+      const margin = 3.2 - profile.marking * 1.6;
+      if (mine + margin < oppD && mine < mateD && oppD < 18) {
+        setIntent(p, clampToPitch(target), true);
+        return;
+      }
+    }
+  }
+  /*
    * Balls rolling *across* the goalmouth. The dive logic keys on velocity towards the goal, so a
    * square ball or cutback — vel.x near zero — was literally invisible to him and rolled through
    * the six-yard box untouched; a third of all goals had become passes into an empty corner.
@@ -617,10 +663,29 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   const pressure = nearestOpponentDistance(world, p);
 
   if (p.role === 'GK') {
+    /*
+     * Distribution is a decision, not a clearance. A short option under no pressure gets the
+     * ball rolled to his feet; a man further out gets it clipped to him; and only when nothing
+     * is on does the keeper put his laces through it. He never rolls it to a marked defender —
+     * that is how keepers concede to the press.
+     */
     const pass = bestPass(world, p, sub(goal, p.pos));
     const upfield = normalize(sub(goal, p.pos));
     if (pass && pass.score > 0.7) {
-      kickPass(world, p, pass.spot, profile, 1, { receiverId: pass.target.id });
+      const d = dist(p.pos, pass.spot);
+      const targetPressure = nearestOpponentDistance(world, pass.target);
+      if (d < 18 && targetPressure > 6) {
+        // Rolled out along the ground, weighted to be taken in stride.
+        kickPass(world, p, pass.spot, profile, 0.8, { receiverId: pass.target.id, lift: 0 });
+      } else if (targetPressure > 3.5) {
+        kickPass(world, p, pass.spot, profile, 1, {
+          receiverId: pass.target.id,
+          lift: d > 26 ? 3.5 : 0,
+        });
+      } else {
+        applyKick(world, p, upfield, 24, 5.5);
+        world.events.push({ type: 'kick', side: p.side, intensity: 0.9 });
+      }
     } else {
       applyKick(world, p, upfield, 22, 5);
       world.events.push({ type: 'kick', side: p.side, intensity: 0.9 });
@@ -648,8 +713,10 @@ export function decideOnBall(world: SimWorld, p: SimPlayer, profile: DifficultyP
   }
 
   // Look for the pass that breaks the line first, then the safe one.
+  // A counter-attacking side plays the riskier ball forward earlier.
+  const throughBar = world.tactics[p.side].counter ? 1.6 : 1.9;
   const through = bestThroughBall(world, p);
-  if (through && through.score > 1.9 && p.passing > 62) {
+  if (through && through.score > throughBar && p.passing > 62) {
     kickPass(world, p, through.spot, profile, 0.95, { receiverId: through.target.id });
     return true;
   }
