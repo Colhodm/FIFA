@@ -61,7 +61,7 @@ export const BASE_SPEED = 6.2;
  * long as the stamina bar allowed. 1.32 puts the elite around 9.6 and the ordinary near 8.9.
  */
 export const SPRINT_MULTIPLIER = 1.32;
-export const ACCELERATION = 22;
+export const ACCELERATION = 18;
 export const TURN_RATE = 7.5;
 
 export const STAMINA_DRAIN_SPRINT = 0.085;

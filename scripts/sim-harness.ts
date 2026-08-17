@@ -1813,6 +1813,106 @@ function checkCurl(): void {
   console.log('ball curl check passed');
 }
 
+/**
+ * The momentum model: a player is not a cursor. Starting takes real time, stopping takes real
+ * ground, a full-sprint cut carves a wider arc than a jogging one, and carrying the ball costs
+ * top speed.
+ */
+function checkMomentum(): void {
+  interface RunResult {
+    top: number;
+    to90: number;
+    overshoot: number;
+    stopDist: number;
+  }
+  const measure = (sprint: boolean, withBall: boolean): RunResult => {
+    const world = newWorld(33);
+    world.phase = 'in-play';
+    const me = world.players.find((p) => p.side === 'home' && p.role === 'MF');
+    if (!me) throw new Error('no player');
+    me.pos = { x: -20, z: 0 };
+    me.vel = { x: 0, z: 0 };
+    me.stamina = 1;
+    const mgr = manager();
+    const actions = idleActions();
+    actions.sprint = { ...actions.sprint, down: sprint };
+    const tilt = sprint ? 1 : 0.45;
+    const step = (move: { x: number; z: number }) => {
+      // Pin control, and keep the scenario clean: the runner is either measured with the ball
+      // glued to his feet or with it parked in the far corner, never contested.
+      world.activeId = me.id;
+      world.switching.sinceManual = 0;
+      if (withBall) {
+        world.controllerId = me.id;
+        world.possession = 'home';
+        world.ball.pos = { x: me.pos.x + 0.4, y: BALL_RADIUS, z: me.pos.z };
+        world.ball.vel = { x: 0, y: 0, z: 0 };
+      } else {
+        world.ball.pos = { x: 48, y: BALL_RADIUS, z: 30 };
+        world.ball.vel = { x: 0, y: 0, z: 0 };
+        world.controllerId = null;
+      }
+      const before = { ...world.ball.vel };
+      tick(world, { move, flick: { x: 0, z: 0 }, actions }, 0, TICK_DT, mgr);
+      stepBall(world, TICK_DT, before);
+      world.events.length = 0;
+    };
+
+    // Standing start: run flat out and time the climb to 90% of the pace he settles at.
+    const speeds: number[] = [];
+    for (let i = 0; i < 60 * 2.5; i++) {
+      step({ x: tilt, z: 0 });
+      speeds.push(Math.hypot(me.vel.x, me.vel.z));
+    }
+    const top = Math.max(...speeds);
+    const to90 = (speeds.findIndex((s) => s >= top * 0.9) + 1) * TICK_DT;
+
+    // Hard 90-degree cut at full pace: how far does the old momentum carry him?
+    const dir = { x: me.vel.x / top, z: me.vel.z / top };
+    const at = { x: me.pos.x, z: me.pos.z };
+    let overshoot = 0;
+    for (let i = 0; i < 60; i++) {
+      step({ x: 0, z: tilt });
+      overshoot = Math.max(overshoot, (me.pos.x - at.x) * dir.x + (me.pos.z - at.z) * dir.z);
+    }
+
+    // Dead stick: he should take strides to pull up, not stop on a coin.
+    const stopAt = { x: me.pos.x, z: me.pos.z };
+    for (let i = 0; i < 60; i++) step({ x: 0, z: 0 });
+    const stopDist = Math.hypot(me.pos.x - stopAt.x, me.pos.z - stopAt.z);
+
+    return { top, to90, overshoot, stopDist };
+  };
+
+  const sprintFree = measure(true, false);
+  const jogFree = measure(false, false);
+  const sprintBall = measure(true, true);
+  console.log(
+    `momentum: sprint top ${sprintFree.top.toFixed(2)} m/s in ${sprintFree.to90.toFixed(2)}s, ` +
+      `overshoot sprint ${sprintFree.overshoot.toFixed(2)}m vs jog ${jogFree.overshoot.toFixed(2)}m, ` +
+      `stop ${sprintFree.stopDist.toFixed(2)}m, with ball ${sprintBall.top.toFixed(2)} m/s`,
+  );
+  if (sprintFree.to90 < 0.35) {
+    throw new Error(`reached sprint pace in ${sprintFree.to90.toFixed(2)}s — cursor acceleration`);
+  }
+  if (sprintFree.to90 > 2) {
+    throw new Error(`took ${sprintFree.to90.toFixed(2)}s to reach pace — treacle acceleration`);
+  }
+  if (sprintFree.overshoot <= jogFree.overshoot + 0.15) {
+    throw new Error(
+      `a sprint cut carried ${sprintFree.overshoot.toFixed(2)}m vs ${jogFree.overshoot.toFixed(2)}m at a jog — momentum is not speed-coupled`,
+    );
+  }
+  if (sprintFree.stopDist < 0.5) {
+    throw new Error(`stopped from a sprint in ${sprintFree.stopDist.toFixed(2)}m`);
+  }
+  if (sprintBall.top > sprintFree.top * 0.97) {
+    throw new Error(
+      `carrying the ball is free: ${sprintBall.top.toFixed(2)} vs ${sprintFree.top.toFixed(2)} m/s`,
+    );
+  }
+}
+
 const matches = Number(process.argv[2] ?? 3);
 checkKickAndReset();
 console.log('kick + reset checks passed');
@@ -1828,6 +1928,7 @@ checkTenYards();
 checkShotContexts();
 checkShotStyles();
 checkStaminaRecovery();
+checkMomentum();
 checkBodyFeints();
 checkCrossing();
 checkKickoffProtection();
